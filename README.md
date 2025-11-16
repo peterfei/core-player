@@ -1,16 +1,183 @@
-# vidhub
+# 影核播放器 (CorePlayer)
 
-A new Flutter project.
+<div align="center">
 
-## Getting Started
+[![Flutter](https://img.shields.io/badge/Flutter-3.38.1-blue.svg)](https://flutter.dev)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-iOS%7CAndroid%7CWeb%7CWindows%7CmacOS%7CLinux-orange.svg)](#特性)
 
-This project is a starting point for a Flutter application.
+**影核播放器** - 影像播放新核心
 
-A few resources to get you started if this is your first Flutter project:
+*影核驱动，视界无界*
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+[English](./README_EN.md) | 中文
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+</div>
+
+## 🎯 品牌理念
+
+**影核**——影像播放的"核心引擎"，正如电脑的核心处理器，为每一次播放提供强劲动力。
+
+- **影**：影像、视频，我们的播放对象
+- **核**：核心、引擎，我们的技术实力
+
+我们致力于打造最核心、最强劲、最流畅的视频播放体验，让每一帧画面都完美呈现。
+
+## ✨ 核心优势
+
+### 🚀 MVP核心功能（已实现）
+- ✅ **跨平台支持** - 支持iOS、Android、Web、Windows、macOS、Linux
+- ✅ **智能文件选择** - 自动适配Web和桌面平台
+- ✅ **完整播放控制** - 播放/暂停、进度调节、音量控制
+- ✅ **全屏播放模式** - 沉浸式观影体验
+- ✅ **响应式UI** - 现代化Material Design界面
+- ✅ **自动隐藏控制栏** - 3秒后自动隐藏，专注观影
+
+### ⚡ 技术特色
+- 🔄 **无缝播放** - 支持多种视频格式
+- ⏯️ **播放控制** - 播放/暂停、快进/快退
+- 📊 **进度显示** - 实时显示播放进度和剩余时间
+- 🔊 **音量调节** - 一键静音/恢复音量
+- 📱 **全屏切换** - 支持横竖屏切换
+
+## 🚀 快速开始
+
+### 环境要求
+```
+Flutter 3.38.1 或更高版本
+Dart 3.10.0 或更高版本
+```
+
+### 安装依赖
+```bash
+flutter pub get
+```
+
+### 运行应用
+```bash
+# 运行到Chrome浏览器
+flutter run -d chrome
+
+# 运行到指定平台
+flutter run -d android    # Android设备
+flutter run -d ios       # iOS设备
+flutter run -d macos     # macOS桌面
+flutter run -d windows   # Windows桌面
+flutter run -d linux     # Linux桌面
+```
+
+### 构建发布版本
+```bash
+# Web版本
+flutter build web
+
+# 桌面版本
+flutter build windows
+flutter build macos
+flutter build linux
+
+# 移动版本
+flutter build apk
+flutter build ios
+```
+
+## 🏗️ 项目架构
+
+```
+lib/
+├── main.dart                 # 应用入口
+└── screens/
+    ├── home_screen.dart      # 主界面
+    ├── player_screen.dart    # 播放器界面
+    └── settings_screen.dart  # 设置界面
+```
+
+### 技术栈
+- **框架**: Flutter 3.38.1
+- **视频引擎**: media_kit + media_kit_video
+- **文件选择**: file_picker
+- **状态管理**: StatefulWidget
+- **UI框架**: Material Design 3
+
+## 🎯 使用说明
+
+### 基本操作
+1. **添加视频**: 点击主界面右下角的 `+` 按钮
+2. **播放控制**: 点击播放器中央的大播放/暂停按钮
+3. **进度调节**: 拖拽底部的进度条
+4. **音量控制**: 点击右上角的音量图标
+5. **全屏播放**: 点击右上角的全屏图标
+6. **显示控制**: 点击屏幕任意位置显示/隐藏控制界面
+
+### 高级功能
+- **自动隐藏**: 控制界面会在3秒后自动隐藏
+- **手势操作**: 支持点击切换控制界面显示状态
+- **跨平台**: 自动适配不同平台的文件选择方式
+
+## 🛣️ 产品路线
+
+### 近期目标 (V1.1) - 核心优化
+- [ ] 播放历史记录
+- [ ] 视频缩略图显示
+- [ ] 播放列表管理
+- [ ] 深色/浅色主题切换
+
+### 中期目标 (V1.2) - 功能增强
+- [ ] 字幕支持（SRT、ASS等格式）
+- [ ] 播放速度调节（0.5x - 2.0x）
+- [ ] 画面比例调节（16:9、4:3、自适应）
+- [ ] 截图功能
+
+### 长期愿景 (V2.0) - 生态建设
+- [ ] 在线流媒体播放
+- [ ] 网络视频下载
+- [ ] AI智能推荐
+- [ ] 视频转码功能
+- [ ] 云端同步
+
+## 🤝 贡献指南
+
+我们欢迎所有开发者参与贡献！无论是bug修复、功能建议还是代码优化，我们都非常感激。
+
+### 如何贡献
+1. Fork 本仓库
+2. 创建您的功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开一个 Pull Request
+
+### 代码规范
+- 遵循 Flutter 官方代码规范
+- 保持代码简洁、可读性强
+- 添加必要的注释说明
+- 确保跨平台兼容性
+
+## 📝 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+## 🙏 致谢
+
+- [Flutter](https://flutter.dev/) - 优秀的跨平台开发框架
+- [media_kit](https://github.com/media-kit/media-kit) - 强大的视频播放引擎
+- [file_picker](https://github.com/miguelpruivo/flutter_file_picker) - 便捷的文件选择插件
+
+## 📞 联系我们
+
+**作者**: peterfei
+
+如果您有任何问题、建议或合作意向，欢迎通过以下方式联系我们：
+
+- 📧 邮箱: [peterfeispace@gmail.com](mailto:peterfeispace@gmail.com)
+- 🐙 GitHub: [https://github.com/peterfei/core-player](https://github.com/peterfei/core-player)
+- 🐛 Issues: [项目Issues页面](https://github.com/peterfei/core-player/issues)
+
+---
+
+<div align="center">
+
+**影核播放器** - 影像播放新核心
+
+*让每一次播放都成为核心体验*
+
+</div>

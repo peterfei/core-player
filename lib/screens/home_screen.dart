@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:vidhub/screens/player_screen.dart';
-import 'package:vidhub/screens/settings_screen.dart';
+import 'package:yinghe_player/screens/player_screen.dart';
+import 'package:yinghe_player/screens/settings_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class HomeScreen extends StatefulWidget {
@@ -72,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('VidHub'),
+        title: const Text('影核播放器'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
