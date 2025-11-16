@@ -5,7 +5,14 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File videoFile;
-  const PlayerScreen({super.key, required this.videoFile});
+  final String? webVideoUrl;
+  final String? webVideoName;
+  const PlayerScreen({
+    super.key,
+    required this.videoFile,
+    this.webVideoUrl,
+    this.webVideoName,
+  });
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -21,7 +28,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void initState() {
     super.initState();
     // Open the video file and start playing.
-    player.open(Media(widget.videoFile.path), play: true);
+    if (widget.webVideoUrl != null) {
+      // Web 平台：使用 URL
+      player.open(Media(widget.webVideoUrl!), play: true);
+    } else {
+      // 非 Web 平台：使用文件路径
+      player.open(Media(widget.videoFile.path), play: true);
+    }
   }
 
   @override
@@ -36,7 +49,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(widget.videoFile.path.split('/').last),
+        title: Text(widget.webVideoName ?? widget.videoFile.path.split('/').last),
       ),
       body: Center(
         child: Video(

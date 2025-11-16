@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:vidhub/screens/player_screen.dart';
 import 'package:vidhub/screens/settings_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,19 +17,44 @@ class _HomeScreenState extends State<HomeScreen> {
     // Pick a file
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.video,
+      withData: true, // 重要：确保获取文件数据
     );
 
-    if (result != null && result.files.single.path != null) {
-      // We have a file path, navigate to the player screen
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PlayerScreen(
-              videoFile: File(result.files.single.path!),
+    if (result != null) {
+      if (!kIsWeb && result.files.single.path != null) {
+        // 非 Web 平台：使用文件路径
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PlayerScreen(
+                videoFile: File(result.files.single.path!),
+              ),
             ),
-          ),
-        );
+          );
+        }
+      } else if (kIsWeb && result.files.single.bytes != null) {
+        // Web 平台：使用文件字节数据
+        if (mounted) {
+          // 对于 Web 平台，我们需要创建一个临时 URL
+          final blob = Uri.dataFromBytes(
+            result.files.single.bytes!,
+            mimeType: result.files.single.extension != null
+                ? 'video/${result.files.single.extension}'
+                : 'video/mp4',
+          );
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PlayerScreen(
+                videoFile: File(''), // 传入空文件，我们将在播放器中处理 Web 情况
+                webVideoUrl: blob.toString(),
+                webVideoName: result.files.single.name,
+              ),
+            ),
+          );
+        }
       }
     }
   }
