@@ -13,6 +13,12 @@ class PlaybackHistory {
   final DateTime createdAt;   // 创建时间
   final int? fileSize;        // 文件大小（字节）
 
+  // 网络视频相关字段
+  final String sourceType;    // "local" | "network"
+  final String? streamUrl;    // 网络视频URL
+  final String? streamProtocol; // 流协议类型 (http/hls/dash)
+  final bool isLiveStream;    // 是否直播流
+
   const PlaybackHistory({
     required this.id,
     required this.videoPath,
@@ -24,6 +30,10 @@ class PlaybackHistory {
     this.watchCount = 1,
     required this.createdAt,
     this.fileSize,
+    this.sourceType = 'local',
+    this.streamUrl,
+    this.streamProtocol,
+    this.isLiveStream = false,
   });
 
   /// 从JSON创建对象
@@ -41,6 +51,10 @@ class PlaybackHistory {
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.parse(json['lastPlayedAt'] as String), // 向后兼容
       fileSize: json['fileSize'] as int?,
+      sourceType: json['sourceType'] as String? ?? 'local',
+      streamUrl: json['streamUrl'] as String?,
+      streamProtocol: json['streamProtocol'] as String?,
+      isLiveStream: json['isLiveStream'] as bool? ?? false,
     );
   }
 
@@ -57,6 +71,10 @@ class PlaybackHistory {
       'watchCount': watchCount,
       'createdAt': createdAt.toIso8601String(),
       'fileSize': fileSize,
+      'sourceType': sourceType,
+      'streamUrl': streamUrl,
+      'streamProtocol': streamProtocol,
+      'isLiveStream': isLiveStream,
     };
   }
 
@@ -83,6 +101,10 @@ class PlaybackHistory {
     int? watchCount,
     DateTime? createdAt,
     int? fileSize,
+    String? sourceType,
+    String? streamUrl,
+    String? streamProtocol,
+    bool? isLiveStream,
   }) {
     return PlaybackHistory(
       id: id ?? this.id,
@@ -95,6 +117,10 @@ class PlaybackHistory {
       watchCount: watchCount ?? this.watchCount,
       createdAt: createdAt ?? this.createdAt,
       fileSize: fileSize ?? this.fileSize,
+      sourceType: sourceType ?? this.sourceType,
+      streamUrl: streamUrl ?? this.streamUrl,
+      streamProtocol: streamProtocol ?? this.streamProtocol,
+      isLiveStream: isLiveStream ?? this.isLiveStream,
     );
   }
 
@@ -189,6 +215,37 @@ class PlaybackHistory {
   bool get isCommonVideoFormat {
     final commonFormats = ['mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm', 'm4v'];
     return commonFormats.contains(fileExtension);
+  }
+
+  /// 判断是否为网络视频
+  bool get isNetworkVideo => sourceType == 'network';
+
+  /// 判断是否为本地视频
+  bool get isLocalVideo => sourceType == 'local';
+
+  /// 获取媒体源类型显示文本
+  String get sourceTypeDisplay {
+    switch (sourceType) {
+      case 'network':
+        return isLiveStream ? '直播' : '网络';
+      case 'local':
+      default:
+        return '本地';
+    }
+  }
+
+  /// 获取协议类型显示文本
+  String get protocolTypeDisplay {
+    switch (streamProtocol) {
+      case 'hls':
+        return 'HLS';
+      case 'dash':
+        return 'DASH';
+      case 'http':
+        return 'HTTP';
+      default:
+        return isNetworkVideo ? '网络' : '本地';
+    }
   }
 
   /// 格式化时长（秒 -> HH:mm:ss）

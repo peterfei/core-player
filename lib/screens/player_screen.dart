@@ -4,12 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/playback_history.dart';
+import '../models/stream_info.dart';
 import '../services/history_service.dart';
 import '../services/simple_thumbnail_service.dart';
+import '../services/network_stream_service.dart';
+import '../widgets/buffering_indicator.dart';
 
 class PlayerScreen extends StatefulWidget {
-  final File videoFile;
+  final File? videoFile;
   final String? webVideoUrl;
   final String? webVideoName;
   final int? seekTo;
@@ -17,12 +21,32 @@ class PlayerScreen extends StatefulWidget {
 
   const PlayerScreen({
     super.key,
-    required this.videoFile,
+    this.videoFile,
     this.webVideoUrl,
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
   });
+
+  // 用于网络视频的便捷构造函数
+  PlayerScreen.network({
+    super.key,
+    required String videoPath,
+    this.webVideoName,
+    this.seekTo,
+    this.fromHistory = false,
+  }) : videoFile = null,
+       webVideoUrl = videoPath;
+
+  // 用于本地视频的便捷构造函数
+  PlayerScreen.local({
+    super.key,
+    required File videoFile,
+    this.webVideoName,
+    this.seekTo,
+    this.fromHistory = false,
+  }) : videoFile = videoFile,
+       webVideoUrl = null;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -47,8 +71,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 播放历史记录相关
   Timer? _historyTimer;
-  String? _videoPath;
+  late String _videoPath;
   String? _videoName;
+
+  // 网络流媒体相关
+  final NetworkStreamService _networkService = NetworkStreamService();
+  bool _isNetworkVideo = false;
+  bool _isBuffering = false;
+  String _networkStatus = '正在连接...';
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   @override
   void initState() {
@@ -58,6 +89,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (mounted) {
         setState(() {
           _isPlaying = playing;
+          if (_isNetworkVideo) {
+            _isBuffering = !playing;
+            _networkStatus = playing ? '播放中' : '暂停中';
+          }
         });
       }
     });
@@ -101,18 +136,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     });
 
-    // 设置视频路径和名称
-    _videoPath = widget.webVideoUrl ?? widget.videoFile.path;
-    _videoName = widget.webVideoName ?? HistoryService.extractVideoName(_videoPath!);
+    // 检查是否为网络视频
+    _isNetworkVideo = widget.webVideoUrl != null && widget.videoFile == null;
 
-    // Open the video file and start playing.
-    if (widget.webVideoUrl != null) {
-      // Web 平台：使用 URL
-      player.open(Media(widget.webVideoUrl!), play: true);
-    } else {
-      // 非 Web 平台：使用文件路径
-      player.open(Media(widget.videoFile.path), play: true);
+    // 设置视频路径和名称
+    _videoPath = widget.webVideoUrl ?? widget.videoFile?.path ?? '';
+    _videoName = widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
+
+    // 如果是网络视频，监听网络状态
+    if (_isNetworkVideo) {
+      _setupNetworkMonitoring();
     }
+
+    // 打开视频并开始播放
+    _loadVideo();
 
     // 3秒后自动隐藏控制界面
     _startControlsTimer();
@@ -193,12 +230,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
         await HistoryService.saveHistory(resetHistory);
       }
     } else {
-      // 创建新的历史记录（异步版本以支持缩略图生成）
-      final newHistory = await HistoryService.createHistoryAsync(
+      // 创建新的历史记录
+      final newHistory = await HistoryService.createHistory(
         videoPath: _videoPath!,
         videoName: _videoName!,
         currentPosition: widget.seekTo ?? 0,
         totalDuration: _totalDuration.inSeconds,
+        sourceType: _isNetworkVideo ? 'network' : 'local',
+        streamUrl: _isNetworkVideo ? _videoPath : null,
+        streamProtocol: _isNetworkVideo ? _getStreamProtocol(_videoPath!) : null,
       );
       await HistoryService.saveHistory(newHistory);
     }
@@ -207,8 +247,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 开始定期保存播放进度
     _startHistoryTimer();
 
-    // 后台生成简单缩略图
-    if (_videoPath != null) {
+    // 后台生成简单缩略图（仅本地视频）
+    if (_videoPath != null && !_isNetworkVideo) {
       Future.delayed(const Duration(seconds: 3), () async {
         await SimpleThumbnailService.generateThumbnail(
           videoPath: _videoPath!,
@@ -304,27 +344,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return duration.inHours > 0 ? "$hours:$minutes:$seconds" : "$minutes:$seconds";
   }
 
-  @override
-  void dispose() {
-    _controlsTimer?.cancel();
-    _historyTimer?.cancel();
 
-    // 保存最终播放进度
-    _saveProgress();
-
-    // 恢复正常的系统UI模式
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-
-    // Make sure to dispose the player and controller.
-    player.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -337,8 +357,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
           children: [
             // 视频播放区域
             Center(
-              child: Video(
-                controller: controller,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Video(
+                    controller: controller,
+                  ),
+                  // 网络视频缓冲指示器
+                  if (_isNetworkVideo)
+                    BufferingIndicator(
+                      isBuffering: _isBuffering,
+                      message: _networkStatus == '正在连接...' ? '正在连接...' : null,
+                    ),
+                ],
               ),
             ),
             // 播放控制界面
@@ -364,7 +395,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // 标题
                           Expanded(
                             child: Text(
-                              widget.webVideoName ?? widget.videoFile.path.split('/').last,
+                              widget.webVideoName ?? widget.videoFile?.path.split('/').last ?? 'Unknown',
                               style: const TextStyle(color: Colors.white, fontSize: 16),
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
@@ -450,5 +481,83 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
       ),
     );
+  }
+
+  // 网络视频相关方法
+
+  /// 加载视频
+  Future<void> _loadVideo() async {
+    if (_isNetworkVideo) {
+      setState(() {
+        _isBuffering = true;
+        _networkStatus = '正在连接...';
+      });
+
+      // 添加到URL历史记录
+      await _networkService.addUrlToHistory(_videoPath!);
+    }
+
+    // 打开视频并开始播放
+    if (widget.webVideoUrl != null) {
+      // 网络视频：使用 URL
+      player.open(Media(widget.webVideoUrl!), play: true);
+    } else {
+      // 本地视频：使用文件路径
+      player.open(Media(widget.videoFile!.path), play: true);
+    }
+  }
+
+  /// 设置网络监控
+  void _setupNetworkMonitoring() {
+    _connectivitySubscription = _networkService.connectivityStream.listen((result) {
+      if (mounted) {
+        setState(() {
+          _networkStatus = _networkService.getConnectivityDescription(result);
+
+          if (result == ConnectivityResult.none) {
+            // 网络断开，暂停播放
+            player.pause();
+            _isBuffering = true;
+          }
+        });
+      }
+    });
+  }
+
+  /// 获取流协议类型
+  String _getStreamProtocol(String url) {
+    if (url.toLowerCase().contains('.m3u8')) {
+      return 'hls';
+    } else if (url.toLowerCase().contains('.mpd')) {
+      return 'dash';
+    } else if (url.toLowerCase().startsWith('http://') ||
+               url.toLowerCase().startsWith('https://')) {
+      return 'http';
+    } else {
+      return 'unknown';
+    }
+  }
+
+  @override
+  void dispose() {
+    _controlsTimer?.cancel();
+    _historyTimer?.cancel();
+    _connectivitySubscription?.cancel();
+
+    // 保存最终播放进度
+    _saveProgress();
+
+    // 恢复正常的系统UI模式
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
+    // Make sure to dispose the player and controller.
+    player.dispose();
+    super.dispose();
   }
 }

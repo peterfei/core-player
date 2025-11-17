@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:yinghe_player/screens/player_screen.dart';
 import 'package:yinghe_player/screens/settings_screen.dart';
 import 'package:yinghe_player/widgets/history_list.dart';
+import 'package:yinghe_player/widgets/url_input_dialog.dart';
 import 'package:yinghe_player/services/history_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -37,6 +38,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       setState(() {
         _historyCount = histories.length;
       });
+    }
+  }
+
+  Future<void> _playNetworkVideo() async {
+    final url = await showUrlInputDialog(context);
+    if (url != null) {
+      // 导航到播放器播放网络视频
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PlayerScreen.network(videoPath: url),
+        ),
+      );
     }
   }
   Future<void> _pickAndPlayVideo() async {
@@ -131,10 +144,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           const HistoryListWidget(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _pickAndPlayVideo,
-        tooltip: '选择视频',
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 网络视频按钮
+          FloatingActionButton(
+            heroTag: 'network',
+            onPressed: _playNetworkVideo,
+            tooltip: '播放网络视频',
+            backgroundColor: Colors.orange,
+            child: const Icon(Icons.link),
+          ),
+          const SizedBox(height: 16),
+          // 本地视频按钮
+          FloatingActionButton(
+            heroTag: 'local',
+            onPressed: _pickAndPlayVideo,
+            tooltip: '选择本地视频',
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
     );
   }
@@ -165,15 +194,28 @@ class MediaLibraryTab extends StatelessWidget {
           ),
           SizedBox(height: 8),
           Text(
-            '点击右下角的 + 按钮添加视频',
+            '点击右下角的按钮添加视频',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey,
             ),
           ),
+          SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add, color: Colors.blue, size: 16),
+              SizedBox(width: 4),
+              Text('本地视频', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              SizedBox(width: 16),
+              Icon(Icons.link, color: Colors.orange, size: 16),
+              SizedBox(width: 4),
+              Text('网络视频', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
           SizedBox(height: 24),
           Text(
-            '提示：添加的视频会自动记录到"播放历史"中',
+            '提示：播放的视频会自动记录到"播放历史"中',
             style: TextStyle(
               fontSize: 12,
               color: Colors.blue,
