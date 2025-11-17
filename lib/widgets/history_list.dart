@@ -203,14 +203,13 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
     final isWebVideo = history.videoPath.startsWith('blob:') ||
                        history.videoPath.startsWith('data:');
 
-    if (isWebVideo) {
-      // Web 平台：使用 URL 方式播放
+    if (history.isNetworkVideo || isWebVideo) {
+      // 网络视频/Web 平台：使用 URL 方式播放
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => PlayerScreen(
-            videoFile: File(''), // 传入空文件
-            webVideoUrl: history.videoPath,
+          builder: (context) => PlayerScreen.network(
+            videoPath: history.streamUrl ?? history.videoPath,
             webVideoName: history.videoName,
             seekTo: seekTo,
             fromHistory: true,
@@ -220,13 +219,13 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
         _loadHistories();
       });
     } else {
-      // 桌面/移动平台：使用文件路径播放
+      // 本地视频：使用文件路径播放
       final videoFile = File(history.videoPath);
       if (await videoFile.exists()) {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PlayerScreen(
+            builder: (context) => PlayerScreen.local(
               videoFile: videoFile,
               seekTo: seekTo,
               fromHistory: true,
@@ -469,18 +468,41 @@ class HistoryItemWidget extends StatelessWidget {
           child: Row(
             children: [
               // 视频缩略图占位符
-              Container(
-                width: 80,
-                height: 45,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.play_circle_outline,
-                  size: 32,
-                  color: Colors.grey[600],
-                ),
+              Stack(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 45,
+                    decoration: BoxDecoration(
+                      color: history.isNetworkVideo ? Colors.orange[300] : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      history.isNetworkVideo ? Icons.link : Icons.play_circle_outline,
+                      size: 32,
+                      color: history.isNetworkVideo ? Colors.white : Colors.grey[600],
+                    ),
+                  ),
+                  // 网络视频标识
+                  if (history.isNetworkVideo)
+                    Positioned(
+                      top: 2,
+                      left: 2,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                          color: Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.wifi,
+                          size: 10,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 12),
 
@@ -514,6 +536,27 @@ class HistoryItemWidget extends StatelessWidget {
                             color: Colors.grey[600],
                           ),
                         ),
+                        if (history.isNetworkVideo) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[100],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              history.protocolTypeDisplay,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.orange[800],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                         if (history.isCompleted) ...[
                           const SizedBox(width: 8),
                           Container(

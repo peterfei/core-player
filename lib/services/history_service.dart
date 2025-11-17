@@ -172,19 +172,29 @@ class HistoryService {
     int watchCount = 1,
     DateTime? createdAt,
     int? fileSize,
+    String sourceType = 'local',
+    String? streamUrl,
+    String? streamProtocol,
+    bool isLiveStream = false,
   }) async {
     final now = DateTime.now();
 
-    // 如果没有提供缩略图路径，尝试生成
-    final finalThumbnailPath = thumbnailPath ?? await SimpleThumbnailService.generateThumbnail(
-      videoPath: videoPath,
-      width: 320,
-      height: 180,
-      seekSeconds: 1.0,
-    );
+    // 如果是本地视频，尝试生成缩略图和获取文件大小
+    String? finalThumbnailPath = thumbnailPath;
+    int? finalFileSize = fileSize;
 
-    // 获取文件大小
-    final finalFileSize = fileSize ?? await getFileSize(videoPath);
+    if (sourceType == 'local') {
+      finalThumbnailPath = thumbnailPath ?? await SimpleThumbnailService.generateThumbnail(
+        videoPath: videoPath,
+        width: 320,
+        height: 180,
+        seekSeconds: 1.0,
+      );
+      finalFileSize = fileSize ?? await getFileSize(videoPath);
+    } else {
+      // 网络视频不需要生成本地缩略图
+      finalThumbnailPath = null;
+    }
 
     return PlaybackHistory(
       id: _generateId(),
@@ -197,6 +207,10 @@ class HistoryService {
       watchCount: watchCount,
       createdAt: createdAt ?? now,
       fileSize: finalFileSize,
+      sourceType: sourceType,
+      streamUrl: streamUrl,
+      streamProtocol: streamProtocol,
+      isLiveStream: isLiveStream,
     );
   }
 
