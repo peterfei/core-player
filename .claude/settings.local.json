@@ -4,7 +4,10 @@
       "Bash(mkdir:*)",
       "Bash(flutter pub get:*)",
       "Bash(flutter analyze:*)",
-      "Bash(flutter build:*)"
+      "Bash(flutter build:*)",
+      "WebSearch",
+      "Bash(flutter pub search:*)",
+      "Bash(flutter run:*)"
     ],
     "deny": [],
     "ask": []

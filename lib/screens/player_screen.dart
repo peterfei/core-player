@@ -192,8 +192,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         await HistoryService.saveHistory(resetHistory);
       }
     } else {
-      // 创建新的历史记录
-      final newHistory = HistoryService.createHistory(
+      // 创建新的历史记录（异步版本以支持缩略图生成）
+      final newHistory = await HistoryService.createHistoryAsync(
         videoPath: _videoPath!,
         videoName: _videoName!,
         currentPosition: widget.seekTo ?? 0,
@@ -205,6 +205,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     
     // 开始定期保存播放进度
     _startHistoryTimer();
+
+    // 后台生成缩略图
+    if (_videoPath != null) {
+      HistoryService.generateThumbnailInBackground(_videoPath!);
+    }
   }
 
   // 显示继续播放对话框

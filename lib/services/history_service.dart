@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/playback_history.dart';
+import '../services/thumbnail_service.dart';
 
 class HistoryService {
   static const String _storageKey = 'playback_history';
@@ -143,8 +145,8 @@ class HistoryService {
   static Future<bool> _fileExists(String path) async {
     try {
       // Web 平台特殊处理
-      if (path.startsWith('blob:') || path.startsWith('data:')) {
-        return true;
+      if (kIsWeb) {
+        return path.startsWith('blob:') || path.startsWith('data:') || path.startsWith('http');
       }
 
       final file = File(path);
@@ -160,19 +162,68 @@ class HistoryService {
   }
 
   /// 创建新的历史记录
-  static PlaybackHistory createHistory({
+  static Future<PlaybackHistory> createHistory({
     required String videoPath,
     required String videoName,
     required int currentPosition,
     required int totalDuration,
-  }) {
+    String? thumbnailPath,
+    int watchCount = 1,
+    DateTime? createdAt,
+    int? fileSize,
+  }) async {
+    final now = DateTime.now();
+
+    // 如果没有提供缩略图路径，尝试生成
+    final finalThumbnailPath = thumbnailPath ?? await ThumbnailService.getThumbnail(videoPath);
+
+    // 获取文件大小
+    final finalFileSize = fileSize ?? await getFileSize(videoPath);
+
     return PlaybackHistory(
       id: _generateId(),
       videoPath: videoPath,
       videoName: videoName,
-      lastPlayedAt: DateTime.now(),
+      lastPlayedAt: now,
       currentPosition: currentPosition,
       totalDuration: totalDuration,
+      thumbnailPath: finalThumbnailPath,
+      watchCount: watchCount,
+      createdAt: createdAt ?? now,
+      fileSize: finalFileSize,
+    );
+  }
+
+  /// 创建新的历史记录（异步版本）
+  static Future<PlaybackHistory> createHistoryAsync({
+    required String videoPath,
+    required String videoName,
+    required int currentPosition,
+    required int totalDuration,
+    String? thumbnailPath,
+    int watchCount = 1,
+    DateTime? createdAt,
+    int? fileSize,
+  }) async {
+    final now = DateTime.now();
+
+    // 如果没有提供缩略图路径，尝试生成
+    final finalThumbnailPath = thumbnailPath ?? await ThumbnailService.getThumbnail(videoPath);
+
+    // 获取文件大小
+    final finalFileSize = fileSize ?? await getFileSize(videoPath);
+
+    return PlaybackHistory(
+      id: _generateId(),
+      videoPath: videoPath,
+      videoName: videoName,
+      lastPlayedAt: now,
+      currentPosition: currentPosition,
+      totalDuration: totalDuration,
+      thumbnailPath: finalThumbnailPath,
+      watchCount: watchCount,
+      createdAt: createdAt ?? now,
+      fileSize: finalFileSize,
     );
   }
 
@@ -181,17 +232,59 @@ class HistoryService {
     required String videoPath,
     required int currentPosition,
     required int totalDuration,
+    String? thumbnailPath,
+    int? fileSize,
   }) async {
     final existingHistory = await getHistoryByPath(videoPath);
 
     if (existingHistory != null) {
-      // 更新现有记录
+      // 如果还没有缩略图，在后台生成
+      final finalThumbnailPath = thumbnailPath ?? existingHistory.thumbnailPath ??
+          (await ThumbnailService.getThumbnail(videoPath));
+
+      // 更新现有记录，增加观看次数
       final updatedHistory = existingHistory.copyWith(
         lastPlayedAt: DateTime.now(),
         currentPosition: currentPosition,
         totalDuration: totalDuration,
+        thumbnailPath: finalThumbnailPath,
+        watchCount: existingHistory.watchCount + 1,
+        fileSize: fileSize ?? existingHistory.fileSize,
       );
       await saveHistory(updatedHistory);
+    }
+  }
+
+  /// 后台生成缩略图（不阻塞主流程）
+  static Future<void> generateThumbnailInBackground(String videoPath) async {
+    try {
+      // Web平台跳过后台生成
+      if (kIsWeb) {
+        return;
+      }
+
+      // 延迟3秒后生成缩略图，避免影响视频启动
+      await Future.delayed(const Duration(seconds: 3));
+
+      final thumbnailPath = await ThumbnailService.getThumbnail(videoPath);
+
+      // 如果缩略图不存在或为空，尝试重新生成
+      if (thumbnailPath == null || !await File(thumbnailPath).exists()) {
+        final generatedPath = await ThumbnailService.generateThumbnail(videoPath);
+        if (generatedPath != null) {
+          // 更新历史记录中的缩略图路径
+          final existingHistory = await getHistoryByPath(videoPath);
+          if (existingHistory != null && existingHistory.thumbnailPath != generatedPath) {
+            final updatedHistory = existingHistory.copyWith(
+              thumbnailPath: generatedPath,
+              lastPlayedAt: DateTime.now(),
+            );
+            await saveHistory(updatedHistory);
+          }
+        }
+      }
+    } catch (e) {
+      print('后台生成缩略图失败: $e');
     }
   }
 
@@ -217,22 +310,140 @@ class HistoryService {
         (sum, history) => sum + history.currentPosition,
       );
 
+      final totalWatchCount = histories.fold<int>(
+        0,
+        (sum, history) => sum + history.watchCount,
+      );
+
       return {
         'totalCount': histories.length,
         'totalWatchTime': totalWatchTime,
+        'totalWatchCount': totalWatchCount,
         'completedCount': histories.where((h) => h.isCompleted).length,
         'recentCount': histories.where((h) {
           final daysDifference = DateTime.now().difference(h.lastPlayedAt).inDays;
           return daysDifference <= 7;
         }).length,
+        'todayCount': histories.where((h) => h.isWatchedToday).length,
+        'totalFileSize': histories.fold<int>(
+          0,
+          (sum, history) => sum + (history.fileSize ?? 0),
+        ),
       };
     } catch (e) {
       return {
         'totalCount': 0,
         'totalWatchTime': 0,
+        'totalWatchCount': 0,
         'completedCount': 0,
         'recentCount': 0,
+        'todayCount': 0,
+        'totalFileSize': 0,
       };
+    }
+  }
+
+  /// 搜索历史记录
+  static Future<List<PlaybackHistory>> searchHistories(String query) async {
+    try {
+      final histories = await getHistories();
+
+      if (query.isEmpty) {
+        return histories;
+      }
+
+      final lowercaseQuery = query.toLowerCase();
+      return histories.where((history) {
+        return history.videoName.toLowerCase().contains(lowercaseQuery) ||
+               history.videoPath.toLowerCase().contains(lowercaseQuery);
+      }).toList();
+    } catch (e) {
+      print('搜索历史记录失败: $e');
+      return [];
+    }
+  }
+
+  /// 按状态过滤历史记录
+  static Future<List<PlaybackHistory>> filterByStatus(String status) async {
+    try {
+      final histories = await getHistories();
+
+      switch (status.toLowerCase()) {
+        case 'completed':
+          return histories.where((h) => h.isCompleted).toList();
+        case 'incomplete':
+          return histories.where((h) => !h.isCompleted).toList();
+        case 'recent':
+          return histories.where((h) => h.isRecentlyWatched).toList();
+        case 'today':
+          return histories.where((h) => h.isWatchedToday).toList();
+        default:
+          return histories;
+      }
+    } catch (e) {
+      print('过滤历史记录失败: $e');
+      return [];
+    }
+  }
+
+  /// 按时间范围过滤历史记录
+  static Future<List<PlaybackHistory>> filterByDateRange(DateTime startDate, DateTime endDate) async {
+    try {
+      final histories = await getHistories();
+
+      return histories.where((history) {
+        return history.lastPlayedAt.isAfter(startDate) &&
+               history.lastPlayedAt.isBefore(endDate);
+      }).toList();
+    } catch (e) {
+      print('按日期过滤历史记录失败: $e');
+      return [];
+    }
+  }
+
+  /// 批量删除历史记录
+  static Future<void> batchDeleteHistories(List<String> historyIds) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final histories = await getHistories();
+
+      // 收集需要删除缩略图的路径
+      final videosToDeleteThumbnails = <String>[];
+      for (final history in histories) {
+        if (historyIds.contains(history.id) && history.thumbnailPath != null) {
+          videosToDeleteThumbnails.add(history.videoPath);
+        }
+      }
+
+      histories.removeWhere((history) => historyIds.contains(history.id));
+
+      final historiesJson = histories.map((h) => h.toJson()).toList();
+      await prefs.setString(_storageKey, jsonEncode(historiesJson));
+
+      // 同时删除相关的缩略图
+      for (final videoPath in videosToDeleteThumbnails) {
+        await ThumbnailService.deleteThumbnail(videoPath);
+      }
+    } catch (e) {
+      print('批量删除历史记录失败: $e');
+    }
+  }
+
+  /// 获取文件大小
+  static Future<int?> getFileSize(String filePath) async {
+    try {
+      if (kIsWeb) {
+        // Web 平台返回空
+        return null;
+      }
+
+      final file = File(filePath);
+      if (await file.exists()) {
+        return await file.length();
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 }

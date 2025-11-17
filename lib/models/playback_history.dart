@@ -8,6 +8,10 @@ class PlaybackHistory {
   final DateTime lastPlayedAt;
   final int currentPosition; // 当前播放进度，单位：秒
   final int totalDuration;   // 视频总时长，单位：秒
+  final String? thumbnailPath; // 缩略图路径
+  final int watchCount;       // 观看次数
+  final DateTime createdAt;   // 创建时间
+  final int? fileSize;        // 文件大小（字节）
 
   const PlaybackHistory({
     required this.id,
@@ -16,6 +20,10 @@ class PlaybackHistory {
     required this.lastPlayedAt,
     required this.currentPosition,
     required this.totalDuration,
+    this.thumbnailPath,
+    this.watchCount = 1,
+    required this.createdAt,
+    this.fileSize,
   });
 
   /// 从JSON创建对象
@@ -27,6 +35,12 @@ class PlaybackHistory {
       lastPlayedAt: DateTime.parse(json['lastPlayedAt'] as String),
       currentPosition: json['currentPosition'] as int,
       totalDuration: json['totalDuration'] as int,
+      thumbnailPath: json['thumbnailPath'] as String?,
+      watchCount: json['watchCount'] as int? ?? 1,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.parse(json['lastPlayedAt'] as String), // 向后兼容
+      fileSize: json['fileSize'] as int?,
     );
   }
 
@@ -39,6 +53,10 @@ class PlaybackHistory {
       'lastPlayedAt': lastPlayedAt.toIso8601String(),
       'currentPosition': currentPosition,
       'totalDuration': totalDuration,
+      'thumbnailPath': thumbnailPath,
+      'watchCount': watchCount,
+      'createdAt': createdAt.toIso8601String(),
+      'fileSize': fileSize,
     };
   }
 
@@ -61,6 +79,10 @@ class PlaybackHistory {
     DateTime? lastPlayedAt,
     int? currentPosition,
     int? totalDuration,
+    String? thumbnailPath,
+    int? watchCount,
+    DateTime? createdAt,
+    int? fileSize,
   }) {
     return PlaybackHistory(
       id: id ?? this.id,
@@ -69,6 +91,10 @@ class PlaybackHistory {
       lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
       currentPosition: currentPosition ?? this.currentPosition,
       totalDuration: totalDuration ?? this.totalDuration,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      watchCount: watchCount ?? this.watchCount,
+      createdAt: createdAt ?? this.createdAt,
+      fileSize: fileSize ?? this.fileSize,
     );
   }
 
@@ -116,6 +142,53 @@ class PlaybackHistory {
   /// 格式化时长显示
   String get formattedProgress {
     return '$formattedCurrentPosition / $formattedTotalDuration';
+  }
+
+  /// 获取文件大小格式化字符串
+  String get formattedFileSize {
+    if (fileSize == null) return '未知大小';
+    return _formatFileSize(fileSize!);
+  }
+
+  /// 格式化文件大小
+  static String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  /// 获取观看次数格式化字符串
+  String get formattedWatchCount {
+    return '观看 $watchCount 次';
+  }
+
+  /// 判断是否为最近观看（7天内）
+  bool get isRecentlyWatched {
+    final now = DateTime.now();
+    final difference = now.difference(lastPlayedAt);
+    return difference.inDays <= 7;
+  }
+
+  /// 判断是否为今天观看
+  bool get isWatchedToday {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final watchDay = DateTime(lastPlayedAt.year, lastPlayedAt.month, lastPlayedAt.day);
+    return watchDay.isAtSameMomentAs(today);
+  }
+
+  /// 获取视频文件扩展名
+  String get fileExtension {
+    final lastDotIndex = videoPath.lastIndexOf('.');
+    if (lastDotIndex == -1) return '';
+    return videoPath.substring(lastDotIndex + 1).toLowerCase();
+  }
+
+  /// 判断是否为常见视频格式
+  bool get isCommonVideoFormat {
+    final commonFormats = ['mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm', 'm4v'];
+    return commonFormats.contains(fileExtension);
   }
 
   /// 格式化时长（秒 -> HH:mm:ss）
