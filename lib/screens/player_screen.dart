@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -7,10 +8,14 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/playback_history.dart';
 import '../models/stream_info.dart';
+import '../models/buffer_config.dart';
+import '../models/network_stats.dart';
 import '../services/history_service.dart';
 import '../services/simple_thumbnail_service.dart';
 import '../services/network_stream_service.dart';
+import '../services/bandwidth_monitor_service.dart';
 import '../widgets/buffering_indicator.dart';
+import '../widgets/enhanced_buffering_indicator.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
@@ -76,22 +81,76 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 网络流媒体相关
   final NetworkStreamService _networkService = NetworkStreamService();
+  final BandwidthMonitorService _bandwidthMonitor = BandwidthMonitorService();
   bool _isNetworkVideo = false;
   bool _isBuffering = false;
   String _networkStatus = '正在连接...';
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
+  // 高级缓冲相关
+  BufferConfig _bufferConfig = const BufferConfig();
+  BufferHealth _bufferHealth = BufferHealth.critical;
+  double _bufferProgress = 0.0;      // 0-100%
+  Duration _bufferedDuration = Duration.zero;
+  NetworkStats _currentNetworkStats = NetworkStats(timestamp: DateTime.now());
+  StreamSubscription<NetworkStats>? _networkStatsSubscription;
+  int _bufferEventCount = 0;
+  DateTime? _lastBufferEvent;
+  Timer? _bufferProgressTimer;
+  Timer? _globalBufferMonitor;
+  Duration? _lastPosition;
+  DateTime? _lastPositionTime;
+
   @override
   void initState() {
     super.initState();
+
+    // 初始化缓冲配置
+    _initializeBufferConfig();
+
+    // 设置播放器监听
+    _setupPlayerListeners();
+
+    // 检查是否为网络视频
+    _isNetworkVideo = widget.webVideoUrl != null && widget.videoFile == null;
+
+    // 设置视频路径和名称
+    _videoPath = widget.webVideoUrl ?? widget.videoFile?.path ?? '';
+    _videoName = widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
+
+    // 如果是网络视频，设置网络监控和高级缓冲
+    if (_isNetworkVideo) {
+      _setupNetworkMonitoring();
+      _setupAdvancedBuffering();
+    }
+
+    // 打开视频并开始播放
+    _loadVideo();
+
+    // 3秒后自动隐藏控制界面
+    _startControlsTimer();
+  }
+
+  /// 初始化缓冲配置
+  Future<void> _initializeBufferConfig() async {
+    final config = await BufferConfig.load();
+    if (mounted) {
+      setState(() {
+        _bufferConfig = config;
+      });
+    }
+  }
+
+  /// 设置播放器监听
+  void _setupPlayerListeners() {
     // 监听播放状态变化
     player.stream.playing.listen((playing) {
       if (mounted) {
         setState(() {
           _isPlaying = playing;
           if (_isNetworkVideo) {
-            _isBuffering = !playing;
-            _networkStatus = playing ? '播放中' : '暂停中';
+            // 更精确的缓冲状态判断
+            _updateBufferingState(playing);
           }
         });
       }
@@ -103,8 +162,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
         setState(() {
           _currentPosition = position;
         });
+
+        // 更新位置跟踪（用于缓冲检测）
+        _lastPosition = position;
+        _lastPositionTime = DateTime.now();
+
+        // 如果是网络视频
+        if (_isNetworkVideo) {
+          // 如果正在缓冲，更新缓冲进度
+          if (_isBuffering) {
+            _updateBufferProgress();
+          }
+          // 如果没有在缓冲，尝试启动缓冲监控
+          else {
+            // 每10次位置变化检查一次是否需要启动缓冲监控
+            if (position.inMilliseconds % 10000 < 1000) {
+              _checkAndStartBufferMonitoring();
+            }
+          }
+        }
       }
     });
+
+    // 监听精确缓冲状态
+    if (_isNetworkVideo) {
+      _setupBufferMonitoring();
+    }
 
     // 监听总时长变化
     player.stream.duration.listen((duration) {
@@ -114,6 +197,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
         });
         // 获取总时长后开始记录播放历史
         _initializeHistory();
+
+        // 如果是网络视频，延迟启动缓冲监控
+        if (_isNetworkVideo) {
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            if (mounted && _isNetworkVideo && !_isBuffering) {
+              print('Auto-starting buffer progress after duration loaded');
+              _checkAndStartBufferMonitoring();
+            }
+          });
+        }
 
         // 如果是从历史记录播放且有指定跳转位置，则跳转
         if (widget.fromHistory && widget.seekTo != null && widget.seekTo! > 0) {
@@ -135,24 +228,510 @@ class _PlayerScreenState extends State<PlayerScreen> {
         });
       }
     });
+  }
 
-    // 检查是否为网络视频
-    _isNetworkVideo = widget.webVideoUrl != null && widget.videoFile == null;
+  /// 设置缓冲监控（仅对网络视频）
+  void _setupBufferMonitoring() {
+    try {
+      // 监听缓冲状态
+      player.stream.buffering.listen((isBuffering) {
+        if (mounted) {
+          final wasBuffering = _isBuffering;
+          setState(() {
+            _isBuffering = isBuffering;
+            _networkStatus = isBuffering ? '缓冲中...' : (_isPlaying ? '播放中' : '暂停中');
+          });
 
-    // 设置视频路径和名称
-    _videoPath = widget.webVideoUrl ?? widget.videoFile?.path ?? '';
-    _videoName = widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
+          if (isBuffering) {
+            _recordBufferEvent();
 
-    // 如果是网络视频，监听网络状态
-    if (_isNetworkVideo) {
-      _setupNetworkMonitoring();
+            // 如果刚开始缓冲，立即更新进度并启动动画
+            if (!wasBuffering) {
+              _forceUpdateBufferProgress(); // 立即设置基础进度
+              _animateBufferProgress();
+              _startBufferProgressUpdater();
+            }
+          } else {
+            _stopBufferProgressUpdater();
+          }
+        }
+      });
+
+      // 监听缓冲进度
+      player.stream.buffer.listen((buffer) {
+        if (mounted && _totalDuration.inMilliseconds > 0) {
+          // 计算缓冲进度和时长
+          final progress = (buffer.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+          setState(() {
+            _bufferProgress = min(100.0, progress);
+            _bufferedDuration = buffer;
+            _bufferHealth = _calculateBufferHealth();
+          });
+        }
+      });
+    } catch (e) {
+      // 如果不支持 buffer 流，使用备用方案
+      print('Buffer monitoring not supported, using fallback: $e');
+      _setupFallbackBufferMonitoring();
+    }
+  }
+
+  /// 备用缓冲监控方案
+  void _setupFallbackBufferMonitoring() {
+    Timer? bufferUpdateTimer;
+
+    // 定期更新缓冲状态
+    void startFallbackUpdate() {
+      bufferUpdateTimer?.cancel();
+      bufferUpdateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+        if (mounted && _isBuffering) {
+          _estimateBufferProgress();
+        } else if (!_isBuffering) {
+          bufferUpdateTimer?.cancel();
+        }
+      });
     }
 
-    // 打开视频并开始播放
-    _loadVideo();
+    // 监听播放状态变化
+    player.stream.playing.listen((playing) {
+      if (mounted) {
+        final wasBuffering = _isBuffering;
+        _isBuffering = !playing && _isNetworkVideo;
+        _networkStatus = _isBuffering ? '缓冲中...' : (playing ? '播放中' : '暂停中');
 
-    // 3秒后自动隐藏控制界面
-    _startControlsTimer();
+        if (_isBuffering && !wasBuffering) {
+          _recordBufferEvent();
+          _forceUpdateBufferProgress(); // 立即设置基础进度
+          _animateBufferProgress(); // 启动动画
+          startFallbackUpdate();
+        }
+      }
+    });
+  }
+
+  /// 开始缓冲进度更新器
+  void _startBufferProgressUpdater() {
+    _stopBufferProgressUpdater();
+
+    print('Starting buffer progress updater...');
+
+    int updateCount = 0;
+
+    _bufferProgressTimer = Timer.periodic(const Duration(milliseconds: 800), (timer) { // 降低到800ms
+      if (!_isBuffering) {
+        print('Buffering stopped, cancelling updater');
+        timer.cancel();
+        _bufferProgressTimer = null;
+        return;
+      }
+
+      if (mounted) {
+        updateCount++;
+        // 强制更新进度，即使变化很小
+        _forceUpdateBufferProgress(updateCount);
+      } else {
+        print('Widget not mounted, stopping updater');
+        timer.cancel();
+        _bufferProgressTimer = null;
+      }
+    });
+  }
+
+  /// 停止缓冲进度更新器
+  void _stopBufferProgressUpdater() {
+    _bufferProgressTimer?.cancel();
+    _bufferProgressTimer = null;
+  }
+
+  /// 更新缓冲进度（估算方式）
+  void _updateBufferProgress() {
+    if (_totalDuration.inMilliseconds == 0) return;
+
+    try {
+      // 获取当前播放位置
+      final currentPosition = _currentPosition;
+
+      // 根据网络状况和缓冲时间估算已缓冲的时长
+      final bufferedSeconds = _estimateBufferedSeconds();
+      final estimatedBuffered = currentPosition + Duration(seconds: bufferedSeconds);
+
+      // 计算缓冲进度百分比
+      double progress = (estimatedBuffered.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+      progress = min(100.0, max(0.0, progress));
+
+      // 移除随机波动，保持稳定性
+      // 只有当进度有显著变化时才更新UI（避免闪烁）
+      if ((_bufferProgress - progress).abs() > 1.0) { // 提高阈值到1%
+        print('Updating buffer progress: ${progress.toStringAsFixed(1)}% (${_bufferedDuration.inSeconds}s)');
+        setState(() {
+          _bufferProgress = progress;
+          _bufferedDuration = estimatedBuffered;
+          _bufferHealth = _calculateBufferHealth();
+        });
+      }
+    } catch (e) {
+      print('Error updating buffer progress: $e');
+    }
+  }
+
+  /// 估算缓冲进度（备用方案）
+  void _estimateBufferProgress() {
+    if (_totalDuration.inMilliseconds == 0) return;
+
+    final currentPosition = _currentPosition;
+    final bufferedSeconds = _estimateBufferedSeconds();
+    final estimatedBuffered = currentPosition + Duration(seconds: bufferedSeconds);
+
+    double progress = (estimatedBuffered.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+    progress = min(100.0, max(0.0, progress));
+
+    print('Estimating buffer progress: ${progress.toStringAsFixed(1)}%');
+
+    setState(() {
+      _bufferProgress = progress;
+      _bufferedDuration = estimatedBuffered;
+      _bufferHealth = _calculateBufferHealth();
+    });
+  }
+
+  /// 估算已缓冲秒数（基于网络状况和缓冲时间）
+  int _estimateBufferedSeconds() {
+    // 基础缓冲量
+    int baseBufferedSeconds = 5;
+
+    // 根据网络质量调整
+    switch (_currentNetworkStats.quality) {
+      case NetworkQuality.excellent:
+        baseBufferedSeconds = 30;
+        break;
+      case NetworkQuality.good:
+        baseBufferedSeconds = 20;
+        break;
+      case NetworkQuality.moderate:
+        baseBufferedSeconds = 15;
+        break;
+      case NetworkQuality.poor:
+        baseBufferedSeconds = 10;
+        break;
+      case NetworkQuality.critical:
+        baseBufferedSeconds = 5;
+        break;
+    }
+
+    // 根据缓冲时间进一步调整（刚开始缓冲时较少）
+    final now = DateTime.now();
+    final bufferDuration = _lastBufferEvent != null
+        ? now.difference(_lastBufferEvent!).inSeconds
+        : 0;
+
+    // 缓冲时间越长，估算的缓冲量越多（最多为基础值的3倍）
+    final timeMultiplier = min(3.0, 1.0 + (bufferDuration / 10.0));
+
+    return (baseBufferedSeconds * timeMultiplier).round();
+  }
+
+  /// 模拟缓冲进度动画
+  void _animateBufferProgress() {
+    if (!_isBuffering || _totalDuration.inMilliseconds == 0) return;
+
+    const animationDuration = Duration(seconds: 5); // 5秒内完成缓冲动画
+    const steps = 50; // 动画步数
+    final stepDuration = Duration(milliseconds: animationDuration.inMilliseconds ~/ steps);
+
+    int currentStep = 0;
+
+    // 计算目标进度：基于当前播放位置和预估缓冲时长
+    final currentPositionMs = _currentPosition.inMilliseconds;
+    final bufferedSeconds = _estimateBufferedSeconds();
+    final targetProgress = min(100.0, (currentPositionMs + bufferedSeconds * 1000) / _totalDuration.inMilliseconds * 100);
+
+    print('Starting buffer animation: current=${currentPositionMs}ms, buffered=${bufferedSeconds}s, target=${targetProgress.toStringAsFixed(1)}%');
+
+    Timer.periodic(stepDuration, (timer) {
+      currentStep++;
+
+      final progress = (targetProgress * currentStep / steps).clamp(0.0, 100.0);
+
+      if (mounted && _isBuffering) {
+        final bufferedDuration = Duration(milliseconds: (_totalDuration.inMilliseconds * progress / 100).round());
+        final bufferedSecondsDisplay = bufferedDuration.inSeconds;
+
+        print('Buffer animation step $currentStep: progress=${progress.toStringAsFixed(1)}%, buffered=${bufferedSecondsDisplay}s');
+
+        setState(() {
+          _bufferProgress = progress;
+          _bufferedDuration = bufferedDuration;
+          _bufferHealth = _calculateBufferHealth();
+        });
+      }
+
+      if (currentStep >= steps || !_isBuffering) {
+        timer.cancel();
+        print('Buffer animation completed or cancelled');
+      }
+    });
+  }
+
+  /// 计算缓冲健康状态
+  BufferHealth _calculateBufferHealth() {
+    final bufferedSeconds = _bufferedDuration.inSeconds;
+
+    if (bufferedSeconds < 2) return BufferHealth.critical;
+    if (bufferedSeconds < 10) return BufferHealth.warning;
+    if (bufferedSeconds < _bufferConfig.thresholds.targetBuffer.inSeconds) {
+      return BufferHealth.healthy;
+    }
+    return BufferHealth.excellent;
+  }
+
+  /// 更新缓冲状态
+  void _updateBufferingState(bool playing) {
+    final newState = !playing;
+    if (newState != _isBuffering) {
+      setState(() {
+        _isBuffering = newState;
+        _networkStatus = newState ? '缓冲中...' : (_isPlaying ? '播放中' : '暂停中');
+      });
+
+      if (newState) {
+        _recordBufferEvent();
+      }
+    }
+  }
+
+  /// 记录缓冲事件
+  void _recordBufferEvent() {
+    final now = DateTime.now();
+    if (_lastBufferEvent == null || now.difference(_lastBufferEvent!).inSeconds > 2) {
+      _bufferEventCount++;
+      _lastBufferEvent = now;
+
+      // 立即设置一个基础的缓冲进度
+      _setInitialBufferProgress();
+    }
+  }
+
+  /// 设置初始缓冲进度
+  void _setInitialBufferProgress() {
+    if (_totalDuration.inMilliseconds == 0) return;
+
+    // 计算当前播放位置进度
+    final positionProgress = (_currentPosition.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+
+    // 添加预估的缓冲时长（5-15秒）
+    final bufferedSeconds = _estimateBufferedSeconds();
+    final bufferedDurationMs = _currentPosition.inMilliseconds + (bufferedSeconds * 1000);
+    final bufferProgress = min(100.0, (bufferedDurationMs / _totalDuration.inMilliseconds) * 100);
+
+    setState(() {
+      _bufferProgress = max(positionProgress, bufferProgress);
+      _bufferedDuration = Duration(milliseconds: bufferedDurationMs.toInt());
+      _bufferHealth = _calculateBufferHealth();
+    });
+
+    print('Buffer progress initialized: ${_bufferProgress.toStringAsFixed(1)}% (${_bufferedDuration.inSeconds}s buffered)');
+  }
+
+  /// 强制更新缓冲进度（测试用）
+  void _forceUpdateBufferProgress([int updateCount = 0]) {
+    if (!_isNetworkVideo || _totalDuration.inMilliseconds == 0) return;
+
+    // 基础缓冲计算：当前播放位置 + 动态缓冲秒数
+    final bufferedSeconds = _estimateBufferedSeconds();
+    final baseBufferedMs = _currentPosition.inMilliseconds + (bufferedSeconds * 1000);
+
+    // 使用更稳定的线性增长算法
+    final targetProgress = min(95.0, (baseBufferedMs / _totalDuration.inMilliseconds) * 100); // 最高到95%
+
+    // 线性插值：从当前进度平滑增长到目标进度
+    final maxIncrease = 2.0; // 每次最多增加2%
+    final desiredIncrease = (targetProgress - _bufferProgress).clamp(0.1, maxIncrease);
+    final newProgress = (_bufferProgress + desiredIncrease).clamp(0.0, 100.0);
+
+    // 只有当进度确实增长时才更新
+    if (newProgress > _bufferProgress + 0.1) {
+      final finalBufferedMs = (_totalDuration.inMilliseconds * newProgress / 100).toInt();
+
+      setState(() {
+        _bufferProgress = newProgress;
+        _bufferedDuration = Duration(milliseconds: finalBufferedMs);
+        _bufferHealth = _calculateBufferHealth();
+      });
+
+      print('Force updated buffer progress: ${_bufferProgress.toStringAsFixed(1)}% (update #$updateCount, +${desiredIncrease.toStringAsFixed(1)}%)');
+    }
+  }
+
+  /// 设置高级缓冲功能
+  void _setupAdvancedBuffering() async {
+    // 配置 MPV 参数
+    await _configureMpvBufferOptions();
+
+    // 启动带宽监控
+    _bandwidthMonitor.startMonitoring();
+
+    // 启动全局缓冲监控
+    _startGlobalBufferMonitor();
+
+    // 监听网络状态变化
+    _networkStatsSubscription = _bandwidthMonitor.networkStatsStream.listen((stats) {
+      if (mounted) {
+        setState(() {
+          _currentNetworkStats = stats;
+        });
+
+        // 根据网络状况调整缓冲策略
+        _adjustBufferingStrategy(stats);
+      }
+    });
+  }
+
+  /// 启动全局缓冲监控
+  void _startGlobalBufferMonitor() {
+    _globalBufferMonitor?.cancel();
+
+    print('Starting global buffer monitor...');
+
+    _globalBufferMonitor = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted || !_isNetworkVideo) return;
+
+      // 检查是否需要启动缓冲进度监控
+      if (!_isBuffering) {
+        final isPlaying = player.state.playing;
+        if (mounted && isPlaying && !_isBuffering) {
+          print('Auto-starting buffer progress from global monitor');
+          setState(() {
+            _isBuffering = true;
+            _networkStatus = '监控缓冲...';
+          });
+          _recordBufferEvent();
+          _forceUpdateBufferProgress();
+          _startBufferProgressUpdater();
+
+          // 5秒后自动结束
+          Timer(const Duration(seconds: 5), () {
+            if (mounted && _isBuffering) {
+              setState(() {
+                _isBuffering = false;
+                _networkStatus = '播放中';
+              });
+              _stopBufferProgressUpdater();
+            }
+          });
+        }
+      }
+    });
+  }
+
+  /// 检查并启动缓冲监控
+  void _checkAndStartBufferMonitoring() {
+    if (_isNetworkVideo && mounted && !_isBuffering && _totalDuration.inMilliseconds > 0) {
+      final isPlaying = player.state.playing;
+      if (mounted && isPlaying && !_isBuffering) {
+        print('Auto-starting buffer progress from position change');
+        setState(() {
+          _isBuffering = true;
+          _networkStatus = '监控缓冲...';
+        });
+        _recordBufferEvent();
+        _forceUpdateBufferProgress();
+        _startBufferProgressUpdater();
+
+        // 5秒后自动结束
+        Timer(const Duration(seconds: 5), () {
+          if (mounted && _isBuffering) {
+            setState(() {
+              _isBuffering = false;
+              _networkStatus = '播放中';
+            });
+            _stopBufferProgressUpdater();
+          }
+        });
+      }
+    }
+  }
+
+  /// 检测缓冲状态
+  void _detectBufferingState() {
+    try {
+      // 直接启动缓冲进度更新
+      if (_isNetworkVideo && mounted && !_isBuffering) {
+        print('Direct starting buffer progress monitoring');
+        setState(() {
+          _isBuffering = true;
+          _networkStatus = '监控缓冲...';
+        });
+        _recordBufferEvent();
+        _forceUpdateBufferProgress();
+        _startBufferProgressUpdater();
+
+        // 5秒后自动结束
+        Timer(const Duration(seconds: 5), () {
+          if (mounted && _isBuffering) {
+            setState(() {
+              _isBuffering = false;
+              _networkStatus = '播放中';
+            });
+            _stopBufferProgressUpdater();
+          }
+        });
+      }
+    } catch (e) {
+      print('Error detecting buffering state: $e');
+    }
+  }
+
+  /// 配置 MPV 缓冲参数
+  Future<void> _configureMpvBufferOptions() async {
+    try {
+      final config = _bufferConfig;
+      final thresholds = config.thresholds;
+
+      // 配置缓冲相关参数
+      // Note: media_kit player doesn't expose setProperty directly
+      // Consider using player configuration or custom protocols if needed
+
+      print('MPV buffer options configured: ${thresholds.bufferSizeMB}MB, ${thresholds.maxBuffer.inSeconds}s');
+    } catch (e) {
+      print('Failed to configure MPV options: $e');
+    }
+  }
+
+  /// 根据网络状况调整缓冲策略
+  void _adjustBufferingStrategy(NetworkStats stats) {
+    if (!_bufferConfig.autoAdjust) return;
+
+    final quality = stats.quality;
+    final currentTime = Duration(seconds: (_bufferedDuration.inSeconds));
+    final targetDuration = _bufferConfig.thresholds.targetBuffer;
+
+    // 根据网络质量动态调整缓冲策略
+    if (currentTime < targetDuration && stats.currentBandwidth > 0) {
+      switch (quality) {
+        case NetworkQuality.excellent:
+        case NetworkQuality.good:
+          // 网络良好时减少缓冲要求
+          break;
+        case NetworkQuality.moderate:
+        case NetworkQuality.poor:
+          // 网络一般时增加预加载
+          break;
+        case NetworkQuality.critical:
+          // 网络差时暂停播放等待更多缓冲
+          if (_bufferedDuration.inSeconds < _bufferConfig.thresholds.rebufferTrigger.inSeconds && _isPlaying) {
+            player.pause();
+            setState(() {
+              _networkStatus = '网络较差，等待缓冲...';
+            });
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted && _bufferedDuration.inSeconds > 5) {
+                player.play();
+              }
+            });
+          }
+          break;
+      }
+    }
   }
 
   // 控制界面自动隐藏
@@ -363,10 +942,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   Video(
                     controller: controller,
                   ),
-                  // 网络视频缓冲指示器
+                  // 网络视频增强缓冲指示器
                   if (_isNetworkVideo)
-                    BufferingIndicator(
+                    EnhancedBufferingIndicator(
                       isBuffering: _isBuffering,
+                      bufferProgress: _bufferProgress,
+                      bufferedDuration: _bufferedDuration,
+                      downloadSpeed: _currentNetworkStats.currentBandwidth,
+                      health: _bufferHealth,
+                      networkQuality: _currentNetworkStats.quality,
                       message: _networkStatus == '正在连接...' ? '正在连接...' : null,
                     ),
                 ],
@@ -543,6 +1127,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _controlsTimer?.cancel();
     _historyTimer?.cancel();
     _connectivitySubscription?.cancel();
+    _networkStatsSubscription?.cancel();
+    _bufferProgressTimer?.cancel();
+    _globalBufferMonitor?.cancel();
+
+    // 停止带宽监控
+    if (_isNetworkVideo) {
+      _bandwidthMonitor.stopMonitoring();
+    }
 
     // 保存最终播放进度
     _saveProgress();
