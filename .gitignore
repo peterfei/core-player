@@ -50,3 +50,6 @@ THUMBNAIL_MACOS_FIX.md
 test_ffmpeg.dart
 CLAUDE.md
 AGENTS.md
+SUBTITLE_*.md
+UPGRADE_COMPLETION_REPORT.md
+.claude/

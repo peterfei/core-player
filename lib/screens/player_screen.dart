@@ -17,8 +17,13 @@ import '../services/bandwidth_monitor_service.dart';
 import '../services/video_cache_service.dart';
 import '../services/cache_download_service.dart';
 import '../services/local_proxy_server.dart';
+import '../services/subtitle_service.dart';
+import '../models/subtitle_track.dart' as subtitle_models;
+import '../models/subtitle_config.dart';
 import '../widgets/enhanced_buffering_indicator.dart';
 import '../widgets/cache_indicator.dart';
+import 'subtitle_settings_screen.dart';
+import 'subtitle_download_screen.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
@@ -62,7 +67,11 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   // Create a [Player] instance from `media_kit`.
-  late final Player player = Player();
+  // Enable libass for native MPV subtitle rendering (required for sub-add command)
+  // Subtitles are rendered directly on the video by MPV's libass
+  late final Player player = Player(
+    configuration: const PlayerConfiguration(libass: true),
+  );
   // Create a [VideoController] instance from `media_kit_video`.
   late final VideoController controller = VideoController(player);
 
@@ -111,6 +120,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String? _playbackUrl; // 实际播放的URL（可能是代理URL）
   StreamSubscription? _downloadProgressSubscription;
 
+  // 字幕相关
+  final SubtitleService _subtitleService = SubtitleService.instance;
+  
+  // 播放器监听器
+  StreamSubscription? _playingSubscription;
+  StreamSubscription? _positionSubscription;
+  StreamSubscription? _durationSubscription;
+  StreamSubscription? _volumeSubscription;
+  StreamSubscription? _bufferingSubscription;
+  StreamSubscription? _bufferSubscription;
+  StreamSubscription? _subtitleContentSubscription;
+  List<subtitle_models.SubtitleTrack> _subtitleTracks = [];
+  subtitle_models.SubtitleTrack? _currentSubtitleTrack;
+  bool _hasSubtitles = false;
+
   @override
   void initState() {
     super.initState();
@@ -136,6 +160,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _checkCacheStatus();
     }
 
+    // 初始化字幕服务
+    _initializeSubtitleService();
+
     // 打开视频并开始播放
     _loadVideo();
 
@@ -156,7 +183,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// 设置播放器监听
   void _setupPlayerListeners() {
     // 监听播放状态变化
-    player.stream.playing.listen((playing) {
+    _playingSubscription = player.stream.playing.listen((playing) {
       if (mounted) {
         setState(() {
           _isPlaying = playing;
@@ -169,7 +196,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
 
     // 监听播放位置变化
-    player.stream.position.listen((position) {
+    _positionSubscription = player.stream.position.listen((position) {
       if (mounted) {
         setState(() {
           _currentPosition = position;
@@ -202,13 +229,37 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     // 监听总时长变化
-    player.stream.duration.listen((duration) {
+    _durationSubscription = player.stream.duration.listen((duration) {
       if (mounted) {
         setState(() {
           _totalDuration = duration;
         });
         // 获取总时长后开始记录播放历史
         _initializeHistory();
+
+        // 延迟加载字幕轨道
+        Future.delayed(const Duration(milliseconds: 1000), () async {
+          if (mounted) {
+            await _loadSubtitleTracks();
+            final loadedExternalSubtitle = await _autoLoadSubtitles();
+
+            // 只有在没有成功加载外部字幕的情况下，才自动选择内置字幕
+            if (mounted && !loadedExternalSubtitle && _subtitleTracks.isNotEmpty) {
+              // 查找第一个非 disabled 的轨道
+              final firstSubtitle = _subtitleTracks.firstWhere(
+                (track) => track.id != 'disabled',
+                orElse: () => subtitle_models.SubtitleTrack.disabled,
+              );
+              // 只有找到实际的字幕轨道才选择
+              if (firstSubtitle.id != 'disabled') {
+                await _selectSubtitleTrack(firstSubtitle);
+                debugPrint('Auto-selected first subtitle: ${firstSubtitle.title}');
+              } else {
+                debugPrint('No subtitle tracks available for auto-selection');
+              }
+            }
+          }
+        });
 
         // 如果是网络视频，延迟启动缓冲监控
         if (_isNetworkVideo) {
@@ -233,12 +284,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
 
     // 监听音量变化
-    player.stream.volume.listen((volume) {
+    _volumeSubscription = player.stream.volume.listen((volume) {
       if (mounted) {
         setState(() {
           _volume = volume;
         });
       }
+    });
+
+    // 监听字幕内容变化
+    _subtitleContentSubscription = player.stream.subtitle.listen((subtitleLines) {
+      // 字幕内容更新时可以在这里处理，例如显示在自定义 UI 中
+      // debugPrint('Subtitle: $subtitleLines');
     });
   }
 
@@ -246,7 +303,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _setupBufferMonitoring() {
     try {
       // 监听缓冲状态
-      player.stream.buffering.listen((isBuffering) {
+      _bufferingSubscription = player.stream.buffering.listen((isBuffering) {
         if (mounted) {
           final wasBuffering = _isBuffering;
           setState(() {
@@ -270,7 +327,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       });
 
       // 监听缓冲进度
-      player.stream.buffer.listen((buffer) {
+      _bufferSubscription = player.stream.buffer.listen((buffer) {
         if (mounted && _totalDuration.inMilliseconds > 0) {
           // 计算缓冲进度和时长
           final progress = (buffer.inMilliseconds / _totalDuration.inMilliseconds) * 100;
@@ -953,9 +1010,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 children: [
                   Video(
                     controller: controller,
+                    subtitleViewConfiguration: _buildSubtitleViewConfiguration(),
                   ),
-                  // 网络视频增强缓冲指示器
-                  if (_isNetworkVideo)
+                   // 网络视频增强缓冲指示器
+                   if (_isNetworkVideo)
                     EnhancedBufferingIndicator(
                       isBuffering: _isBuffering,
                       bufferProgress: _bufferProgress,
@@ -1025,6 +1083,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             onPressed: () {
                               _setVolume(_volume > 0 ? 0.0 : 1.0);
                             },
+                          ),
+                          // 字幕控制按钮（始终可用，允许加载外部字幕）
+                          IconButton(
+                            icon: Icon(
+                              _hasSubtitles && _currentSubtitleTrack?.id != 'disabled'
+                                  ? Icons.subtitles
+                                  : Icons.subtitles_off,
+                              color: Colors.white,
+                            ),
+                            onPressed: _showSubtitleSelector,
                           ),
                           // 缓存控制按钮（仅网络视频显示）
                           if (_isNetworkVideo)
@@ -1125,8 +1193,51 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       print('🎬 Opening video: $playbackUrl');
 
-      // 打开视频并开始播放
-      player.open(Media(playbackUrl), play: true);
+      // 检查是否有配套的字幕文件
+      String? subtitlePath;
+      if (!_isNetworkVideo && widget.videoFile != null) {
+        subtitlePath = await _subtitleService.findMatchingSubtitle(widget.videoFile!.path);
+        if (subtitlePath != null) {
+          debugPrint('Found matching subtitle: $subtitlePath');
+        }
+      }
+
+      // 打开视频并开始播放（包含字幕支持配置）
+      final media = Media(
+        playbackUrl,
+        httpHeaders: {
+          'User-Agent': 'Mozilla/5.0',
+        },
+      );
+      
+      await player.open(media, play: true);
+      
+      // 视频打开后，如果有字幕文件，尝试加载
+      if (subtitlePath != null) {
+        // 延迟加载字幕，让video完全初始化
+        await Future.delayed(const Duration(milliseconds: 500));
+        final track = await _subtitleService.loadExternalSubtitle(player, subtitlePath);
+        if (track != null && mounted) {
+          setState(() {
+            _currentSubtitleTrack = track;
+          });
+          debugPrint('Auto-loaded subtitle file: $subtitlePath');
+        }
+      }
+      
+      // 确保字幕已启用（某些播放器版本可能需要显式启用）
+      debugPrint('Video opened, waiting for subtitle tracks to load...');
+      
+      // 延迟一下让字幕轨道信息加载
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // 打印当前字幕轨道信息
+      final subtitleTracks = player.state.tracks.subtitle;
+      debugPrint('Subtitle tracks available after opening: ${subtitleTracks.length}');
+      for (int i = 0; i < subtitleTracks.length; i++) {
+        final track = subtitleTracks[i];
+        debugPrint('  Subtitle $i: id=${track.id}, title=${track.title}, language=${track.language}');
+      }
 
       // 网络视频在开始播放后更新状态
       if (_isNetworkVideo && mounted) {
@@ -1468,6 +1579,222 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  /// 初始化字幕服务
+  Future<void> _initializeSubtitleService() async {
+    try {
+      await _subtitleService.initialize();
+      debugPrint('Subtitle service initialized');
+    } catch (e) {
+      debugPrint('Error initializing subtitle service: $e');
+    }
+  }
+
+  /// 加载可用字幕轨道
+  Future<void> _loadSubtitleTracks() async {
+    try {
+      final tracks = await _subtitleService.getAvailableTracks(player);
+      debugPrint('Loaded ${tracks.length} subtitle tracks successfully');
+
+      if (mounted) {
+        setState(() {
+          _subtitleTracks = tracks;
+          _hasSubtitles = tracks.length > 1; // 除了"关闭字幕"选项
+          if (!_hasSubtitles) {
+            _currentSubtitleTrack = subtitle_models.SubtitleTrack.disabled;
+          } else if (_currentSubtitleTrack == null) {
+            // 如果还没有选择字幕，默认选择第一个（不是"关闭字幕"）
+            _currentSubtitleTrack = tracks.firstWhere(
+              (track) => track.id != 'disabled',
+              orElse: () => subtitle_models.SubtitleTrack.disabled,
+            );
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading subtitle tracks: $e');
+      if (mounted) {
+        setState(() {
+          _subtitleTracks = [subtitle_models.SubtitleTrack.disabled];
+          _hasSubtitles = false;
+          _currentSubtitleTrack = subtitle_models.SubtitleTrack.disabled;
+        });
+      }
+    }
+  }
+
+  /// 自动加载字幕
+  /// 返回 true 如果成功加载了外部字幕，否则返回 false
+  Future<bool> _autoLoadSubtitles() async {
+    try {
+      // 如果是本地视频，尝试查找同名字幕
+      if (!_isNetworkVideo && widget.videoFile != null) {
+        final subtitlePath = await _subtitleService.findMatchingSubtitle(
+          widget.videoFile!.path,
+        );
+        if (subtitlePath != null) {
+          final track = await _subtitleService.loadExternalSubtitle(player, subtitlePath);
+          if (track != null) {
+            // 等待一下以确保字幕轨道已加载到播放器
+            await Future.delayed(const Duration(milliseconds: 500));
+
+            // 重新加载字幕轨道列表
+            await _loadSubtitleTracks();
+
+            // 选择新加载的字幕（确保使用刚加载的外部字幕，而非内置轨道）
+            if (mounted) {
+              setState(() {
+                _currentSubtitleTrack = track;
+              });
+            }
+
+            debugPrint('Auto-loaded external subtitle: $subtitlePath');
+            return true; // 成功加载外部字幕
+          }
+        }
+      }
+      return false; // 没有加载外部字幕
+    } catch (e) {
+      debugPrint('Error auto-loading subtitles: $e');
+      return false;
+    }
+  }
+
+  /// 显示字幕选择器
+  void _showSubtitleSelector() {
+    showDialog(
+      context: context,
+      builder: (context) => _SubtitleSelectorDialog(
+        subtitleTracks: _subtitleTracks,
+        currentTrack: _currentSubtitleTrack,
+        onTrackSelected: (subtitle_models.SubtitleTrack track) async {
+          Navigator.of(context).pop();
+          await _selectSubtitleTrack(track);
+        },
+        onLoadExternal: () async {
+          Navigator.of(context).pop();
+          await _loadExternalSubtitle();
+        },
+        onShowSyncControl: _showSubtitleSyncControl,
+        onShowSettings: _showSubtitleSettings,
+        onShowDownload: _showSubtitleDownload,
+      ),
+    );
+  }
+
+  /// 选择字幕轨道
+  Future<void> _selectSubtitleTrack(subtitle_models.SubtitleTrack track) async {
+   try {
+     await _subtitleService.selectTrack(player, track);
+     if (mounted) {
+       setState(() {
+         _currentSubtitleTrack = track;
+       });
+     }
+     debugPrint('Selected subtitle track: ${track.title}');
+   } catch (e) {
+     debugPrint('Error selecting subtitle track: $e');
+     _showError('选择字幕轨道失败: $e');
+   }
+  }
+
+  /// 加载外部字幕
+  Future<void> _loadExternalSubtitle() async {
+    try {
+      final filePath = await _subtitleService.pickSubtitleFile();
+      if (filePath != null) {
+        final track = await _subtitleService.loadExternalSubtitle(player, filePath);
+        if (track != null) {
+          // 更新字幕轨道列表
+          await _loadSubtitleTracks();
+          if (mounted) {
+            setState(() {
+              _currentSubtitleTrack = track;
+            });
+          }
+          _showSuccess('字幕加载成功');
+        } else {
+          _showError('字幕加载失败');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading external subtitle: $e');
+      _showError('加载外部字幕失败: $e');
+    }
+  }
+
+  /// 显示字幕同步控制
+  void _showSubtitleSyncControl() {
+    showDialog(
+      context: context,
+      builder: (context) => _SubtitleSyncDialog(
+        currentDelay: Duration(milliseconds: _subtitleService.config.delayMs),
+        onDelayChanged: (delay) async {
+          await _subtitleService.setSubtitleDelay(player, delay);
+        },
+      ),
+    );
+  }
+
+  /// 显示字幕设置
+  void _showSubtitleSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const SubtitleSettingsScreen(),
+      ),
+    );
+  }
+
+  /// 显示字幕下载界面
+  void _showSubtitleDownload() {
+    Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (context) => SubtitleDownloadScreen(
+          videoTitle: _videoName ?? '未知视频',
+          videoPath: widget.videoFile?.path,
+        ),
+      ),
+    ).then((subtitlePath) async {
+      // 处理下载完成后返回的字幕文件路径
+      if (subtitlePath != null && subtitlePath.isNotEmpty) {
+        debugPrint('Subtitle downloaded: $subtitlePath');
+        
+        // 加载下载的字幕
+        final track = await _subtitleService.loadExternalSubtitle(player, subtitlePath);
+        if (track != null && mounted) {
+          // 刷新字幕轨道列表
+          await _loadSubtitleTracks();
+          
+          setState(() {
+            _currentSubtitleTrack = track;
+          });
+          
+          _showSuccess('字幕加载成功');
+          debugPrint('Downloaded subtitle loaded: ${track.title}');
+        }
+      }
+    });
+  }
+
+  /// 显示成功消息
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  /// 显示错误消息
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _controlsTimer?.cancel();
@@ -1477,6 +1804,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _bufferProgressTimer?.cancel();
     _globalBufferMonitor?.cancel();
     _downloadProgressSubscription?.cancel();
+    
+    // 取消播放器监听器
+    _playingSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    _volumeSubscription?.cancel();
+    _bufferingSubscription?.cancel();
+    _bufferSubscription?.cancel();
+    _subtitleContentSubscription?.cancel();
 
     // 停止带宽监控
     if (_isNetworkVideo) {
@@ -1498,5 +1834,254 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // Make sure to dispose the player and controller.
     player.dispose();
     super.dispose();
+  }
+
+  /// Build SubtitleViewConfiguration with current subtitle settings
+  SubtitleViewConfiguration _buildSubtitleViewConfiguration() {
+    final config = SubtitleService.instance.config;
+    
+    return SubtitleViewConfiguration(
+      style: TextStyle(
+        fontSize: config.fontSize,
+        color: Color(config.fontColor),
+        fontFamily: config.fontFamily,
+        backgroundColor: Color(config.backgroundColor),
+        shadows: [
+          Shadow(
+            color: Color(config.outlineColor),
+            blurRadius: config.outlineWidth,
+          ),
+        ],
+      ),
+      textAlign: TextAlign.center,
+      padding: EdgeInsets.only(
+        bottom: config.position == SubtitlePosition.bottom ? 50.0 : 
+                config.position == SubtitlePosition.center ? 0.0 : 300.0,
+      ),
+    );
+  }
+}
+
+/// 字幕选择器对话框
+class _SubtitleSelectorDialog extends StatelessWidget {
+  final List<subtitle_models.SubtitleTrack> subtitleTracks;
+  final subtitle_models.SubtitleTrack? currentTrack;
+  final Function(subtitle_models.SubtitleTrack) onTrackSelected;
+  final VoidCallback onLoadExternal;
+  final VoidCallback? onShowSyncControl;
+  final VoidCallback? onShowSettings;
+  final VoidCallback? onShowDownload;
+
+  const _SubtitleSelectorDialog({
+    required this.subtitleTracks,
+    this.currentTrack,
+    required this.onTrackSelected,
+    required this.onLoadExternal,
+    this.onShowSyncControl,
+    this.onShowSettings,
+    this.onShowDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('选择字幕'),
+      content: SizedBox(
+        width: 300,
+        height: 400,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                itemCount: subtitleTracks.length,
+                itemBuilder: (context, index) {
+                  final track = subtitleTracks[index];
+                  final isSelected = currentTrack?.id == track.id;
+
+                  return ListTile(
+                    title: Text(track.title),
+                    subtitle: track.id != 'disabled'
+                        ? Text('${track.languageName} • ${track.format.toUpperCase()}')
+                        : null,
+                    leading: isSelected
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : const Icon(Icons.subtitles),
+                    onTap: () => onTrackSelected(track),
+                    tileColor: isSelected ? Colors.blue.withOpacity(0.1) : null,
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('加载外部字幕'),
+              leading: const Icon(Icons.file_upload),
+              onTap: onLoadExternal,
+            ),
+            ListTile(
+              title: const Text('字幕同步设置'),
+              leading: const Icon(Icons.sync),
+              onTap: onShowSyncControl != null ? () {
+                Navigator.of(context).pop();
+                onShowSyncControl!();
+              } : null,
+            ),
+            ListTile(
+              title: const Text('字幕样式设置'),
+              leading: const Icon(Icons.style),
+              onTap: onShowSettings != null ? () {
+                Navigator.of(context).pop();
+                onShowSettings!();
+              } : null,
+            ),
+            ListTile(
+              title: const Text('在线搜索字幕'),
+              leading: const Icon(Icons.search),
+              onTap: onShowDownload != null ? () {
+                Navigator.of(context).pop();
+                onShowDownload!();
+              } : null,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+      ],
+    );
+  }
+
+  void _showSubtitleSyncDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => _SubtitleSyncDialog(
+        currentDelay: Duration.zero,
+        onDelayChanged: (delay) {
+          // 这里需要访问 PlayerScreen 的实例来设置延迟
+          // 暂时留空，在实际使用时需要传入相应的回调
+        },
+      ),
+    );
+  }
+}
+
+/// 字幕同步控制对话框
+class _SubtitleSyncDialog extends StatefulWidget {
+  final Duration currentDelay;
+  final Function(Duration) onDelayChanged;
+
+  const _SubtitleSyncDialog({
+    required this.currentDelay,
+    required this.onDelayChanged,
+  });
+
+  @override
+  State<_SubtitleSyncDialog> createState() => _SubtitleSyncDialogState();
+}
+
+class _SubtitleSyncDialogState extends State<_SubtitleSyncDialog> {
+  late Duration _currentDelay;
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentDelay = widget.currentDelay;
+    _controller = TextEditingController(
+      text: (_currentDelay.inMilliseconds / 1000.0).toStringAsFixed(1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateDelay(double seconds) {
+    final newDelay = Duration(milliseconds: (seconds * 1000).round());
+    setState(() {
+      _currentDelay = newDelay;
+      _controller.text = seconds.toStringAsFixed(1);
+    });
+    widget.onDelayChanged(newDelay);
+  }
+
+  void _applyDelay() {
+    final seconds = double.tryParse(_controller.text) ?? 0.0;
+    _updateDelay(seconds);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('字幕同步'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('调整字幕显示时间（秒，正数延迟，负数提前）'),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove),
+                onPressed: () => _updateDelay((_currentDelay.inMilliseconds / 1000.0) - 0.5),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(
+                    labelText: '延迟（秒）',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _applyDelay(),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () => _updateDelay((_currentDelay.inMilliseconds / 1000.0) + 0.5),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton(
+                onPressed: () => _updateDelay(-1.0),
+                child: const Text('-1s'),
+              ),
+              TextButton(
+                onPressed: () => _updateDelay(-0.1),
+                child: const Text('-0.1s'),
+              ),
+              TextButton(
+                onPressed: () => _updateDelay(0.0),
+                child: const Text('重置'),
+              ),
+              TextButton(
+                onPressed: () => _updateDelay(0.1),
+                child: const Text('+0.1s'),
+              ),
+              TextButton(
+                onPressed: () => _updateDelay(1.0),
+                child: const Text('+1s'),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('确定'),
+        ),
+      ],
+    );
   }
 }
