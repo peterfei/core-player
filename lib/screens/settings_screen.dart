@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/history_service.dart';
 import '../services/thumbnail_service.dart';
 import '../services/settings_service.dart';
+import '../widgets/thumbnail_settings_widget.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -181,14 +182,18 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
               });
             } : null,
           ),
-          if (_thumbnailsEnabled)
+          if (_thumbnailsEnabled) ...[
             ListTile(
               leading: const Icon(Icons.storage),
-              title: const Text('缩略图缓存'),
-              subtitle: const Text('管理缩略图缓存'),
+              title: const Text('基础缓存'),
+              subtitle: const Text('管理基础缩略图缓存'),
               trailing: const Icon(Icons.chevron_right),
               onTap: _showThumbnailCacheDialog,
             ),
+
+            // 高级缩略图设置
+            const ThumbnailSettingsWidget(),
+          ],
 
           const SizedBox(height: 24),
           _buildSectionHeader('数据管理'),
