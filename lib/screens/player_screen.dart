@@ -4,16 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import '../models/playback_history.dart';
+import '../services/history_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File videoFile;
   final String? webVideoUrl;
   final String? webVideoName;
+  final int? seekTo;
+  final bool fromHistory;
+
   const PlayerScreen({
     super.key,
     required this.videoFile,
     this.webVideoUrl,
     this.webVideoName,
+    this.seekTo,
+    this.fromHistory = false,
   });
 
   @override
@@ -36,6 +43,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 控制界面自动隐藏的定时器
   Timer? _controlsTimer;
+
+  // 播放历史记录相关
+  Timer? _historyTimer;
+  String? _videoPath;
+  String? _videoName;
 
   @override
   void initState() {
@@ -64,6 +76,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
         setState(() {
           _totalDuration = duration;
         });
+        // 获取总时长后开始记录播放历史
+        _initializeHistory();
+
+        // 如果是从历史记录播放且有指定跳转位置，则跳转
+        if (widget.fromHistory && widget.seekTo != null && widget.seekTo! > 0) {
+          // 延迟跳转，确保视频已经开始播放
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              player.seek(Duration(seconds: widget.seekTo!));
+            }
+          });
+        }
       }
     });
 
@@ -75,6 +99,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         });
       }
     });
+
+    // 设置视频路径和名称
+    _videoPath = widget.webVideoUrl ?? widget.videoFile.path;
+    _videoName = widget.webVideoName ?? HistoryService.extractVideoName(_videoPath!);
 
     // Open the video file and start playing.
     if (widget.webVideoUrl != null) {
@@ -131,6 +159,104 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  // 初始化播放历史记录
+  void _initializeHistory() async {
+    if (_videoPath == null || _videoName == null || _totalDuration.inSeconds <= 0) {
+      return;
+    }
+
+    // 查找是否有历史记录
+    final existingHistory = await HistoryService.getHistoryByPath(_videoPath!);
+
+    if (existingHistory != null) {
+      // 如果是从历史记录播放，更新最后播放时间但不询问
+      if (widget.fromHistory) {
+        final updatedHistory = existingHistory.copyWith(
+          lastPlayedAt: DateTime.now(),
+          currentPosition: widget.seekTo ?? 0,
+          totalDuration: _totalDuration.inSeconds,
+        );
+        await HistoryService.saveHistory(updatedHistory);
+      } else if (!existingHistory.isCompleted) {
+        // 如果有未看完的记录，询问用户是否从上次位置继续
+        _showResumeDialog(existingHistory);
+        _startHistoryTimer();
+        return;
+      } else {
+        // 已看完的视频，重置到开头
+        final resetHistory = existingHistory.copyWith(
+          lastPlayedAt: DateTime.now(),
+          currentPosition: 0,
+          totalDuration: _totalDuration.inSeconds,
+        );
+        await HistoryService.saveHistory(resetHistory);
+      }
+    } else {
+      // 创建新的历史记录
+      final newHistory = HistoryService.createHistory(
+        videoPath: _videoPath!,
+        videoName: _videoName!,
+        currentPosition: widget.seekTo ?? 0,
+        totalDuration: _totalDuration.inSeconds,
+      );
+      await HistoryService.saveHistory(newHistory);
+    }
+
+    
+    // 开始定期保存播放进度
+    _startHistoryTimer();
+  }
+
+  // 显示继续播放对话框
+  void _showResumeDialog(PlaybackHistory history) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('继续播放'),
+        content: Text(
+          '检测到您上次观看此视频到 ${history.formattedProgress}，\n'
+          '是否从上次位置继续观看？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _seekTo(Duration(seconds: history.currentPosition));
+            },
+            child: const Text('继续'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('重新开始'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 开始定时保存播放进度
+  void _startHistoryTimer() {
+    _historyTimer?.cancel();
+    _historyTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _saveProgress();
+    });
+  }
+
+  // 保存播放进度
+  void _saveProgress() async {
+    if (_videoPath == null || _videoName == null || _currentPosition.inSeconds <= 0) {
+      return;
+    }
+
+    await HistoryService.updateProgress(
+      videoPath: _videoPath!,
+      currentPosition: _currentPosition.inSeconds,
+      totalDuration: _totalDuration.inSeconds,
+    );
+  }
+
   // 切换全屏模式
   void _toggleFullscreen() {
     setState(() {
@@ -168,6 +294,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     _controlsTimer?.cancel();
+    _historyTimer?.cancel();
+
+    // 保存最终播放进度
+    _saveProgress();
+
     // 恢复正常的系统UI模式
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
@@ -176,6 +307,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+
     // Make sure to dispose the player and controller.
     player.dispose();
     super.dispose();
@@ -201,7 +333,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               opacity: _isControlsVisible ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 300),
               child: Container(
-                color: Colors.black.withOpacity(0.7),
+                color: Colors.black.withValues(alpha: 0.7),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
