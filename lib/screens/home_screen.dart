@@ -7,6 +7,7 @@ import 'package:yinghe_player/screens/settings_screen.dart';
 import 'package:yinghe_player/widgets/history_list.dart';
 import 'package:yinghe_player/widgets/url_input_dialog.dart';
 import 'package:yinghe_player/services/history_service.dart';
+import 'package:yinghe_player/services/cache_test_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -110,12 +111,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  void _runCacheTests() async {
+    showDialog(
+      context: context,
+      builder: (context) => const AlertDialog(
+        title: Text('缓存测试'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('正在运行缓存功能测试...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await CacheTestService.runBasicTests();
+
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭加载对话框
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('缓存功能测试完成！请查看控制台输出。'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭加载对话框
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('测试失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('影核播放器'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.orange),
+            onPressed: _runCacheTests,
+            tooltip: '测试缓存功能',
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _navigateToSettings,

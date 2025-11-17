@@ -7,15 +7,18 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/playback_history.dart';
-import '../models/stream_info.dart';
 import '../models/buffer_config.dart';
 import '../models/network_stats.dart';
+import '../models/cache_entry.dart';
 import '../services/history_service.dart';
 import '../services/simple_thumbnail_service.dart';
 import '../services/network_stream_service.dart';
 import '../services/bandwidth_monitor_service.dart';
-import '../widgets/buffering_indicator.dart';
+import '../services/video_cache_service.dart';
+import '../services/cache_download_service.dart';
+import '../services/local_proxy_server.dart';
 import '../widgets/enhanced_buffering_indicator.dart';
+import '../widgets/cache_indicator.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
@@ -101,6 +104,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Duration? _lastPosition;
   DateTime? _lastPositionTime;
 
+  // 缓存相关
+  CacheEntry? _cacheEntry;
+  bool _hasCache = false;
+  bool _isDownloading = false;
+  String? _playbackUrl; // 实际播放的URL（可能是代理URL）
+  StreamSubscription? _downloadProgressSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -122,6 +132,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_isNetworkVideo) {
       _setupNetworkMonitoring();
       _setupAdvancedBuffering();
+      // 检查缓存状态
+      _checkCacheStatus();
     }
 
     // 打开视频并开始播放
@@ -586,45 +598,38 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
-  /// 启动全局缓冲监控
+  /// 启动全局缓冲监控（简化版）
   void _startGlobalBufferMonitor() {
     _globalBufferMonitor?.cancel();
 
-    print('Starting global buffer monitor...');
+    // 暂时禁用复杂的全局缓冲监控，专注于播放功能
+    print('Global buffer monitoring disabled for simpler playback');
 
-    _globalBufferMonitor = Timer.periodic(const Duration(seconds: 2), (_) {
+    // 简单的播放状态检查
+    _globalBufferMonitor = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted || !_isNetworkVideo) return;
 
-      // 检查是否需要启动缓冲进度监控
-      if (!_isBuffering) {
-        final isPlaying = player.state.playing;
-        if (mounted && isPlaying && !_isBuffering) {
-          print('Auto-starting buffer progress from global monitor');
-          setState(() {
-            _isBuffering = true;
-            _networkStatus = '监控缓冲...';
-          });
-          _recordBufferEvent();
-          _forceUpdateBufferProgress();
-          _startBufferProgressUpdater();
-
-          // 5秒后自动结束
-          Timer(const Duration(seconds: 5), () {
-            if (mounted && _isBuffering) {
-              setState(() {
-                _isBuffering = false;
-                _networkStatus = '播放中';
-              });
-              _stopBufferProgressUpdater();
-            }
-          });
+      player.stream.playing.first.then((isPlaying) {
+        if (mounted && isPlaying) {
+          // 只是检查播放状态，不启动复杂的缓冲监控
+          if (_networkStatus == '正在连接...' || _networkStatus == '加载中...') {
+            setState(() {
+              _networkStatus = '播放中';
+              _isBuffering = false;
+            });
+          }
         }
-      }
+      });
     });
   }
 
-  /// 检查并启动缓冲监控
+  /// 检查并启动缓冲监控（简化版）
   void _checkAndStartBufferMonitoring() {
+    // 暂时禁用复杂的缓冲监控，专注于基本播放功能
+    return;
+
+    // 以下代码暂时注释掉
+    /*
     if (_isNetworkVideo && mounted && !_isBuffering && _totalDuration.inMilliseconds > 0) {
       final isPlaying = player.state.playing;
       if (mounted && isPlaying && !_isBuffering) {
@@ -637,8 +642,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _forceUpdateBufferProgress();
         _startBufferProgressUpdater();
 
-        // 5秒后自动结束
-        Timer(const Duration(seconds: 5), () {
+        // 3秒后自动结束
+        Timer(const Duration(seconds: 3), () {
           if (mounted && _isBuffering) {
             setState(() {
               _isBuffering = false;
@@ -649,10 +654,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
         });
       }
     }
+    */
   }
 
-  /// 检测缓冲状态
+  /// 检测缓冲状态（简化版）
   void _detectBufferingState() {
+    // 暂时禁用复杂的缓冲监控
+    return;
+
+    // 以下代码暂时注释掉
+    /*
     try {
       // 直接启动缓冲进度更新
       if (_isNetworkVideo && mounted && !_isBuffering) {
@@ -679,6 +690,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } catch (e) {
       print('Error detecting buffering state: $e');
     }
+    */
   }
 
   /// 配置 MPV 缓冲参数
@@ -953,6 +965,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       networkQuality: _currentNetworkStats.quality,
                       message: _networkStatus == '正在连接...' ? '正在连接...' : null,
                     ),
+                  // 缓存状态指示器（左上角）
+                  if (_isNetworkVideo)
+                    Positioned(
+                      top: 80,
+                      left: 16,
+                      child: CacheIndicator(
+                        videoUrl: widget.webVideoUrl!,
+                        videoTitle: _videoName,
+                        onTap: _showCacheInfo,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1003,6 +1026,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               _setVolume(_volume > 0 ? 0.0 : 1.0);
                             },
                           ),
+                          // 缓存控制按钮（仅网络视频显示）
+                          if (_isNetworkVideo)
+                            CacheControlButton(
+                              videoUrl: widget.webVideoUrl!,
+                              videoTitle: _videoName,
+                            ),
                         ],
                       ),
                     ),
@@ -1071,24 +1100,341 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// 加载视频
   Future<void> _loadVideo() async {
-    if (_isNetworkVideo) {
-      setState(() {
-        _isBuffering = true;
-        _networkStatus = '正在连接...';
-      });
+    try {
+      if (_isNetworkVideo) {
+        setState(() {
+          _isBuffering = true;
+          _networkStatus = '正在连接...';
+        });
 
-      // 添加到URL历史记录
-      await _networkService.addUrlToHistory(_videoPath!);
-    }
+        // 添加到URL历史记录
+        await _networkService.addUrlToHistory(_videoPath!);
+      }
 
-    // 打开视频并开始播放
-    if (widget.webVideoUrl != null) {
-      // 网络视频：使用 URL
-      player.open(Media(widget.webVideoUrl!), play: true);
-    } else {
-      // 本地视频：使用文件路径
-      player.open(Media(widget.videoFile!.path), play: true);
+      // 确定播放URL（考虑缓存）
+      String playbackUrl;
+      if (widget.webVideoUrl != null) {
+        // 网络视频：检查缓存
+        playbackUrl = await _getPlaybackUrl(widget.webVideoUrl!);
+      } else {
+        // 本地视频：使用文件路径
+        playbackUrl = widget.videoFile!.path;
+      }
+
+      _playbackUrl = playbackUrl;
+
+      print('🎬 Opening video: $playbackUrl');
+
+      // 打开视频并开始播放
+      player.open(Media(playbackUrl), play: true);
+
+      // 网络视频在开始播放后更新状态
+      if (_isNetworkVideo && mounted) {
+        Future.delayed(Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() {
+              _isBuffering = false;
+              _networkStatus = '播放中';
+            });
+          }
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading video: $e');
+      if (mounted) {
+        setState(() {
+          _isBuffering = false;
+          _networkStatus = '加载失败';
+        });
+      }
     }
+  }
+
+  /// 缓存相关方法
+
+  /// 检查缓存状态
+  Future<void> _checkCacheStatus() async {
+    if (widget.webVideoUrl == null) return;
+
+    final cacheService = VideoCacheService.instance;
+    final downloadService = CacheDownloadService.instance;
+
+    try {
+      await cacheService.initialize(); // 确保缓存服务已初始化
+
+      final cacheEntry = await cacheService.getCacheEntry(widget.webVideoUrl!);
+      final hasCache = await cacheService.hasCache(widget.webVideoUrl!);
+      final isDownloading = downloadService.isDownloading(widget.webVideoUrl!);
+
+      print('Cache status check:');
+      print('  URL: ${widget.webVideoUrl}');
+      print('  Has cache: $hasCache');
+      print('  Is downloading: $isDownloading');
+      print('  Cache entry: ${cacheEntry != null ? "found" : "not found"}');
+      if (cacheEntry != null) {
+        print('  Cache file size: ${cacheEntry.fileSize}');
+        print('  Cache progress: ${(cacheEntry.downloadProgress * 100).toStringAsFixed(1)}%');
+        print('  Is complete: ${cacheEntry.isComplete}');
+      }
+
+      if (mounted) {
+        setState(() {
+          _cacheEntry = cacheEntry;
+          _hasCache = hasCache;
+          _isDownloading = isDownloading;
+        });
+      }
+
+      // 设置下载进度监听
+      _setupDownloadProgressListener();
+    } catch (e) {
+      print('Error checking cache status: $e');
+    }
+  }
+
+  /// 获取播放URL（优先使用缓存）
+  Future<String> _getPlaybackUrl(String originalUrl) async {
+    print('Getting playback URL for: $originalUrl');
+    final cacheService = VideoCacheService.instance;
+
+    try {
+      await cacheService.initialize();
+
+      // 检查是否有完整缓存
+      final cachePath = await cacheService.getCachePath(originalUrl);
+      if (cachePath != null) {
+        // 使用本地缓存文件
+        print('✅ Using cached file: $cachePath');
+        return cachePath;
+      } else {
+        print('❌ No cached file found');
+      }
+
+      // 启动后台下载缓存（不阻塞播放）
+      _startBackgroundDownload(originalUrl);
+
+      // 直接使用原始URL播放（兼容性更好）
+      print('✅ Using original URL for playback: $originalUrl');
+      return originalUrl;
+    } catch (e) {
+      print('❌ Error getting playback URL: $e');
+      // 出错时使用原始URL
+      print('⚠️ Falling back to original URL: $originalUrl');
+      return originalUrl;
+    }
+  }
+
+  /// 启动后台下载缓存
+  void _startBackgroundDownload(String originalUrl) async {
+    try {
+      final cacheService = VideoCacheService.instance;
+      final downloadService = CacheDownloadService.instance;
+
+      // 检查是否已经在下载
+      if (downloadService.isDownloading(originalUrl)) {
+        print('Already downloading: $originalUrl');
+        return;
+      }
+
+      // 检查是否已有缓存
+      if (await cacheService.hasCache(originalUrl)) {
+        print('Already cached: $originalUrl');
+        return;
+      }
+
+      print('🚀 Starting background download: $originalUrl');
+
+      // 启动下载（不等待完成）
+      downloadService.downloadAndCache(originalUrl, title: _videoName).listen(
+        (_) {
+          // 字节流数据，在这里不需要处理
+        },
+        onError: (error) {
+          print('Download error: $error');
+        },
+        onDone: () {
+          print('✅ Download completed: $originalUrl');
+          // 下载完成后可以通知用户或更新UI
+        },
+      );
+
+      // 单独监听下载进度
+      downloadService.getDownloadProgress(originalUrl).listen(
+        (progress) {
+          print('Download progress: ${(progress.progressPercentage * 100).toStringAsFixed(1)}%');
+        },
+      );
+    } catch (e) {
+      print('Failed to start background download: $e');
+    }
+  }
+
+  /// 设置下载进度监听
+  void _setupDownloadProgressListener() {
+    if (widget.webVideoUrl == null) return;
+
+    _downloadProgressSubscription?.cancel();
+    _downloadProgressSubscription = CacheDownloadService.instance
+        .getDownloadProgress(widget.webVideoUrl!)
+        .listen((progress) {
+      if (mounted) {
+        setState(() {
+          _isDownloading = !progress.isComplete && !progress.hasError;
+        });
+      }
+    });
+  }
+
+  /// 手动下载缓存
+  Future<void> _downloadForCaching() async {
+    if (widget.webVideoUrl == null || _isDownloading || _hasCache) return;
+
+    try {
+      final downloadService = CacheDownloadService.instance;
+      downloadService.downloadAndCache(
+        widget.webVideoUrl!,
+        title: _videoName,
+      ).listen(
+        (_) {},
+        onError: (error) {
+          print('Download error: $error');
+        },
+        onDone: () {
+          print('✅ Download completed');
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _isDownloading = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('开始缓存视频'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('缓存启动失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 取消下载
+  Future<void> _cancelDownload() async {
+    if (widget.webVideoUrl == null || !_isDownloading) return;
+
+    try {
+      final downloadService = CacheDownloadService.instance;
+      await downloadService.cancelDownload(widget.webVideoUrl!);
+
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('已取消缓存下载'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error canceling download: $e');
+    }
+  }
+
+  /// 移除缓存
+  Future<void> _removeCache() async {
+    if (widget.webVideoUrl == null || !_hasCache) return;
+
+    try {
+      final cacheService = VideoCacheService.instance;
+      await cacheService.removeCache(widget.webVideoUrl!);
+
+      if (mounted) {
+        setState(() {
+          _hasCache = false;
+          _cacheEntry = null;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('缓存已移除'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('移除缓存失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 显示缓存信息
+  void _showCacheInfo() {
+    if (_cacheEntry == null || !mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('缓存信息 - ${_videoName ?? "视频"}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('缓存状态: ${_hasCache ? "已完成" : "未完成"}'),
+            if (_cacheEntry!.fileSize > 0)
+              Text('文件大小: ${_formatFileSize(_cacheEntry!.fileSize)}'),
+            if (_cacheEntry!.downloadedBytes > 0 && _cacheEntry!.fileSize > 0)
+              Text('下载进度: ${(_cacheEntry!.downloadProgress * 100).toStringAsFixed(1)}%'),
+            Text('缓存时间: ${_formatDateTime(_cacheEntry!.createdAt)}'),
+            Text('访问次数: ${_cacheEntry!.accessCount}'),
+            Text('最后访问: ${_formatDateTime(_cacheEntry!.lastAccessedAt)}'),
+            const SizedBox(height: 8),
+            Text(
+              '文件路径: ${_cacheEntry!.localPath}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 格式化文件大小
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  /// 格式化日期时间
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
+        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
   /// 设置网络监控
@@ -1130,6 +1476,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _networkStatsSubscription?.cancel();
     _bufferProgressTimer?.cancel();
     _globalBufferMonitor?.cancel();
+    _downloadProgressSubscription?.cancel();
 
     // 停止带宽监控
     if (_isNetworkVideo) {
