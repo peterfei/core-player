@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/history_service.dart';
 import '../services/thumbnail_service.dart';
 import '../services/settings_service.dart';
+import '../services/video_cache_service.dart';
+import '../models/cache_entry.dart';
+import 'cache_management_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -36,6 +39,54 @@ class SettingsScreen extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (context) => const HistorySettingsScreen(),
                 ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.folder),
+            title: const Text('缓存管理'),
+            subtitle: const Text('管理视频缓存和存储设置'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CacheManagementScreen(),
+                ),
+              );
+            },
+          ),
+          FutureBuilder<CacheStats>(
+            future: VideoCacheService.instance.getStats(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData) {
+                return const ListTile(
+                  leading: Icon(Icons.error),
+                  title: Text('无法加载缓存统计'),
+                );
+              }
+
+              final stats = snapshot.data!;
+              return ExpansionTile(
+                leading: const Icon(Icons.storage),
+                title: const Text('缓存统计'),
+                subtitle: Text('总计 ${stats.totalEntries} 个缓存文件'),
+                children: [
+                  ListTile(
+                    title: Text('总缓存大小: ${_formatFileSize(stats.totalSize)}'),
+                    subtitle: Text('已完成: ${stats.completedEntries} 个'),
+                  ),
+                  ListTile(
+                    title: Text('部分下载: ${stats.partialEntries} 个'),
+                  ),
+                  ListTile(
+                    title: Text('缓存命中率: ${(stats.hitRate * 100).toStringAsFixed(1)}%'),
+                  ),
+                ],
               );
             },
           ),
@@ -91,6 +142,13 @@ class SettingsScreen extends StatelessWidget {
     } else {
       return '$minutes分钟';
     }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }
 
@@ -433,5 +491,12 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
     } else {
       return '$minutes分钟';
     }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }
