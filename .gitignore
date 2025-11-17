@@ -46,3 +46,5 @@ app.*.map.json
 run_macos_direct.sh
 openspec
 .clause
+THUMBNAIL_MACOS_FIX.md
+test_ffmpeg.dart

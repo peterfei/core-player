@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:yinghe_player/screens/player_screen.dart';
 import 'package:yinghe_player/screens/settings_screen.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:yinghe_player/widgets/history_list.dart';
+import 'package:yinghe_player/services/history_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,7 +14,31 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  late TabController _tabController;
+  int _historyCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadHistoryCount();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _loadHistoryCount() async {
+    final histories = await HistoryService.getHistories();
+    if (mounted) {
+      setState(() {
+        _historyCount = histories.length;
+      });
+    }
+  }
   Future<void> _pickAndPlayVideo() async {
     // Pick a file
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -65,7 +91,10 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (context) => const SettingsScreen(),
       ),
-    );
+    ).then((_) {
+      // 返回时刷新历史记录数量
+      _loadHistoryCount();
+    });
   }
 
   @override
@@ -79,14 +108,79 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _navigateToSettings,
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(
+              icon: Icon(Icons.home_outlined),
+              text: '媒体库',
+            ),
+            Tab(
+              icon: Icon(Icons.history),
+              text: '播放历史',
+            ),
+          ],
+        ),
       ),
-      body: const Center(
-        child: Text('媒体库为空'),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // 媒体库标签页
+          const MediaLibraryTab(),
+          // 播放历史标签页
+          const HistoryListWidget(),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _pickAndPlayVideo,
         tooltip: '选择视频',
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class MediaLibraryTab extends StatelessWidget {
+  const MediaLibraryTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.library_add,
+            size: 80,
+            color: Colors.grey,
+          ),
+          SizedBox(height: 16),
+          Text(
+            '媒体库为空',
+            style: TextStyle(
+              fontSize: 20,
+              color: Colors.grey,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            '点击右下角的 + 按钮添加视频',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+            ),
+          ),
+          SizedBox(height: 24),
+          Text(
+            '提示：添加的视频会自动记录到"播放历史"中',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.blue,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
