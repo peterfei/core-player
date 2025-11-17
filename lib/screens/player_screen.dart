@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/playback_history.dart';
 import '../services/history_service.dart';
+import '../services/simple_thumbnail_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File videoFile;
@@ -206,9 +207,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 开始定期保存播放进度
     _startHistoryTimer();
 
-    // 后台生成缩略图
+    // 后台生成简单缩略图
     if (_videoPath != null) {
-      HistoryService.generateThumbnailInBackground(_videoPath!);
+      Future.delayed(const Duration(seconds: 3), () async {
+        await SimpleThumbnailService.generateThumbnail(
+          videoPath: _videoPath!,
+          width: 320,
+          height: 180,
+          seekSeconds: 1.0,
+        );
+      });
     }
   }
 

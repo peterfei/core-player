@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -127,14 +126,17 @@ class ThumbnailService {
     }
   }
 
-  /// 使用 FFmpeg 生成缩略图
+  /// 使用 FFmpeg 生成缩略图（暂时禁用）
   static Future<bool> _generateThumbnailWithFFmpeg(String videoPath, String thumbnailPath) async {
     try {
-      final flutterFFmpeg = FlutterFFmpeg();
-      final command = '-i "$videoPath" -ss 00:00:01 -vframes 1 -q:v 2 "$thumbnailPath"';
+      // FFmpeg插件暂时不可用
+      print('FFmpeg 插件暂时禁用');
+      return false;
 
+      /*final flutterFFmpeg = FlutterFFmpeg();
+      final command = '-i "$videoPath" -ss 00:00:01 -vframes 1 -q:v 2 "$thumbnailPath"';
       final result = await flutterFFmpeg.execute(command);
-      return result == 0;
+      return result == 0;*/
     } catch (e) {
       print('FFmpeg 生成缩略图失败: $e');
       return false;

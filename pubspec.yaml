@@ -43,9 +43,7 @@ dependencies:
   intl: ^0.19.0
   path_provider: ^2.1.4
   path: ^1.9.0
-  flutter_ffmpeg: ^0.4.2
   video_player: ^2.8.8
-  video_thumbnail: ^0.5.3
 
 dev_dependencies:
   flutter_test:

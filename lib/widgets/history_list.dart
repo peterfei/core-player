@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/playback_history.dart';
 import '../services/history_service.dart';
 import '../services/thumbnail_service.dart';
+import '../services/simple_thumbnail_service.dart';
 import '../screens/player_screen.dart';
 import 'search_history_widget.dart';
 import 'video_thumbnail.dart';
@@ -620,7 +621,12 @@ class EnhancedHistoryItemWidget extends StatelessWidget {
 
               // 视频缩略图
               FutureBuilder<String?>(
-                future: ThumbnailService.getThumbnail(history.videoPath),
+                future: SimpleThumbnailService.generateThumbnail(
+                  videoPath: history.videoPath,
+                  width: 320, // 中等质量
+                  height: 180,
+                  seekSeconds: 1.0,
+                ),
                 builder: (context, snapshot) {
                   if (snapshot.hasData && snapshot.data != null) {
                     // 显示实际缩略图

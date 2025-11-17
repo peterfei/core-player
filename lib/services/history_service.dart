@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/playback_history.dart';
 import '../services/thumbnail_service.dart';
+import '../services/simple_thumbnail_service.dart';
 
 class HistoryService {
   static const String _storageKey = 'playback_history';
@@ -175,7 +176,12 @@ class HistoryService {
     final now = DateTime.now();
 
     // 如果没有提供缩略图路径，尝试生成
-    final finalThumbnailPath = thumbnailPath ?? await ThumbnailService.getThumbnail(videoPath);
+    final finalThumbnailPath = thumbnailPath ?? await SimpleThumbnailService.generateThumbnail(
+      videoPath: videoPath,
+      width: 320,
+      height: 180,
+      seekSeconds: 1.0,
+    );
 
     // 获取文件大小
     final finalFileSize = fileSize ?? await getFileSize(videoPath);
@@ -208,7 +214,12 @@ class HistoryService {
     final now = DateTime.now();
 
     // 如果没有提供缩略图路径，尝试生成
-    final finalThumbnailPath = thumbnailPath ?? await ThumbnailService.getThumbnail(videoPath);
+    final finalThumbnailPath = thumbnailPath ?? await SimpleThumbnailService.generateThumbnail(
+      videoPath: videoPath,
+      width: 320,
+      height: 180,
+      seekSeconds: 1.0,
+    );
 
     // 获取文件大小
     final finalFileSize = fileSize ?? await getFileSize(videoPath);
@@ -240,7 +251,12 @@ class HistoryService {
     if (existingHistory != null) {
       // 如果还没有缩略图，在后台生成
       final finalThumbnailPath = thumbnailPath ?? existingHistory.thumbnailPath ??
-          (await ThumbnailService.getThumbnail(videoPath));
+          (await SimpleThumbnailService.generateThumbnail(
+            videoPath: videoPath,
+            width: 320,
+            height: 180,
+            seekSeconds: 1.0,
+          ));
 
       // 更新现有记录，增加观看次数
       final updatedHistory = existingHistory.copyWith(
