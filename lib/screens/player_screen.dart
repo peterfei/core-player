@@ -34,6 +34,9 @@ import '../widgets/enhanced_buffering_indicator.dart';
 import '../widgets/cache_indicator.dart';
 import '../widgets/video_info_panel.dart';
 import '../widgets/performance_overlay.dart' as custom;
+import '../widgets/video_error_dialog.dart';
+import '../widgets/feedback_dialog.dart';
+import '../widgets/notification_banner.dart';
 import 'subtitle_settings_screen.dart';
 import 'subtitle_download_screen.dart';
 
@@ -92,6 +95,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _showPerformanceOverlay = false;
   bool _videoInfoPanelVisible = false;
   bool _isInitialized = false;
+  bool _showHwAccelNotification = false;
+  String _hwAccelNotificationMessage = '';
+  NotificationType _hwAccelNotificationType = NotificationType.info;
 
   // 初始化播放器和服务
   Future<void> _initializePlayerAndServices() async {
@@ -125,9 +131,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // 初始化播放器配置
   Future<void> _initializePlayer() async {
     try {
-      // 获取硬件加速配置
+      print('🔧 开始初始化播放器...');
+
+      // 先设置硬件加速事件监听器，确保不遗漏任何事件
+      _hwAccelSubscription = HardwareAccelerationService.instance.events.listen(
+        _handleHardwareAccelerationEvent,
+      );
+      print('🔧 硬件加速事件监听器已设置');
+
+      // 再初始化硬件加速服务
       await HardwareAccelerationService.instance.initialize();
       _hwAccelConfig = await HardwareAccelerationService.instance.getRecommendedConfig();
+      print('🔧 硬件加速服务初始化完成');
 
       // 创建播放器配置
       final config = _buildPlayerConfiguration();
@@ -135,11 +150,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       // 创建播放器实例
       player = Player(configuration: config);
       controller = VideoController(player);
-
-      // 监听硬件加速事件
-      _hwAccelSubscription = HardwareAccelerationService.instance.events.listen(
-        _handleHardwareAccelerationEvent,
-      );
+      print('🔧 播放器实例创建完成');
 
       print('🎮 播放器初始化完成');
       print('  硬件加速: ${_hwAccelConfig?.enabled == true ? "✅ 已启用" : "❌ 未启用"}');
@@ -252,46 +263,90 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     }
 
-    return const PlayerConfiguration(libass: true);
+    print('🔧 最终播放器配置: $libmpvSettings');
+    return const PlayerConfiguration(
+      libass: true,
+    );
   }
 
   // 处理硬件加速事件
   void _handleHardwareAccelerationEvent(HardwareAccelerationEvent event) {
+    print('🔧 硬件加速事件: ${event.type} - ${event.message}');
+
     switch (event.type) {
       case HardwareAccelerationEventType.enabled:
-        print('✅ ${event.message}');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(event.message ?? '硬件加速已启用'),
-              duration: const Duration(seconds: 2),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        print('✅ 硬件加速已启用: ${event.config?.displayName}');
+        _showHwAccelNotificationMessage(
+          '硬件加速已启用: ${event.config?.displayName ?? "未知"}',
+          NotificationType.success,
+        );
         break;
       case HardwareAccelerationEventType.fallback:
         print('⚠️ ${event.message}');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(event.message ?? '已切换到软件解码'),
-              duration: const Duration(seconds: 3),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
+        _showHwAccelNotificationMessage(
+          event.message ?? '已切换到软件解码',
+          NotificationType.warning,
+        );
         break;
       case HardwareAccelerationEventType.error:
         print('❌ ${event.message}');
+        _showHwAccelNotificationMessage(
+          event.message ?? '硬件加速错误',
+          NotificationType.error,
+        );
         break;
       case HardwareAccelerationEventType.testFailed:
         print('⚠️ ${event.message}');
+        _showHwAccelNotificationMessage(
+          event.message ?? '硬件加速测试失败',
+          NotificationType.warning,
+        );
+        break;
+      case HardwareAccelerationEventType.detected:
+        print('🔍 检测到硬件加速支持: ${event.message}');
+        // 检测到硬件加速支持时不需要显示通知，避免过多干扰
+        break;
+      case HardwareAccelerationEventType.notSupported:
+        print('❌ 硬件加速不支持: ${event.message}');
+        _showHwAccelNotificationMessage(
+          '硬件加速不可用，使用软件解码',
+          NotificationType.info,
+        );
+        break;
+      case HardwareAccelerationEventType.detectionStarted:
+        print('🔍 开始检测硬件加速支持...');
+        // 检测开始时不需要显示通知
         break;
       default:
-        // 其他事件类型暂时不处理
+        print('🔧 未处理的硬件加速事件类型: ${event.type}');
         break;
     }
+  }
+
+  /// 显示硬件加速通知消息
+  void _showHwAccelNotificationMessage(String message, NotificationType type) {
+    if (!mounted) return;
+
+    print('🔔 显示硬件加速通知:');
+    print('  消息: $message');
+    print('  类型: $type');
+    print('  当前时间: ${DateTime.now()}');
+
+    setState(() {
+      _showHwAccelNotification = true;
+      _hwAccelNotificationMessage = message;
+      _hwAccelNotificationType = type;
+    });
+
+    // 3秒后自动隐藏通知
+    Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        print('🔔 隐藏硬件加速通知 (自动隐藏)');
+        setState(() {
+          _showHwAccelNotification = false;
+        });
+      }
+    });
   }
 
   // 启动性能监控
@@ -302,6 +357,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       try {
         PerformanceMonitorService.instance.startMonitoring(player, intervalMs: 1000);
+
+        // 设置解码器类型
+        final decoderType = _hwAccelConfig?.enabled == true
+            ? 'Hardware (${_hwAccelConfig?.type ?? "Unknown"})'
+            : 'Software';
+        PerformanceMonitorService.instance.setDecoderType(decoderType);
 
         // 监听性能指标，用于覆盖层显示
         _performanceSubscription = PerformanceMonitorService.instance.metricsStream.listen(
@@ -1499,6 +1560,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _toggleControls,
+        onSecondaryTapUp: (details) {
+          // 右键点击显示上下文菜单
+          _showContextMenu(context, details.globalPosition);
+        },
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -1562,6 +1627,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 right: 16,
                 child: custom.PerformanceIndicator(
                   isVisible: true,
+                ),
+              ),
+            // 硬件加速通知横幅
+            if (_showHwAccelNotification)
+              Positioned(
+                top: _isNetworkVideo ? 140 : 80, // 如果有缓存指示器，显示在下方
+                left: 16,
+                right: 16,
+                child: NotificationBanner(
+                  title: '硬件加速',
+                  message: _hwAccelNotificationMessage,
+                  type: _hwAccelNotificationType,
+                  onDismiss: () {
+                    setState(() {
+                      _showHwAccelNotification = false;
+                    });
+                  },
                 ),
               ),
             // 播放控制界面
@@ -1755,10 +1837,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
         },
       );
 
-      await player.open(media, play: true);
+      try {
+        await player.open(media, play: true);
 
-      // 分析视频信息和格式兼容性
-      await _analyzeVideoInfo();
+        // 分析视频信息和格式兼容性
+        await _analyzeVideoInfo();
+      } catch (e) {
+        // 处理播放器打开错误
+        _handlePlaybackError(e, _videoPath, media.uri);
+      }
 
       // 视频打开后，如果有字幕文件，尝试加载
       if (subtitlePath != null) {
@@ -2348,11 +2435,543 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
+  /// 处理播放错误
+  void _handlePlaybackError(dynamic error, String? videoPath, String resource) {
+    print('❌ 播放错误: $error');
+    print('视频路径: $videoPath');
+    print('资源: $resource');
+
+    // 确定错误类型
+    final errorType = _getErrorType(error);
+    final errorTitle = _getErrorTitle(errorType);
+    final errorDescription = _getErrorDescription(errorType, error);
+
+    // 显示详细错误对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => VideoErrorDialog(
+        title: errorTitle,
+        error: errorDescription,
+        errorType: errorType,
+        videoPath: videoPath,
+        onRetry: () {
+          Navigator.of(context).pop();
+          _retryPlayback(videoPath);
+        },
+      ),
+    );
+  }
+
+  /// 获取错误类型
+  VideoErrorType _getErrorType(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    if (errorString.contains('format') || errorString.contains('codec') ||
+        errorString.contains('unsupported') || errorString.contains('mpv')) {
+      return VideoErrorType.codecNotSupported;
+    } else if (errorString.contains('permission') || errorString.contains('access denied') ||
+               errorString.contains('file not found') || errorString.contains('no such file')) {
+      return VideoErrorType.fileNotFound;
+    } else if (errorString.contains('network') || errorString.contains('connection') ||
+               errorString.contains('timeout') || errorString.contains('host')) {
+      return VideoErrorType.networkError;
+    } else if (errorString.contains('memory') || errorString.contains('out of memory') ||
+               errorString.contains('allocation')) {
+      return VideoErrorType.memoryError;
+    } else if (errorString.contains('hardware') || errorString.contains('gpu') ||
+               errorString.contains('acceleration')) {
+      return VideoErrorType.hardwareAccelerationFailed;
+    } else {
+      return VideoErrorType.unknown;
+    }
+  }
+
+  /// 获取错误标题
+  String _getErrorTitle(VideoErrorType errorType) {
+    switch (errorType) {
+      case VideoErrorType.codecNotSupported:
+        return '视频格式不支持';
+      case VideoErrorType.fileNotFound:
+        return '文件未找到';
+      case VideoErrorType.networkError:
+        return '网络连接错误';
+      case VideoErrorType.memoryError:
+        return '内存不足';
+      case VideoErrorType.hardwareAccelerationFailed:
+        return '硬件加速错误';
+      case VideoErrorType.permissionDenied:
+        return '权限拒绝';
+      case VideoErrorType.corruptedFile:
+        return '文件损坏';
+      case VideoErrorType.unknown:
+        return '播放错误';
+    }
+  }
+
+  /// 获取错误描述
+  String _getErrorDescription(VideoErrorType errorType, dynamic error) {
+    final baseError = error.toString();
+
+    switch (errorType) {
+      case VideoErrorType.codecNotSupported:
+        return '当前视频格式或编解码器不受支持。\n\n建议：\n• 尝试转换视频格式为 MP4 (H.264)\n• 安装必要的解码器\n• 在设置中切换到兼容模式';
+      case VideoErrorType.fileNotFound:
+        return '无法找到指定的视频文件。\n\n建议：\n• 检查文件路径是否正确\n• 确认文件是否存在\n• 检查文件访问权限';
+      case VideoErrorType.networkError:
+        return '网络连接出现问题。\n\n建议：\n• 检查网络连接\n• 尝试使用其他网络\n• 等待网络稳定后重试';
+      case VideoErrorType.memoryError:
+        return '系统内存不足，无法播放视频。\n\n建议：\n• 关闭其他应用程序\n• 重启应用释放内存\n• 尝试播放较低画质的视频';
+      case VideoErrorType.hardwareAccelerationFailed:
+        return '硬件加速出现问题。\n\n建议：\n• 在设置中禁用硬件加速\n• 更新显卡驱动程序\n• 重启应用程序';
+      case VideoErrorType.permissionDenied:
+        return '无法访问视频文件（权限不足）。\n\n建议：\n• 检查文件权限\n• 使用文件选择器重新选择视频';
+      case VideoErrorType.corruptedFile:
+        return '视频文件可能已损坏。\n\n建议：\n• 尝试重新下载视频\n• 检查文件完整性';
+      case VideoErrorType.unknown:
+        return '播放过程中发生未知错误。\n\n详情：$baseError';
+    }
+  }
+
+  /// 重试播放
+  void _retryPlayback(String? videoPath) async {
+    if (videoPath == null) return;
+
+    try {
+      setState(() {
+        _isBuffering = true;
+        _networkStatus = '重新连接...';
+      });
+
+      // 尝试重新打开视频
+      final media = Media(videoPath);
+      await player.open(media, play: true);
+
+      // 重新分析视频信息
+      await _analyzeVideoInfo();
+
+      if (mounted) {
+        setState(() {
+          _isBuffering = false;
+          _networkStatus = '播放中';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('播放已恢复'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ 重试播放失败: $e');
+      if (mounted) {
+        setState(() {
+          _isBuffering = false;
+          _networkStatus = '重试失败';
+        });
+
+        // 显示简单的错误提示
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('重试失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 使用外部应用打开
+  void _openWithExternalApp(String? videoPath) async {
+    if (videoPath == null) return;
+
+    try {
+      // TODO: 实现使用外部应用打开的功能
+      // 可以使用 url_launcher 或其他插件
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('外部应用打开功能开发中...'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('无法打开外部应用: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 显示反馈对话框
+  void _showFeedbackDialog(String errorTitle, String errorDescription) {
+    showDialog(
+      context: context,
+      builder: (context) => FeedbackDialog(
+        preFilledIssue: '播放错误报告: $errorTitle\n\n'
+            '错误详情:\n$errorDescription\n\n'
+            '视频路径: ${_videoPath ?? "未知"}\n'
+            '视频名称: ${_videoName ?? "未知"}\n'
+            '是否网络视频: $_isNetworkVideo\n'
+            '当前时间: ${DateTime.now()}\n\n'
+            '请描述问题发生的具体情况:',
+      ),
+    );
+  }
+
+  /// 显示详细性能信息面板
+  void _showDetailedPerformancePanel() {
+    final metrics = PerformanceMonitorService.instance.currentMetrics;
+    final stats = PerformanceMonitorService.instance.getPerformanceStats();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.speed, color: Colors.blue),
+            const SizedBox(width: 8),
+            const Text('播放性能信息'),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          height: 500,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 实时性能指标
+              if (metrics != null) ...[
+                const Text(
+                  '实时性能',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _buildPerformanceMetricRow('帧率', '${metrics.fps.toStringAsFixed(1)} / ${metrics.targetFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow('丢帧率', '${metrics.droppedFramePercentage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('CPU占用', '${metrics.cpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('内存占用', '${metrics.memoryUsage.toStringAsFixed(1)} MB'),
+                _buildPerformanceMetricRow('GPU占用', '${metrics.gpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('缓冲进度', '${metrics.bufferPercentage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('缓冲时长', '${metrics.bufferedMs} ms'),
+                _buildPerformanceMetricRow('解码器', metrics.decoderType),
+                _buildPerformanceMetricRow('分辨率', metrics.resolution),
+                if (metrics.networkBandwidth != null)
+                  _buildPerformanceMetricRow('网络带宽', '${_formatBandwidth(metrics.networkBandwidth!)}'),
+                const Divider(),
+              ],
+
+              // 硬件加速信息
+              if (_hwAccelConfig != null) ...[
+                const Text(
+                  '硬件加速',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _buildPerformanceMetricRow('状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
+                _buildPerformanceMetricRow('加速类型', _hwAccelConfig!.displayName),
+                _buildPerformanceMetricRow('支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
+                if (_hwAccelConfig!.gpuInfo != null) ...[
+                  _buildPerformanceMetricRow('GPU', '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
+                  if (_hwAccelConfig!.gpuInfo!.memoryMB != null)
+                    _buildPerformanceMetricRow('GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
+                  _buildPerformanceMetricRow('性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
+                ],
+                const Divider(),
+              ],
+
+              // 统计信息
+              if (stats != null) ...[
+                const Text(
+                  '播放统计',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                _buildPerformanceMetricRow('平均帧率', '${stats.averageFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow('最高帧率', '${stats.maxFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow('最低帧率', '${stats.minFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow('总丢帧数', '${stats.totalDroppedFrames}'),
+                _buildPerformanceMetricRow('平均CPU', '${stats.averageCpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('峰值CPU', '${stats.maxCpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('平均内存', '${stats.averageMemoryUsage.toStringAsFixed(1)} MB'),
+                _buildPerformanceMetricRow('峰值内存', '${stats.maxMemoryUsage.toStringAsFixed(1)} MB'),
+                _buildPerformanceMetricRow('监控时长', '${stats.monitoringDuration} 秒'),
+                _buildPerformanceMetricRow('性能问题', '${stats.performanceIssues} 次'),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+          if (stats != null)
+            TextButton(
+              onPressed: () {
+                _clearPerformanceStats();
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('性能统计已重置')),
+                );
+              },
+              child: const Text('重置统计'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建性能指标行
+  Widget _buildPerformanceMetricRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.grey[300],
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 格式化带宽
+  String _formatBandwidth(int bps) {
+    if (bps < 1000) return '$bps bps';
+    if (bps < 1000000) return '${(bps / 1000).toStringAsFixed(1)} Kbps';
+    if (bps < 1000000000) return '${(bps / 1000000).toStringAsFixed(1)} Mbps';
+    return '${(bps / 1000000000).toStringAsFixed(1)} Gbps';
+  }
+
+  /// 清除性能统计
+  void _clearPerformanceStats() {
+    PerformanceMonitorService.instance.clearHistory();
+  }
+
+  /// 显示右键上下文菜单
+  void _showContextMenu(BuildContext context, Offset position) {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    final List<PopupMenuEntry<String>> menuItems = [
+      const PopupMenuItem(
+        value: 'performance',
+        child: Row(
+          children: [
+            Icon(Icons.speed, size: 18),
+            SizedBox(width: 8),
+            Text('查看性能信息'),
+          ],
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'video_info',
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, size: 18),
+            SizedBox(width: 8),
+            Text('视频信息'),
+          ],
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'hardware_accel',
+        child: Row(
+          children: [
+            Icon(Icons.speed, size: 18),
+            SizedBox(width: 8),
+            Text('硬件加速'),
+          ],
+        ),
+      ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(
+        value: 'toggle_performance_overlay',
+        child: Row(
+          children: [
+            Icon(Icons.visibility, size: 18),
+            SizedBox(width: 8),
+            Text('切换性能覆盖层'),
+          ],
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'toggle_controls',
+        child: Row(
+          children: [
+            Icon(Icons.visibility, size: 18),
+            SizedBox(width: 8),
+            Text('切换控制栏'),
+          ],
+        ),
+      ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(
+        value: 'screenshot',
+        child: Row(
+          children: [
+            Icon(Icons.camera_alt, size: 18),
+            SizedBox(width: 8),
+            Text('截图'),
+          ],
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'report_issue',
+        child: Row(
+          children: [
+            Icon(Icons.bug_report, size: 18),
+            SizedBox(width: 8),
+            Text('反馈问题'),
+          ],
+        ),
+      ),
+    ];
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        Offset.zero & overlay.size,
+      ),
+      items: menuItems,
+    ).then((value) {
+      if (value != null) {
+        _handleContextMenuSelection(value);
+      }
+    });
+  }
+
+  /// 处理上下文菜单选择
+  void _handleContextMenuSelection(String value) {
+    switch (value) {
+      case 'performance':
+        _showDetailedPerformancePanel();
+        break;
+      case 'video_info':
+        _showVideoInfoPanel();
+        break;
+      case 'hardware_accel':
+        _showHardwareAccelerationDialog();
+        break;
+      case 'toggle_performance_overlay':
+        setState(() {
+          _showPerformanceOverlay = !_showPerformanceOverlay;
+        });
+        break;
+      case 'toggle_controls':
+        setState(() {
+          _isControlsVisible = !_isControlsVisible;
+        });
+        break;
+      case 'screenshot':
+        _takeScreenshot();
+        break;
+      case 'report_issue':
+        _showFeedbackDialog('播放器反馈', '请描述您遇到的问题或建议。');
+        break;
+    }
+  }
+
+  /// 显示硬件加速信息对话框
+  void _showHardwareAccelerationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.speed, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('硬件加速信息'),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_hwAccelConfig != null) ...[
+                _buildPerformanceMetricRow('状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
+                _buildPerformanceMetricRow('加速类型', _hwAccelConfig!.displayName),
+                _buildPerformanceMetricRow('支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
+                if (_hwAccelConfig!.gpuInfo != null) ...[
+                  _buildPerformanceMetricRow('GPU', '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
+                  if (_hwAccelConfig!.gpuInfo!.memoryMB != null)
+                    _buildPerformanceMetricRow('GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
+                  _buildPerformanceMetricRow('性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
+                  _buildPerformanceMetricRow('支持4K解码', _hwAccelConfig!.gpuInfo!.supports4KDecoding ? '是' : '否'),
+                ],
+              ] else ...[
+                const Text('硬件加速配置未加载'),
+                const SizedBox(height: 16),
+                const Text('请尝试重新播放视频或检查系统设置'),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+          if (_hwAccelConfig?.enabled == true)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _disableHardwareAcceleration();
+              },
+              child: const Text('禁用硬件加速'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 禁用硬件加速
+  void _disableHardwareAcceleration() {
+    // 这里可以实现禁用硬件加速的逻辑
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('硬件加速禁用功能开发中...')),
+    );
+  }
+
+  /// 截图功能
+  void _takeScreenshot() async {
+    try {
+      final screenshot = await player.screenshot();
+      if (screenshot != null && screenshot.isNotEmpty) {
+        // 这里可以实现保存截图到相册的功能
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('截图功能开发中...')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('截图失败: $e')),
+      );
+    }
+  }
+
   @override
   void dispose() {
+    print('🧹 开始清理播放器资源...');
+
     // 停止超高清视频支持服务
     _stopPerformanceMonitoring();
     _hwAccelSubscription?.cancel();
+    print('🧹 硬件加速事件监听器已取消');
 
     _controlsTimer?.cancel();
     _historyTimer?.cancel();

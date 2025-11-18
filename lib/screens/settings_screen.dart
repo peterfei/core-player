@@ -5,6 +5,8 @@ import '../services/settings_service.dart';
 import '../services/video_cache_service.dart';
 import '../models/cache_entry.dart';
 import 'cache_management_screen.dart';
+import 'format_support_screen.dart';
+import 'video_playback_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -28,6 +30,19 @@ class SettingsScreen extends StatelessWidget {
             title: Text('通知设置'),
             subtitle: Text('管理通知偏好设置'),
             enabled: false,
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune),
+            title: const Text('播放设置'),
+            subtitle: const Text('调整视频播放质量和性能设置'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const VideoPlaybackSettingsScreen(),
+                ),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.history),
@@ -119,6 +134,20 @@ class SettingsScreen extends StatelessWidget {
                     title: Text('最近一周观看: ${stats['recentCount']} 个'),
                   ),
                 ],
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.video_file),
+            title: const Text('格式支持'),
+            subtitle: const Text('查看支持的视频格式和编解码器'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FormatSupportScreen(),
+                ),
               );
             },
           ),

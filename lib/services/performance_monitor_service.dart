@@ -236,8 +236,11 @@ class PerformanceMonitorService {
   /// 监控间隔（毫秒）
   int _monitoringInterval = 1000;
 
-  /// 上次帧数统计
-  int _lastFrameCount = 0;
+  /// 上次位置（用于计算FPS）
+  Duration _lastPosition = Duration.zero;
+
+  /// 上次采集时间
+  DateTime? _lastCollectTime;
 
   /// 总丢帧数
   int _totalDroppedFrames = 0;
@@ -247,6 +250,9 @@ class PerformanceMonitorService {
 
   /// 监控开始时间
   DateTime? _monitoringStartTime;
+
+  /// 解码器类型（由外部设置）
+  String _decoderType = 'Software';
 
   /// 性能指标流
   Stream<PerformanceMetrics> get metricsStream => _metricsController.stream;
@@ -258,6 +264,11 @@ class PerformanceMonitorService {
 
   /// 是否正在监控
   bool get isMonitoring => _isMonitoring;
+
+  /// 设置解码器类型（由外部调用）
+  void setDecoderType(String type) {
+    _decoderType = type;
+  }
 
   /// 开始监控
   void startMonitoring(Player player, {int intervalMs = 1000}) {
@@ -271,6 +282,8 @@ class PerformanceMonitorService {
     _monitoringStartTime = DateTime.now();
     _totalDroppedFrames = 0;
     _performanceIssueCount = 0;
+    _lastPosition = Duration.zero;
+    _lastCollectTime = null;
 
     // 初始化系统信息
     _initializeSystemInfo();
@@ -440,12 +453,12 @@ class PerformanceMonitorService {
       final duration = player.state.duration;
       final isPlaying = player.state.playing;
 
-      // 计算帧率（这是一个估算）
+      // 计算帧率
       double currentFps = 0.0;
       double targetFps = 30.0; // 默认目标帧率
 
       if (isPlaying && duration.inMilliseconds > 0) {
-        // 尝试从轨道信息获取帧率
+        // 尝试从轨道信息获取目标帧率
         final tracks = player.state.tracks;
         if (tracks.video.isNotEmpty) {
           final videoTrack = tracks.video.first;
@@ -454,27 +467,62 @@ class PerformanceMonitorService {
           }
         }
 
-        // 估算当前帧率
-        if (position.inMilliseconds > 0 && _lastFrameCount > 0) {
-          // 这里是一个简化的估算，实际应该从播放器获取准确的帧率
-          currentFps = targetFps;
+        // 计算实际FPS：如果视频正在播放，假设以目标帧率播放
+        // 在实际场景中，MediaKit会尽量保持目标帧率
+        if (position.inMilliseconds > 0) {
+          if (_lastCollectTime != null && _lastPosition.inMilliseconds > 0) {
+            final timeDiff = now.difference(_lastCollectTime!).inMilliseconds;
+            final posDiff = position.inMilliseconds - _lastPosition.inMilliseconds;
+
+            // 如果时间差和位置差都有效，计算实际播放速度
+            if (timeDiff > 0 && posDiff > 0) {
+              // 播放速度接近1.0表示正常播放
+              final playbackSpeed = posDiff / timeDiff;
+              currentFps = targetFps * playbackSpeed;
+
+              // 限制在合理范围内
+              currentFps = currentFps.clamp(0.0, targetFps * 1.1);
+            } else {
+              // 暂停或seek时，FPS为0
+              currentFps = 0.0;
+            }
+          } else {
+            // 第一次采集，假设正常播放
+            currentFps = targetFps;
+          }
         }
+
+        // 更新上次记录
+        _lastPosition = position;
+        _lastCollectTime = now;
       }
 
-      // 获取缓冲信息（如果可用）
+      // 获取缓冲信息
       double bufferPercentage = 0.0;
       int bufferedMs = 0;
 
-      // 获取解码器信息（这是模拟的，实际需要从播放器获取）
-      String decoderType = 'Software'; // 默认软解
+      // MediaKit的buffer信息
+      if (player.state.buffer.inMilliseconds > 0 && duration.inMilliseconds > 0) {
+        final bufferDuration = player.state.buffer;
+        bufferedMs = bufferDuration.inMilliseconds - position.inMilliseconds;
+        if (bufferedMs < 0) bufferedMs = 0;
+
+        // 计算缓冲百分比（相对于总时长）
+        bufferPercentage = (bufferedMs / duration.inMilliseconds * 100).clamp(0.0, 100.0);
+      }
+
+      // 获取解码器信息（使用外部设置的值）
+      String decoderType = _decoderType;
 
       // 获取分辨率信息
       String resolution = 'Unknown';
       final tracks = player.state.tracks;
       if (tracks.video.isNotEmpty) {
-        // TODO: media_kit的VideoTrack API可能不同，需要查看实际API
         final videoTrack = tracks.video.first;
-        resolution = 'Unknown'; // 暂时设置，需要获取实际分辨率
+        // MediaKit的VideoTrack包含width和height
+        if (videoTrack.w != null && videoTrack.h != null) {
+          resolution = '${videoTrack.w}x${videoTrack.h}';
+        }
       }
 
       // 获取系统资源占用
@@ -482,11 +530,17 @@ class PerformanceMonitorService {
       final memoryUsage = await _getMemoryUsage();
       final gpuUsage = await _getGpuUsage();
 
-      // 计算丢帧（这是模拟的）
+      // 计算丢帧
       int droppedFrames = 0;
-      if (currentFps < targetFps * 0.9) {
-        droppedFrames = ((targetFps - currentFps) * 0.1).round();
-        _totalDroppedFrames += droppedFrames;
+      if (isPlaying && targetFps > 0) {
+        // 基于实际FPS和目标FPS的差异计算丢帧
+        if (currentFps < targetFps) {
+          // 每秒丢失的帧数
+          final framesLostPerSecond = targetFps - currentFps;
+          // 当前监控周期内的丢帧数
+          droppedFrames = (framesLostPerSecond * (_monitoringInterval / 1000.0)).round();
+          _totalDroppedFrames += droppedFrames;
+        }
       }
 
       // 检测性能问题
