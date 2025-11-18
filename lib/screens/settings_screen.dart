@@ -99,7 +99,8 @@ class SettingsScreen extends StatelessWidget {
                     title: Text('部分下载: ${stats.partialEntries} 个'),
                   ),
                   ListTile(
-                    title: Text('缓存命中率: ${(stats.hitRate * 100).toStringAsFixed(1)}%'),
+                    title: Text(
+                        '缓存命中率: ${(stats.hitRate * 100).toStringAsFixed(1)}%'),
                   ),
                 ],
               );
@@ -127,7 +128,8 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: Text('总计 ${stats['totalCount']} 个视频'),
                 children: [
                   ListTile(
-                    title: Text('总观看时长: ${_formatWatchTime(stats['totalWatchTime'])}'),
+                    title: Text(
+                        '总观看时长: ${_formatWatchTime(stats['totalWatchTime'])}'),
                     subtitle: Text('已完成: ${stats['completedCount']} 个'),
                   ),
                   ListTile(
@@ -176,7 +178,8 @@ class SettingsScreen extends StatelessWidget {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }
@@ -236,24 +239,24 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
               });
             },
           ),
-
           if (_historyEnabled) ...[
             ListTile(
               leading: const Icon(Icons.format_list_numbered),
               title: const Text('最大历史记录数量'),
-              subtitle: Text(SettingsService.formatMaxHistoryCount(_maxHistoryCount)),
+              subtitle:
+                  Text(SettingsService.formatMaxHistoryCount(_maxHistoryCount)),
               trailing: const Icon(Icons.chevron_right),
               onTap: _showMaxHistoryCountDialog,
             ),
             ListTile(
               leading: const Icon(Icons.schedule),
               title: const Text('自动清理时间'),
-              subtitle: Text(SettingsService.formatAutoCleanDays(_autoCleanDays)),
+              subtitle:
+                  Text(SettingsService.formatAutoCleanDays(_autoCleanDays)),
               trailing: const Icon(Icons.chevron_right),
               onTap: _showAutoCleanDaysDialog,
             ),
           ],
-
           const SizedBox(height: 24),
           _buildSectionHeader('缩略图设置'),
           SwitchListTile(
@@ -261,12 +264,14 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
             title: const Text('生成缩略图'),
             subtitle: const Text('为视频生成预览缩略图'),
             value: _thumbnailsEnabled,
-            onChanged: _historyEnabled ? (value) async {
-              await SettingsService.setThumbnailsEnabled(value);
-              setState(() {
-                _thumbnailsEnabled = value;
-              });
-            } : null,
+            onChanged: _historyEnabled
+                ? (value) async {
+                    await SettingsService.setThumbnailsEnabled(value);
+                    setState(() {
+                      _thumbnailsEnabled = value;
+                    });
+                  }
+                : null,
           ),
           if (_thumbnailsEnabled)
             ListTile(
@@ -276,7 +281,6 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
               trailing: const Icon(Icons.chevron_right),
               onTap: _showThumbnailCacheDialog,
             ),
-
           const SizedBox(height: 24),
           _buildSectionHeader('数据管理'),
           ListTile(
@@ -369,7 +373,8 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
           TextButton(
             onPressed: () {
               final value = int.tryParse(controller.text);
-              if (value != null && SettingsService.isValidMaxHistoryCount(value)) {
+              if (value != null &&
+                  SettingsService.isValidMaxHistoryCount(value)) {
                 Navigator.of(context).pop(value);
               }
             },
@@ -395,12 +400,14 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
         title: const Text('自动清理时间'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: options.map((days) => RadioListTile<int>(
-            title: Text(SettingsService.formatAutoCleanDays(days)),
-            value: days,
-            groupValue: _autoCleanDays,
-            onChanged: (value) => Navigator.of(context).pop(value),
-          )).toList(),
+          children: options
+              .map((days) => RadioListTile<int>(
+                    title: Text(SettingsService.formatAutoCleanDays(days)),
+                    value: days,
+                    groupValue: _autoCleanDays,
+                    onChanged: (value) => Navigator.of(context).pop(value),
+                  ))
+              .toList(),
         ),
       ),
     );
@@ -525,7 +532,8 @@ class _HistorySettingsScreenState extends State<HistorySettingsScreen> {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }

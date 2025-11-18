@@ -97,11 +97,9 @@ class CacheConfig {
 
     if (configJson != null) {
       try {
-        final Map<String, dynamic> json =
-            Map<String, dynamic>.from(
-              // 简单的JSON解析，实际项目中建议使用dart:convert
-              {}
-            );
+        final Map<String, dynamic> json = Map<String, dynamic>.from(
+            // 简单的JSON解析，实际项目中建议使用dart:convert
+            {});
         return CacheConfig.fromJson(json);
       } catch (e) {
         // 如果解析失败，返回默认配置

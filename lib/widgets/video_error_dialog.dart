@@ -345,12 +345,7 @@ class VideoErrorDialog extends StatelessWidget {
   List<String> _getSolutions() {
     switch (errorType) {
       case VideoErrorType.fileNotFound:
-        return [
-          '检查文件是否存在于指定路径',
-          '确认文件没有被重命名或移动',
-          '检查文件路径是否包含特殊字符',
-          '重新选择视频文件'
-        ];
+        return ['检查文件是否存在于指定路径', '确认文件没有被重命名或移动', '检查文件路径是否包含特殊字符', '重新选择视频文件'];
       case VideoErrorType.codecNotSupported:
         return [
           '安装相应的编解码器包',
@@ -359,47 +354,17 @@ class VideoErrorDialog extends StatelessWidget {
           '尝试使用其他播放器转换格式'
         ];
       case VideoErrorType.hardwareAccelerationFailed:
-        return [
-          '在设置中禁用硬件加速',
-          '更新显卡驱动程序',
-          '检查系统是否支持硬件解码',
-          '重启应用程序'
-        ];
+        return ['在设置中禁用硬件加速', '更新显卡驱动程序', '检查系统是否支持硬件解码', '重启应用程序'];
       case VideoErrorType.networkError:
-        return [
-          '检查网络连接是否正常',
-          '确认URL地址是否正确',
-          '尝试使用其他网络',
-          '检查防火墙设置'
-        ];
+        return ['检查网络连接是否正常', '确认URL地址是否正确', '尝试使用其他网络', '检查防火墙设置'];
       case VideoErrorType.permissionDenied:
-        return [
-          '以管理员身份运行应用',
-          '检查文件和目录的访问权限',
-          '将文件移动到有权限的位置',
-          '在文件属性中修改权限'
-        ];
+        return ['以管理员身份运行应用', '检查文件和目录的访问权限', '将文件移动到有权限的位置', '在文件属性中修改权限'];
       case VideoErrorType.corruptedFile:
-        return [
-          '尝试使用视频修复工具',
-          '重新下载或复制文件',
-          '检查文件完整性',
-          '尝试播放其他视频测试播放器'
-        ];
+        return ['尝试使用视频修复工具', '重新下载或复制文件', '检查文件完整性', '尝试播放其他视频测试播放器'];
       case VideoErrorType.memoryError:
-        return [
-          '关闭其他应用程序释放内存',
-          '重启设备',
-          '尝试播放较小的视频文件',
-          '在设置中降低缓冲大小'
-        ];
+        return ['关闭其他应用程序释放内存', '重启设备', '尝试播放较小的视频文件', '在设置中降低缓冲大小'];
       case VideoErrorType.unknown:
-        return [
-          '重启应用程序',
-          '检查系统更新',
-          '尝试播放其他视频文件',
-          '联系技术支持'
-        ];
+        return ['重启应用程序', '检查系统更新', '尝试播放其他视频文件', '联系技术支持'];
     }
   }
 

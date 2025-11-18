@@ -8,21 +8,21 @@ class PlaybackHistory {
   final String videoName;
   final DateTime lastPlayedAt;
   final int currentPosition; // 当前播放进度，单位：秒
-  final int totalDuration;   // 视频总时长，单位：秒
+  final int totalDuration; // 视频总时长，单位：秒
   final String? thumbnailPath; // 缩略图路径
-  final int watchCount;       // 观看次数
-  final DateTime createdAt;   // 创建时间
-  final int? fileSize;        // 文件大小（字节）
+  final int watchCount; // 观看次数
+  final DateTime createdAt; // 创建时间
+  final int? fileSize; // 文件大小（字节）
 
   // 网络视频相关字段
-  final String sourceType;    // "local" | "network"
-  final String? streamUrl;    // 网络视频URL
+  final String sourceType; // "local" | "network"
+  final String? streamUrl; // 网络视频URL
   final String? streamProtocol; // 流协议类型 (http/hls/dash)
-  final bool isLiveStream;    // 是否直播流
+  final bool isLiveStream; // 是否直播流
 
   // macOS沙盒缩略图相关字段
   final String? thumbnailCachePath; // 缓存的缩略图路径（应用沙盒内）
-  final String? securityBookmark;   // macOS安全书签数据（Base64编码）
+  final String? securityBookmark; // macOS安全书签数据（Base64编码）
   final DateTime? thumbnailGeneratedAt; // 缩略图生成时间
 
   const PlaybackHistory({
@@ -203,7 +203,8 @@ class PlaybackHistory {
   static String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -223,7 +224,8 @@ class PlaybackHistory {
   bool get isWatchedToday {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final watchDay = DateTime(lastPlayedAt.year, lastPlayedAt.month, lastPlayedAt.day);
+    final watchDay =
+        DateTime(lastPlayedAt.year, lastPlayedAt.month, lastPlayedAt.day);
     return watchDay.isAtSameMomentAs(today);
   }
 
@@ -236,7 +238,16 @@ class PlaybackHistory {
 
   /// 判断是否为常见视频格式
   bool get isCommonVideoFormat {
-    final commonFormats = ['mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm', 'm4v'];
+    final commonFormats = [
+      'mp4',
+      'avi',
+      'mov',
+      'mkv',
+      'wmv',
+      'flv',
+      'webm',
+      'm4v'
+    ];
     return commonFormats.contains(fileExtension);
   }
 
@@ -303,7 +314,9 @@ class PlaybackHistory {
 
   /// 检查是否有安全书签（仅macOS相关）
   bool get hasSecurityBookmark {
-    return Platform.isMacOS && securityBookmark != null && securityBookmark!.isNotEmpty;
+    return Platform.isMacOS &&
+        securityBookmark != null &&
+        securityBookmark!.isNotEmpty;
   }
 
   /// 是否需要更新书签（用于macOS）

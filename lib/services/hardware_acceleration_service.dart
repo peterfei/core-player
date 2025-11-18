@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:media_kit/media_kit.dart';
 import '../models/hardware_acceleration_config.dart';
 
@@ -32,14 +33,14 @@ class HardwareAccelerationService {
   bool get isHardwareAccelerationSupported {
     if (_currentConfig == null) return false;
     return _currentConfig!.status != HwAccelStatus.unavailable &&
-           _currentConfig!.status != HwAccelStatus.error &&
-           _currentConfig!.type != HwAccelType.none;
+        _currentConfig!.status != HwAccelStatus.error &&
+        _currentConfig!.type != HwAccelType.none;
   }
 
   /// 是否已启用硬件加速
   bool get isHardwareAccelerationEnabled {
     return _currentConfig?.enabled == true &&
-           _currentConfig?.type != HwAccelType.none;
+        _currentConfig?.type != HwAccelType.none;
   }
 
   /// 初始化硬件加速服务
@@ -75,7 +76,8 @@ class HardwareAccelerationService {
   }
 
   /// 检测硬件加速能力
-  Future<HardwareAccelerationConfig> detectHardwareAccelerationCapability() async {
+  Future<HardwareAccelerationConfig>
+      detectHardwareAccelerationCapability() async {
     final targetPlatform = defaultTargetPlatform;
 
     switch (targetPlatform) {
@@ -96,7 +98,8 @@ class HardwareAccelerationService {
 
   /// 获取推荐的硬件加速配置
   Future<HardwareAccelerationConfig> getRecommendedConfig() async {
-    if (_currentConfig != null && _currentConfig!.status != HwAccelStatus.error) {
+    if (_currentConfig != null &&
+        _currentConfig!.status != HwAccelStatus.error) {
       return _currentConfig!;
     }
 
@@ -118,7 +121,8 @@ class HardwareAccelerationService {
         final testConfig = config.copyWith(
           type: preferredType,
           enabled: true,
-          platformSpecificSettings: customSettings ?? config.platformSpecificSettings,
+          platformSpecificSettings:
+              customSettings ?? config.platformSpecificSettings,
         );
 
         // 测试配置是否可用
@@ -133,7 +137,8 @@ class HardwareAccelerationService {
       // 使用推荐的配置
       final enabledConfig = config.copyWith(
         enabled: true,
-        platformSpecificSettings: customSettings ?? config.platformSpecificSettings,
+        platformSpecificSettings:
+            customSettings ?? config.platformSpecificSettings,
       );
 
       final testResult = await _testHardwareAcceleration(enabledConfig);
@@ -161,9 +166,10 @@ class HardwareAccelerationService {
   Future<void> disableHardwareAcceleration() async {
     try {
       _currentConfig = _currentConfig?.copyWith(
-        enabled: false,
-        status: HwAccelStatus.disabled,
-      ) ?? HardwareAccelerationConfig.disabled();
+            enabled: false,
+            status: HwAccelStatus.disabled,
+          ) ??
+          HardwareAccelerationConfig.disabled();
 
       _fireEvent(HardwareAccelerationEvent.disabled());
     } catch (e) {
@@ -305,7 +311,8 @@ class HardwareAccelerationService {
   }
 
   /// 检测Windows硬件加速
-  Future<HardwareAccelerationConfig> _detectWindowsHardwareAcceleration() async {
+  Future<HardwareAccelerationConfig>
+      _detectWindowsHardwareAcceleration() async {
     try {
       // TODO: 实现实际的Windows硬件加速检测
       // 检测D3D11VA和DXVA2支持
@@ -377,7 +384,8 @@ class HardwareAccelerationService {
   }
 
   /// 检测Android硬件加速
-  Future<HardwareAccelerationConfig> _detectAndroidHardwareAcceleration() async {
+  Future<HardwareAccelerationConfig>
+      _detectAndroidHardwareAcceleration() async {
     try {
       // TODO: 实现实际的Android MediaCodec检测
 
@@ -412,7 +420,8 @@ class HardwareAccelerationService {
   }
 
   /// 测试硬件加速配置
-  Future<bool> _testHardwareAcceleration(HardwareAccelerationConfig config) async {
+  Future<bool> _testHardwareAcceleration(
+      HardwareAccelerationConfig config) async {
     try {
       // TODO: 实现实际的硬件加速测试
       // 创建测试播放器，尝试加载测试视频
@@ -465,7 +474,8 @@ class HardwareAccelerationEvent {
         message = null,
         config = null;
 
-  factory HardwareAccelerationEvent.detected(HardwareAccelerationConfig config) {
+  factory HardwareAccelerationEvent.detected(
+      HardwareAccelerationConfig config) {
     return HardwareAccelerationEvent._(
       type: HardwareAccelerationEventType.detected,
       message: '检测到硬件加速: ${config.displayName}',

@@ -79,7 +79,8 @@ class ThumbnailService {
 
       // 1. 尝试使用系统命令（如果可用）
       if (Platform.isMacOS || Platform.isLinux) {
-        success = await _generateThumbnailWithSystemCommand(videoPath, thumbnailPath);
+        success =
+            await _generateThumbnailWithSystemCommand(videoPath, thumbnailPath);
         if (success) {
           print('使用系统命令成功生成缩略图');
         }
@@ -95,7 +96,8 @@ class ThumbnailService {
 
       // 3. 尝试使用 video_player（虽然不能真正提取帧，但至少能处理流程）
       if (!success) {
-        success = await _generateThumbnailWithVideoPlayer(videoPath, thumbnailPath);
+        success =
+            await _generateThumbnailWithVideoPlayer(videoPath, thumbnailPath);
         if (success) {
           print('使用VideoPlayer成功处理缩略图');
         }
@@ -127,7 +129,8 @@ class ThumbnailService {
   }
 
   /// 使用 FFmpeg 生成缩略图（暂时禁用）
-  static Future<bool> _generateThumbnailWithFFmpeg(String videoPath, String thumbnailPath) async {
+  static Future<bool> _generateThumbnailWithFFmpeg(
+      String videoPath, String thumbnailPath) async {
     try {
       // FFmpeg插件暂时不可用
       print('FFmpeg 插件暂时禁用');
@@ -144,7 +147,8 @@ class ThumbnailService {
   }
 
   /// 使用系统命令生成缩略图（macOS/Linux）
-  static Future<bool> _generateThumbnailWithSystemCommand(String videoPath, String thumbnailPath) async {
+  static Future<bool> _generateThumbnailWithSystemCommand(
+      String videoPath, String thumbnailPath) async {
     try {
       if (kIsWeb || !Platform.isMacOS && !Platform.isLinux) {
         return false;
@@ -154,10 +158,12 @@ class ThumbnailService {
       String command;
       if (Platform.isMacOS) {
         // macOS使用sips命令
-        command = 'ffmpeg -i "$videoPath" -ss 00:00:01 -vframes 1 -vf "scale=160:90" "$thumbnailPath" 2>/dev/null';
+        command =
+            'ffmpeg -i "$videoPath" -ss 00:00:01 -vframes 1 -vf "scale=160:90" "$thumbnailPath" 2>/dev/null';
       } else {
         // Linux使用ffmpeg命令
-        command = 'ffmpeg -i "$videoPath" -ss 00:00:01 -vframes 1 -vf "scale=160:90" "$thumbnailPath" 2>/dev/null';
+        command =
+            'ffmpeg -i "$videoPath" -ss 00:00:01 -vframes 1 -vf "scale=160:90" "$thumbnailPath" 2>/dev/null';
       }
 
       final result = await Process.run('bash', ['-c', command]);
@@ -169,10 +175,12 @@ class ThumbnailService {
   }
 
   /// 生成增强的彩色占位符
-  static Future<void> _createEnhancedPlaceholder(String thumbnailPath, String videoPath) async {
+  static Future<void> _createEnhancedPlaceholder(
+      String thumbnailPath, String videoPath) async {
     try {
       final videoName = HistoryService.extractVideoName(videoPath);
-      final bytes = await _generateColorfulPlaceholder(videoName, 0, DateTime.now());
+      final bytes =
+          await _generateColorfulPlaceholder(videoName, 0, DateTime.now());
 
       if (kIsWeb) {
         // Web平台不保存文件
@@ -187,7 +195,8 @@ class ThumbnailService {
   }
 
   /// 使用 video_player 生成缩略图
-  static Future<bool> _generateThumbnailWithVideoPlayer(String videoPath, String thumbnailPath) async {
+  static Future<bool> _generateThumbnailWithVideoPlayer(
+      String videoPath, String thumbnailPath) async {
     try {
       final controller = VideoPlayerController.file(File(videoPath));
       await controller.initialize();
@@ -209,7 +218,8 @@ class ThumbnailService {
   }
 
   /// 创建基于视频信息的占位符缩略图
-  static Future<void> _createVideoBasedPlaceholder(String thumbnailPath, String videoPath) async {
+  static Future<void> _createVideoBasedPlaceholder(
+      String thumbnailPath, String videoPath) async {
     try {
       // 获取视频文件信息
       final file = File(videoPath);
@@ -233,7 +243,8 @@ class ThumbnailService {
   }
 
   /// 生成彩色占位符图像
-  static Future<Uint8List> _generateColorfulPlaceholder(String videoName, int fileSize, DateTime lastModified) async {
+  static Future<Uint8List> _generateColorfulPlaceholder(
+      String videoName, int fileSize, DateTime lastModified) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final size = Size(160, 90);
@@ -242,18 +253,19 @@ class ThumbnailService {
     final gradient = ui.Gradient.linear(
       Offset.zero,
       Offset(size.width, size.height),
-      [_generateColorFromName(videoName), _generateColorFromName(videoName + '_alt')],
+      [
+        _generateColorFromName(videoName),
+        _generateColorFromName(videoName + '_alt')
+      ],
     );
 
-    final bgPaint = Paint()
-      ..shader = gradient;
+    final bgPaint = Paint()..shader = gradient;
 
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
     canvas.drawRect(rect, bgPaint);
 
     // 绘制半透明遮罩
-    final overlayPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.3);
+    final overlayPaint = Paint()..color = Colors.black.withValues(alpha: 0.3);
     canvas.drawRect(rect, overlayPaint);
 
     // 绘制播放按钮圆形背景
@@ -261,8 +273,7 @@ class ThumbnailService {
     final centerY = size.height / 2;
     final buttonRadius = 25.0;
 
-    final buttonPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.9);
+    final buttonPaint = Paint()..color = Colors.white.withValues(alpha: 0.9);
     canvas.drawCircle(Offset(centerX, centerY), buttonRadius, buttonPaint);
 
     // 绘制播放三角形
@@ -272,9 +283,9 @@ class ThumbnailService {
 
     final iconSize = 20.0;
     final path = Path()
-      ..moveTo(centerX - iconSize/3, centerY - iconSize/2)
-      ..lineTo(centerX - iconSize/3, centerY + iconSize/2)
-      ..lineTo(centerX + iconSize/2, centerY)
+      ..moveTo(centerX - iconSize / 3, centerY - iconSize / 2)
+      ..lineTo(centerX - iconSize / 3, centerY + iconSize / 2)
+      ..lineTo(centerX + iconSize / 2, centerY)
       ..close();
 
     canvas.drawPath(path, iconPaint);
@@ -347,10 +358,12 @@ class ThumbnailService {
     );
 
     durationPainter.layout();
-    durationPainter.paint(canvas, Offset(size.width - durationPainter.width - 8, size.height - 18));
+    durationPainter.paint(canvas,
+        Offset(size.width - durationPainter.width - 8, size.height - 18));
 
     final picture = recorder.endRecording();
-    final image = await picture.toImage(size.width.toInt(), size.height.toInt());
+    final image =
+        await picture.toImage(size.width.toInt(), size.height.toInt());
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
 
     return byteData!.buffer.asUint8List();
@@ -370,7 +383,8 @@ class ThumbnailService {
   }
 
   /// 创建基础占位符缩略图
-  static Future<void> _createPlaceholderThumbnail(String thumbnailPath, String videoPath) async {
+  static Future<void> _createPlaceholderThumbnail(
+      String thumbnailPath, String videoPath) async {
     try {
       if (kIsWeb) {
         // Web平台不创建文件，直接返回
@@ -553,7 +567,8 @@ class ThumbnailService {
   static String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -562,7 +577,8 @@ class ThumbnailService {
     try {
       // Web平台暂时生成Base64格式的占位符缩略图
       final videoName = HistoryService.extractVideoName(videoPath);
-      final bytes = await _generateColorfulPlaceholder(videoName, 0, DateTime.now());
+      final bytes =
+          await _generateColorfulPlaceholder(videoName, 0, DateTime.now());
       final base64Data = base64Encode(bytes);
       return 'data:image/png;base64,$base64Data';
     } catch (e) {

@@ -82,9 +82,8 @@ class PerformanceMetrics {
       fps: fps,
       targetFps: targetFps,
       droppedFrames: droppedFrames,
-      droppedFramePercentage: targetFps > 0
-          ? (droppedFrames / (fps + droppedFrames)) * 100
-          : 0.0,
+      droppedFramePercentage:
+          targetFps > 0 ? (droppedFrames / (fps + droppedFrames)) * 100 : 0.0,
       cpuUsage: cpuUsage,
       memoryUsage: memoryUsage,
       gpuUsage: gpuUsage,
@@ -99,25 +98,25 @@ class PerformanceMetrics {
   /// 是否性能良好
   bool get isGoodPerformance {
     return fps >= targetFps * 0.9 &&
-           droppedFramePercentage <= 1.0 &&
-           cpuUsage <= 80 &&
-           bufferPercentage >= 20;
+        droppedFramePercentage <= 1.0 &&
+        cpuUsage <= 80 &&
+        bufferPercentage >= 20;
   }
 
   /// 是否性能优秀
   bool get isExcellentPerformance {
     return fps >= targetFps * 0.98 &&
-           droppedFramePercentage <= 0.1 &&
-           cpuUsage <= 50 &&
-           bufferPercentage >= 50;
+        droppedFramePercentage <= 0.1 &&
+        cpuUsage <= 50 &&
+        bufferPercentage >= 50;
   }
 
   /// 是否性能差
   bool get isPoorPerformance {
     return fps < targetFps * 0.5 ||
-           droppedFramePercentage >= 5.0 ||
-           cpuUsage >= 90 ||
-           bufferPercentage < 10;
+        droppedFramePercentage >= 5.0 ||
+        cpuUsage >= 90 ||
+        bufferPercentage < 10;
   }
 
   /// 性能等级
@@ -335,7 +334,8 @@ class PerformanceMonitorService {
     final minFps = fpsValues.reduce(math.min);
     final averageCpu = cpuValues.reduce((a, b) => a + b) / cpuValues.length;
     final maxCpu = cpuValues.reduce(math.max);
-    final averageMemory = memoryValues.reduce((a, b) => a + b) / memoryValues.length;
+    final averageMemory =
+        memoryValues.reduce((a, b) => a + b) / memoryValues.length;
     final maxMemory = memoryValues.reduce(math.max);
 
     final duration = DateTime.now().difference(_monitoringStartTime!).inSeconds;
@@ -472,7 +472,8 @@ class PerformanceMonitorService {
         if (position.inMilliseconds > 0) {
           if (_lastCollectTime != null && _lastPosition.inMilliseconds > 0) {
             final timeDiff = now.difference(_lastCollectTime!).inMilliseconds;
-            final posDiff = position.inMilliseconds - _lastPosition.inMilliseconds;
+            final posDiff =
+                position.inMilliseconds - _lastPosition.inMilliseconds;
 
             // 如果时间差和位置差都有效，计算实际播放速度
             if (timeDiff > 0 && posDiff > 0) {
@@ -502,13 +503,15 @@ class PerformanceMonitorService {
       int bufferedMs = 0;
 
       // MediaKit的buffer信息
-      if (player.state.buffer.inMilliseconds > 0 && duration.inMilliseconds > 0) {
+      if (player.state.buffer.inMilliseconds > 0 &&
+          duration.inMilliseconds > 0) {
         final bufferDuration = player.state.buffer;
         bufferedMs = bufferDuration.inMilliseconds - position.inMilliseconds;
         if (bufferedMs < 0) bufferedMs = 0;
 
         // 计算缓冲百分比（相对于总时长）
-        bufferPercentage = (bufferedMs / duration.inMilliseconds * 100).clamp(0.0, 100.0);
+        bufferPercentage =
+            (bufferedMs / duration.inMilliseconds * 100).clamp(0.0, 100.0);
       }
 
       // 获取解码器信息（使用外部设置的值）
@@ -538,7 +541,8 @@ class PerformanceMonitorService {
           // 每秒丢失的帧数
           final framesLostPerSecond = targetFps - currentFps;
           // 当前监控周期内的丢帧数
-          droppedFrames = (framesLostPerSecond * (_monitoringInterval / 1000.0)).round();
+          droppedFrames =
+              (framesLostPerSecond * (_monitoringInterval / 1000.0)).round();
           _totalDroppedFrames += droppedFrames;
         }
       }
@@ -572,7 +576,6 @@ class PerformanceMonitorService {
       if (!_metricsController.isClosed) {
         _metricsController.add(metrics);
       }
-
     } catch (e) {
       print('采集性能指标失败: $e');
     }

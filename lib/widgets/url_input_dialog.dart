@@ -241,7 +241,8 @@ class _UrlInputDialogState extends State<UrlInputDialog> {
                         ),
                         subtitle: Text(
                           _getProtocolLabel(protocol),
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          style:
+                              const TextStyle(fontSize: 11, color: Colors.grey),
                         ),
                         onTap: () => _onHistoryItemSelected(url),
                         trailing: Row(

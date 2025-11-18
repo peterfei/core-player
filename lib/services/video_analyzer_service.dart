@@ -33,7 +33,8 @@ class VideoAnalyzerService {
   /// [forceRefresh] 是否强制重新分析（忽略缓存）
   ///
   /// 返回分析后的视频信息
-  Future<vi.VideoInfo> analyzeVideo(String videoPath, {bool forceRefresh = false}) async {
+  Future<vi.VideoInfo> analyzeVideo(String videoPath,
+      {bool forceRefresh = false}) async {
     try {
       // 检查缓存
       if (!forceRefresh && _cache.containsKey(videoPath)) {
@@ -61,7 +62,8 @@ class VideoAnalyzerService {
           await player.open(Media(videoPath));
         } else {
           // 桌面/移动平台处理
-          if (videoPath.startsWith('http://') || videoPath.startsWith('https://')) {
+          if (videoPath.startsWith('http://') ||
+              videoPath.startsWith('https://')) {
             await player.open(Media(videoPath));
           } else {
             final file = File(videoPath);
@@ -164,8 +166,8 @@ class VideoAnalyzerService {
 
       final isCompatible = issues.isEmpty;
       final requiresHW = videoInfo.isUltraHD ||
-                         videoInfo.isHighFramerate ||
-                         videoInfo.videoCodec.isHighQuality;
+          videoInfo.isHighFramerate ||
+          videoInfo.videoCodec.isHighQuality;
 
       if (isCompatible) {
         if (requiresHW) {
@@ -248,7 +250,8 @@ class VideoAnalyzerService {
   }
 
   /// 提取视频信息
-  Future<vi.VideoInfo> _extractVideoInfo(Player player, String videoPath) async {
+  Future<vi.VideoInfo> _extractVideoInfo(
+      Player player, String videoPath) async {
     final duration = player.state.duration;
     final tracks = player.state.tracks;
 
@@ -292,7 +295,9 @@ class VideoAnalyzerService {
         level: '',
         bitDepth: 8, // 音频通常8-bit
         type: CodecType.audio,
-        channels: track.channels != null ? int.tryParse(track.channels.toString()) : null,
+        channels: track.channels != null
+            ? int.tryParse(track.channels.toString())
+            : null,
         sampleRate: null, // media_kit AudioTrack doesn't have sampleRate
       );
       // audioCodecList is a list of AudioTrack, not CodecInfo
@@ -448,8 +453,11 @@ class VideoAnalyzerService {
     final codecStr = codec.codec.toLowerCase();
 
     // 检测HDR类型
-    if (pixelFormat.contains('10') || pixelFormat.contains('12') ||
-        codecStr.contains('hdr') || pixelFormat.contains('p010') || pixelFormat.contains('p016')) {
+    if (pixelFormat.contains('10') ||
+        pixelFormat.contains('12') ||
+        codecStr.contains('hdr') ||
+        pixelFormat.contains('p010') ||
+        pixelFormat.contains('p016')) {
       if (codecStr.contains('hevc')) {
         if (pixelFormat.contains('p010')) {
           return 'HDR10';
@@ -472,7 +480,8 @@ class VideoAnalyzerService {
   String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 

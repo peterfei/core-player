@@ -67,7 +67,8 @@ class SubtitleService {
   }
 
   /// 获取可用的字幕轨道
-  Future<List<subtitle_models.SubtitleTrack>> getAvailableTracks(Player player) async {
+  Future<List<subtitle_models.SubtitleTrack>> getAvailableTracks(
+      Player player) async {
     try {
       final tracks = <subtitle_models.SubtitleTrack>[];
 
@@ -81,33 +82,37 @@ class SubtitleService {
         debugPrint('Found ${subtitleTracks.length} subtitle tracks in player');
 
         if (subtitleTracks.isNotEmpty) {
-            for (int i = 0; i < subtitleTracks.length; i++) {
-              final track = subtitleTracks[i];
-              try {
-                // 跳过特殊轨道（auto, no 等）
-                if (track.id == 'auto' || track.id == 'no') {
-                  debugPrint('Skipping special track: id=${track.id}');
-                  continue;
-                }
-
-                // 使用索引作为ID，这样可以可靠地定位轨道
-                final trackId = 'subtitle_$i';
-                final subtitleTrack = subtitle_models.SubtitleTrack(
-                  id: trackId,
-                  title: track.title?.toString() ?? track.language?.toString() ?? '字幕轨道 ${tracks.length}',
-                  language: track.language?.toString() ?? 'unknown',
-                  languageName: _getLanguageName(track.language?.toString() ?? 'unknown'),
-                  isExternal: false,
-                  format: 'unknown',
-                );
-                tracks.add(subtitleTrack);
-                debugPrint('Added subtitle track: ${subtitleTrack.title} (index: $i, id: $trackId)');
-              } catch (e) {
-                debugPrint('Error processing subtitle track $i: $e');
+          for (int i = 0; i < subtitleTracks.length; i++) {
+            final track = subtitleTracks[i];
+            try {
+              // 跳过特殊轨道（auto, no 等）
+              if (track.id == 'auto' || track.id == 'no') {
+                debugPrint('Skipping special track: id=${track.id}');
                 continue;
               }
+
+              // 使用索引作为ID，这样可以可靠地定位轨道
+              final trackId = 'subtitle_$i';
+              final subtitleTrack = subtitle_models.SubtitleTrack(
+                id: trackId,
+                title: track.title?.toString() ??
+                    track.language?.toString() ??
+                    '字幕轨道 ${tracks.length}',
+                language: track.language?.toString() ?? 'unknown',
+                languageName:
+                    _getLanguageName(track.language?.toString() ?? 'unknown'),
+                isExternal: false,
+                format: 'unknown',
+              );
+              tracks.add(subtitleTrack);
+              debugPrint(
+                  'Added subtitle track: ${subtitleTrack.title} (index: $i, id: $trackId)');
+            } catch (e) {
+              debugPrint('Error processing subtitle track $i: $e');
+              continue;
             }
           }
+        }
       } catch (e) {
         debugPrint('Error accessing subtitle tracks: $e');
         // 返回默认的关闭字幕选项
@@ -123,7 +128,8 @@ class SubtitleService {
 
   /// 加载外部字幕文件
   /// 支持 v1.2.0+ 的改进外部字幕轨道 API
-  Future<subtitle_models.SubtitleTrack?> loadExternalSubtitle(Player player, String filePath) async {
+  Future<subtitle_models.SubtitleTrack?> loadExternalSubtitle(
+      Player player, String filePath) async {
     try {
       // 验证文件存在
       final file = File(filePath);
@@ -142,7 +148,7 @@ class SubtitleService {
       // 检测编码并转换（如果需要）
       String? convertedPath = filePath;
       String? subtitle_language;
-      
+
       if (!await _isUtf8(filePath)) {
         convertedPath = await _convertToUtf8(filePath);
         if (convertedPath == null) {
@@ -166,15 +172,23 @@ class SubtitleService {
       // 立即将字幕加载到播放器
       try {
         debugPrint('Subtitle file path: $convertedPath');
-        debugPrint('Subtitle file exists: ${await File(convertedPath).exists()}');
+        debugPrint(
+            'Subtitle file exists: ${await File(convertedPath).exists()}');
 
         // 方法1：使用 MPV 的 sub-add 命令直接加载字幕文件（最可靠）
         if (player.platform is NativePlayer) {
           final nativePlayer = player.platform as NativePlayer;
           // MPV sub-add 命令: sub-add <filename> [flags] [title] [lang]
           // 使用 'select' 标志立即激活字幕
-          await nativePlayer.command(['sub-add', convertedPath, 'select', track.title, subtitle_language ?? 'unknown']);
-          debugPrint('External subtitle loaded via MPV sub-add command: ${track.title}');
+          await nativePlayer.command([
+            'sub-add',
+            convertedPath,
+            'select',
+            track.title,
+            subtitle_language ?? 'unknown'
+          ]);
+          debugPrint(
+              'External subtitle loaded via MPV sub-add command: ${track.title}');
 
           // 确保字幕可见
           await nativePlayer.setProperty('sub-visibility', 'yes');
@@ -184,8 +198,10 @@ class SubtitleService {
           final subtitleFile = File(convertedPath);
           final subtitleContent = await subtitleFile.readAsString();
 
-          debugPrint('Subtitle content length: ${subtitleContent.length} characters');
-          debugPrint('Subtitle content preview: ${subtitleContent.substring(0, subtitleContent.length > 200 ? 200 : subtitleContent.length)}');
+          debugPrint(
+              'Subtitle content length: ${subtitleContent.length} characters');
+          debugPrint(
+              'Subtitle content preview: ${subtitleContent.substring(0, subtitleContent.length > 200 ? 200 : subtitleContent.length)}');
 
           final mediaKitTrack = SubtitleTrack.data(
             subtitleContent,
@@ -193,7 +209,8 @@ class SubtitleService {
             language: subtitle_language ?? 'unknown',
           );
           await player.setSubtitleTrack(mediaKitTrack);
-          debugPrint('External subtitle track loaded via data: ${track.title} (language: $subtitle_language)');
+          debugPrint(
+              'External subtitle track loaded via data: ${track.title} (language: $subtitle_language)');
         }
       } catch (e) {
         debugPrint('Error setting external subtitle on player: $e');
@@ -206,7 +223,8 @@ class SubtitleService {
             language: subtitle_language ?? 'unknown',
           );
           await player.setSubtitleTrack(mediaKitTrack);
-          debugPrint('External subtitle track loaded via URI (fallback): ${track.title}');
+          debugPrint(
+              'External subtitle track loaded via URI (fallback): ${track.title}');
         } catch (e2) {
           debugPrint('Error setting external subtitle via URI fallback: $e2');
         }
@@ -221,7 +239,8 @@ class SubtitleService {
   }
 
   /// 使用 MPV 命令加载字幕（备用方案）
-  Future<subtitle_models.SubtitleTrack?> _loadSubtitleWithMpv(Player player, String filePath, String format) async {
+  Future<subtitle_models.SubtitleTrack?> _loadSubtitleWithMpv(
+      Player player, String filePath, String format) async {
     try {
       // 使用 MPV 的 sub-add 命令
       // 注意：这需要 media_kit 暴露 MPV 命令接口
@@ -242,7 +261,8 @@ class SubtitleService {
   }
 
   /// 选择字幕轨道
-  Future<void> selectTrack(Player player, subtitle_models.SubtitleTrack track) async {
+  Future<void> selectTrack(
+      Player player, subtitle_models.SubtitleTrack track) async {
     try {
       debugPrint('Selecting subtitle track: ${track.title} (id: ${track.id})');
 
@@ -269,90 +289,104 @@ class SubtitleService {
   }
 
   /// 设置字幕轨道 (media_kit 集成)
-   Future<void> _setSubtitleTrack(Player player, subtitle_models.SubtitleTrack track) async {
-     try {
-       if (track.id == 'disabled') {
-         // 禁用字幕 - 使用 SubtitleTrack.no()
-         await player.setSubtitleTrack(SubtitleTrack.no());
-         debugPrint('Disabled subtitles');
-       } else if (track.isExternal && track.filePath != null) {
-         // 外部字幕使用 SubtitleTrack.data() 直接传递内容
-         try {
-           final subtitleFile = File(track.filePath!);
-           final subtitleContent = await subtitleFile.readAsString();
-           final mediaKitTrack = SubtitleTrack.data(
-             subtitleContent,
-             title: track.title,
-             language: track.language,
-           );
-           await player.setSubtitleTrack(mediaKitTrack);
-           debugPrint('Set external subtitle track via data: ${track.title} (${track.filePath})');
-         } catch (e) {
-           debugPrint('Error reading subtitle file, trying URI fallback: $e');
-           // 备用：使用 URI 方式
-           final fileUri = Uri.file(track.filePath!).toString();
-           final mediaKitTrack = SubtitleTrack.uri(
-             fileUri,
-             title: track.title,
-             language: track.language,
-           );
-           await player.setSubtitleTrack(mediaKitTrack);
-           debugPrint('Set external subtitle track via URI: ${track.title}');
-         }
-       } else if (track.id.startsWith('subtitle_')) {
-         // 内置字幕轨道：从ID中提取索引 (格式: "subtitle_0", "subtitle_1", etc.)
-         final indexStr = track.id.replaceFirst('subtitle_', '');
-         final index = int.tryParse(indexStr);
+  Future<void> _setSubtitleTrack(
+      Player player, subtitle_models.SubtitleTrack track) async {
+    try {
+      if (track.id == 'disabled') {
+        // 禁用字幕 - 使用 SubtitleTrack.no()
+        await player.setSubtitleTrack(SubtitleTrack.no());
+        debugPrint('Disabled subtitles');
+      } else if (track.isExternal && track.filePath != null) {
+        // 外部字幕使用 SubtitleTrack.data() 直接传递内容
+        try {
+          final subtitleFile = File(track.filePath!);
+          final subtitleContent = await subtitleFile.readAsString();
+          final mediaKitTrack = SubtitleTrack.data(
+            subtitleContent,
+            title: track.title,
+            language: track.language,
+          );
+          await player.setSubtitleTrack(mediaKitTrack);
+          debugPrint(
+              'Set external subtitle track via data: ${track.title} (${track.filePath})');
+        } catch (e) {
+          debugPrint('Error reading subtitle file, trying URI fallback: $e');
+          // 备用：使用 URI 方式
+          final fileUri = Uri.file(track.filePath!).toString();
+          final mediaKitTrack = SubtitleTrack.uri(
+            fileUri,
+            title: track.title,
+            language: track.language,
+          );
+          await player.setSubtitleTrack(mediaKitTrack);
+          debugPrint('Set external subtitle track via URI: ${track.title}');
+        }
+      } else if (track.id.startsWith('subtitle_')) {
+        // 内置字幕轨道：从ID中提取索引 (格式: "subtitle_0", "subtitle_1", etc.)
+        final indexStr = track.id.replaceFirst('subtitle_', '');
+        final index = int.tryParse(indexStr);
 
-         if (index != null) {
-           final mediaKitTracks = player.state.tracks.subtitle;
-           debugPrint('Available subtitle tracks: ${mediaKitTracks.length}');
-           for (int i = 0; i < mediaKitTracks.length; i++) {
-             final t = mediaKitTracks[i];
-             debugPrint('  Track $i: id=${t.id}, title=${t.title}, language=${t.language}');
-           }
+        if (index != null) {
+          final mediaKitTracks = player.state.tracks.subtitle;
+          debugPrint('Available subtitle tracks: ${mediaKitTracks.length}');
+          for (int i = 0; i < mediaKitTracks.length; i++) {
+            final t = mediaKitTracks[i];
+            debugPrint(
+                '  Track $i: id=${t.id}, title=${t.title}, language=${t.language}');
+          }
 
-           if (index >= 0 && index < mediaKitTracks.length) {
-             final mkTrack = mediaKitTracks[index];
+          if (index >= 0 && index < mediaKitTracks.length) {
+            final mkTrack = mediaKitTracks[index];
 
-             // 检查当前播放器是否已经在使用这个字幕轨道
-             // 如果是通过 sub-add 命令加载的外部字幕，它已经是活动的，不要重新设置
-             final currentTrack = player.state.track.subtitle;
-             debugPrint('Current active track: id=${currentTrack.id}, title=${currentTrack.title}');
-             debugPrint('Target track: id=${mkTrack.id}, title=${mkTrack.title}');
+            // 检查当前播放器是否已经在使用这个字幕轨道
+            // 如果是通过 sub-add 命令加载的外部字幕，它已经是活动的，不要重新设置
+            final currentTrack = player.state.track.subtitle;
+            debugPrint(
+                'Current active track: id=${currentTrack.id}, title=${currentTrack.title}');
+            debugPrint(
+                'Target track: id=${mkTrack.id}, title=${mkTrack.title}');
 
-             final isSameTrack = currentTrack.id == mkTrack.id ||
-                                 (currentTrack.title != null && currentTrack.title == mkTrack.title);
+            final isSameTrack = currentTrack.id == mkTrack.id ||
+                (currentTrack.title != null &&
+                    currentTrack.title == mkTrack.title);
 
-             if (isSameTrack) {
-               debugPrint('Subtitle track already active: ${mkTrack.title ?? mkTrack.id}, skipping re-selection');
-             } else {
-               // 如果目标轨道是通过 sub-add 加载的（ID 不是 auto/no），可能已经激活
-               // 检查轨道 ID 是否为数字（sub-add 加载的轨道 ID 通常是数字）
-               if (mkTrack.id != 'auto' && mkTrack.id != 'no' && currentTrack.id != 'auto' && currentTrack.id != 'no') {
-                 debugPrint('Both tracks are valid subtitle tracks, checking if we need to switch...');
-               }
-               debugPrint('Setting subtitle track: index=$index, id=${mkTrack.id}, title=${mkTrack.title}');
-               await player.setSubtitleTrack(mkTrack);
-               debugPrint('Set subtitle track by index: $index (${mkTrack.title ?? mkTrack.language ?? 'unknown'})');
-             }
-           } else {
-             debugPrint('Subtitle index $index out of range (${mediaKitTracks.length} tracks available)');
-           }
-         }
-       }
+            if (isSameTrack) {
+              debugPrint(
+                  'Subtitle track already active: ${mkTrack.title ?? mkTrack.id}, skipping re-selection');
+            } else {
+              // 如果目标轨道是通过 sub-add 加载的（ID 不是 auto/no），可能已经激活
+              // 检查轨道 ID 是否为数字（sub-add 加载的轨道 ID 通常是数字）
+              if (mkTrack.id != 'auto' &&
+                  mkTrack.id != 'no' &&
+                  currentTrack.id != 'auto' &&
+                  currentTrack.id != 'no') {
+                debugPrint(
+                    'Both tracks are valid subtitle tracks, checking if we need to switch...');
+              }
+              debugPrint(
+                  'Setting subtitle track: index=$index, id=${mkTrack.id}, title=${mkTrack.title}');
+              await player.setSubtitleTrack(mkTrack);
+              debugPrint(
+                  'Set subtitle track by index: $index (${mkTrack.title ?? mkTrack.language ?? 'unknown'})');
+            }
+          } else {
+            debugPrint(
+                'Subtitle index $index out of range (${mediaKitTracks.length} tracks available)');
+          }
+        }
+      }
 
-       // 应用字幕样式配置
-       await applyConfig(player);
-
-     } catch (e) {
-       debugPrint('Error setting subtitle track with media_kit: $e');
-       rethrow;
-     }
-   }
+      // 应用字幕样式配置
+      await applyConfig(player);
+    } catch (e) {
+      debugPrint('Error setting subtitle track with media_kit: $e');
+      rethrow;
+    }
+  }
 
   /// 使用 MPV 命令设置字幕轨道
-  Future<void> _setSubtitleTrackWithMpv(Player player, subtitle_models.SubtitleTrack track) async {
+  Future<void> _setSubtitleTrackWithMpv(
+      Player player, subtitle_models.SubtitleTrack track) async {
     try {
       if (track.id == 'disabled') {
         // 禁用字幕
@@ -364,7 +398,6 @@ class SubtitleService {
       // 设置字幕轨道
       // 注意：这需要 media_kit 暴露 MPV 命令接口
       debugPrint('Set subtitle track via MPV command: ${track.id}');
-
     } catch (e) {
       debugPrint('Error setting subtitle track with MPV: $e');
     }
@@ -420,7 +453,8 @@ class SubtitleService {
   }
 
   /// 使用 media_kit 应用字幕样式
-  Future<void> _applySubtitleStylesWithMediaKit(Player player, SubtitleConfig config) async {
+  Future<void> _applySubtitleStylesWithMediaKit(
+      Player player, SubtitleConfig config) async {
     try {
       // 尝试使用 media_kit 的字幕样式设置接口
       // 注意：具体API需要根据 media_kit 版本调整
@@ -441,25 +475,34 @@ class SubtitleService {
   }
 
   /// 使用 MPV 命令应用字幕样式
-  Future<void> _applySubtitleStylesWithMpv(Player player, SubtitleConfig config) async {
+  Future<void> _applySubtitleStylesWithMpv(
+      Player player, SubtitleConfig config) async {
     try {
       if (player.platform is NativePlayer) {
         final nativePlayer = player.platform as NativePlayer;
 
         // 设置 MPV 字幕属性
-        await nativePlayer.setProperty('sub-font-size', config.fontSize.toString());
+        await nativePlayer.setProperty(
+            'sub-font-size', config.fontSize.toString());
         await nativePlayer.setProperty('sub-font', config.fontFamily);
-        await nativePlayer.setProperty('sub-color', _colorToMpvFormat(config.fontColor));
-        await nativePlayer.setProperty('sub-back-color', _colorToMpvFormat(config.backgroundColor));
-        await nativePlayer.setProperty('sub-border-color', _colorToMpvFormat(config.outlineColor));
-        await nativePlayer.setProperty('sub-border-size', config.outlineWidth.toString());
-        await nativePlayer.setProperty('sub-pos', _positionToMpvValue(config.position).toString());
-        await nativePlayer.setProperty('sub-delay', (config.delayMs / 1000.0).toString());
+        await nativePlayer.setProperty(
+            'sub-color', _colorToMpvFormat(config.fontColor));
+        await nativePlayer.setProperty(
+            'sub-back-color', _colorToMpvFormat(config.backgroundColor));
+        await nativePlayer.setProperty(
+            'sub-border-color', _colorToMpvFormat(config.outlineColor));
+        await nativePlayer.setProperty(
+            'sub-border-size', config.outlineWidth.toString());
+        await nativePlayer.setProperty(
+            'sub-pos', _positionToMpvValue(config.position).toString());
+        await nativePlayer.setProperty(
+            'sub-delay', (config.delayMs / 1000.0).toString());
 
         // 确保字幕可见
         await nativePlayer.setProperty('sub-visibility', 'yes');
 
-        debugPrint('Applied subtitle styles with MPV: font-size=${config.fontSize}, pos=${config.position}');
+        debugPrint(
+            'Applied subtitle styles with MPV: font-size=${config.fontSize}, pos=${config.position}');
       } else {
         debugPrint('Cannot apply MPV styles: player is not NativePlayer');
       }
@@ -474,7 +517,7 @@ class SubtitleService {
     final r = (argbColor >> 16) & 0xFF;
     final g = (argbColor >> 8) & 0xFF;
     final b = argbColor & 0xFF;
-    return '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}/${(a/255.0).toStringAsFixed(2)}';
+    return '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}/${(a / 255.0).toStringAsFixed(2)}';
   }
 
   /// 将位置枚举转换为 MPV 位置值
@@ -558,7 +601,8 @@ class SubtitleService {
       // 检查语言标识
       for (int i = 0; i < preferredLanguages.length; i++) {
         final lang = preferredLanguages[i].toLowerCase();
-        if (fileName.contains(lang) || fileName.contains(_getLanguageAlias(lang))) {
+        if (fileName.contains(lang) ||
+            fileName.contains(_getLanguageAlias(lang))) {
           score += (preferredLanguages.length - i) * 10;
           break;
         }
@@ -626,15 +670,17 @@ class SubtitleService {
   String? _extractLanguageFromFileName(String filePath) {
     try {
       final fileName = path.basenameWithoutExtension(filePath).toLowerCase();
-      
+
       // 检查是否包含中文标识
-      if (fileName.contains('国语') || fileName.contains('简体') || fileName.contains('简中')) {
+      if (fileName.contains('国语') ||
+          fileName.contains('简体') ||
+          fileName.contains('简中')) {
         return 'zh-cn';
       }
       if (fileName.contains('繁体') || fileName.contains('繁中')) {
         return 'zh-tw';
       }
-      
+
       // 检查是否包含其他语言标识
       final languagePatterns = {
         'en': ['english', 'eng', '英文', '英语', '英文字幕'],
@@ -646,7 +692,7 @@ class SubtitleService {
         'ru': ['russian', 'rus', '俄文', '俄语'],
         'pt': ['portuguese', 'por', '葡萄牙文', '葡萄牙语'],
       };
-      
+
       for (final entry in languagePatterns.entries) {
         for (final pattern in entry.value) {
           if (fileName.contains(pattern)) {
@@ -654,24 +700,48 @@ class SubtitleService {
           }
         }
       }
-      
+
       // 检查扩展名之前的语言代码
       final parts = fileName.split('.');
       if (parts.length >= 2) {
         final potentialLang = parts[parts.length - 1];
-        
+
         // 检查是否是有效的语言代码
         final languageCodes = [
-          'zh', 'zh-cn', 'zh-tw', 'en', 'ja', 'ko', 'fr', 'de', 'es', 
-          'it', 'pt', 'ru', 'ar', 'hi', 'th', 'vi', 'chs', 'cht', 'eng',
-          'jpn', 'kor', 'fra', 'deu', 'esp', 'ita', 'por', 'rus'
+          'zh',
+          'zh-cn',
+          'zh-tw',
+          'en',
+          'ja',
+          'ko',
+          'fr',
+          'de',
+          'es',
+          'it',
+          'pt',
+          'ru',
+          'ar',
+          'hi',
+          'th',
+          'vi',
+          'chs',
+          'cht',
+          'eng',
+          'jpn',
+          'kor',
+          'fra',
+          'deu',
+          'esp',
+          'ita',
+          'por',
+          'rus'
         ];
-        
+
         if (languageCodes.contains(potentialLang)) {
           return potentialLang;
         }
       }
-      
+
       return null;
     } catch (e) {
       debugPrint('Error extracting language from filename: $e');
@@ -702,23 +772,20 @@ class SubtitleService {
   /// 加载下载的字幕
   /// 支持 v1.2.0+ 的改进外部字幕轨道 API
   Future<subtitle_models.SubtitleTrack?> loadDownloadedSubtitle(
-    Player player,
-    String subtitlePath,
-    String title,
-    {String? language}
-  ) async {
+      Player player, String subtitlePath, String title,
+      {String? language}) async {
     try {
       final format = _detectSubtitleFormat(subtitlePath);
-      final extractedLang = language ?? _extractLanguageFromFileName(subtitlePath);
-      
+      final extractedLang =
+          language ?? _extractLanguageFromFileName(subtitlePath);
+
       final track = subtitle_models.SubtitleTrack.external(
         filePath: subtitlePath,
         title: title,
         format: format,
         language: extractedLang ?? 'unknown',
-        languageName: extractedLang != null 
-          ? _getLanguageName(extractedLang) 
-          : '下载字幕',
+        languageName:
+            extractedLang != null ? _getLanguageName(extractedLang) : '下载字幕',
       );
 
       // 立即将字幕加载到播放器
@@ -727,9 +794,16 @@ class SubtitleService {
         if (player.platform is NativePlayer) {
           final nativePlayer = player.platform as NativePlayer;
           // 使用 'select' 标志立即激活字幕
-          await nativePlayer.command(['sub-add', subtitlePath, 'select', title, extractedLang ?? 'unknown']);
+          await nativePlayer.command([
+            'sub-add',
+            subtitlePath,
+            'select',
+            title,
+            extractedLang ?? 'unknown'
+          ]);
           await nativePlayer.setProperty('sub-visibility', 'yes');
-          debugPrint('Downloaded subtitle track loaded via MPV sub-add: ${track.title} (language: $extractedLang)');
+          debugPrint(
+              'Downloaded subtitle track loaded via MPV sub-add: ${track.title} (language: $extractedLang)');
         } else {
           // 方法2：使用 SubtitleTrack.data() 作为备用
           final subtitleFile = File(subtitlePath);
@@ -741,7 +815,8 @@ class SubtitleService {
             language: extractedLang ?? 'unknown',
           );
           await player.setSubtitleTrack(mediaKitTrack);
-          debugPrint('Downloaded subtitle track loaded via data: ${track.title} (language: $extractedLang)');
+          debugPrint(
+              'Downloaded subtitle track loaded via data: ${track.title} (language: $extractedLang)');
         }
       } catch (e) {
         debugPrint('Error setting downloaded subtitle on player: $e');
@@ -754,7 +829,8 @@ class SubtitleService {
             language: extractedLang ?? 'unknown',
           );
           await player.setSubtitleTrack(mediaKitTrack);
-          debugPrint('Downloaded subtitle track loaded via URI (fallback): ${track.title}');
+          debugPrint(
+              'Downloaded subtitle track loaded via URI (fallback): ${track.title}');
         } catch (e2) {
           debugPrint('Error setting downloaded subtitle via URI fallback: $e2');
         }
@@ -769,17 +845,23 @@ class SubtitleService {
   }
 
   /// 获取字幕下载服务
-  SubtitleDownloadService get downloadService => SubtitleDownloadService.instance;
+  SubtitleDownloadService get downloadService =>
+      SubtitleDownloadService.instance;
 
   /// 检测字幕格式
   String _detectSubtitleFormat(String filePath) {
     final extension = path.extension(filePath).toLowerCase();
     switch (extension) {
-      case '.srt': return 'srt';
-      case '.ass': return 'ass';
-      case '.ssa': return 'ssa';
-      case '.vtt': return 'vtt';
-      default: return 'unknown';
+      case '.srt':
+        return 'srt';
+      case '.ass':
+        return 'ass';
+      case '.ssa':
+        return 'ssa';
+      case '.vtt':
+        return 'vtt';
+      default:
+        return 'unknown';
     }
   }
 
@@ -813,7 +895,8 @@ class SubtitleService {
 
       for (final encoding in encodings) {
         try {
-          final convertedContent = await CharsetConverter.decode(encoding, originalContent);
+          final convertedContent =
+              await CharsetConverter.decode(encoding, originalContent);
 
           // 创建 UTF-8 版本的文件
           final utf8Path = '${filePath}_utf8.srt';

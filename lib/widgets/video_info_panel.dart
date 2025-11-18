@@ -99,8 +99,8 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
                 Text(
                   '视频信息',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const Spacer(),
                 TextButton(
@@ -193,31 +193,36 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
                       title: '音频编码',
                       icon: Icons.audiotrack,
                       children: [
-                        for (int i = 0; i < widget.videoInfo.audioCodecs.length; i++)
-                          ...[
-                            if (i > 0) const Divider(),
+                        for (int i = 0;
+                            i < widget.videoInfo.audioCodecs.length;
+                            i++) ...[
+                          if (i > 0) const Divider(),
+                          _buildInfoRow(
+                            '音轨 ${i + 1}',
+                            widget.videoInfo.audioCodecs[i].displayName,
+                          ),
+                          if (widget.videoInfo.audioCodecs[i].channels != null)
                             _buildInfoRow(
-                              '音轨 ${i + 1}',
-                              widget.videoInfo.audioCodecs[i].displayName,
+                              '声道',
+                              widget
+                                  .videoInfo.audioCodecs[i].channelDescription,
                             ),
-                            if (widget.videoInfo.audioCodecs[i].channels != null)
-                              _buildInfoRow(
-                                '声道',
-                                widget.videoInfo.audioCodecs[i].channelDescription,
-                              ),
-                            if (widget.videoInfo.audioCodecs[i].sampleRate != null)
-                              _buildInfoRow(
-                                '采样率',
-                                widget.videoInfo.audioCodecs[i].sampleRateDescription,
-                              ),
-                          ],
+                          if (widget.videoInfo.audioCodecs[i].sampleRate !=
+                              null)
+                            _buildInfoRow(
+                              '采样率',
+                              widget.videoInfo.audioCodecs[i]
+                                  .sampleRateDescription,
+                            ),
+                        ],
                       ],
                     ),
 
                   const SizedBox(height: 24),
 
                   // 轨道信息
-                  if (widget.videoInfo.hasMultipleAudioTracks || widget.videoInfo.hasSubtitles)
+                  if (widget.videoInfo.hasMultipleAudioTracks ||
+                      widget.videoInfo.hasSubtitles)
                     _buildSection(
                       title: '多轨道信息',
                       icon: Icons.playlist_add_check,
@@ -238,7 +243,8 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
                   const SizedBox(height: 24),
 
                   // 硬件加速信息
-                  if (widget.showHardwareAccelerationInfo && _hwAccelConfig != null)
+                  if (widget.showHardwareAccelerationInfo &&
+                      _hwAccelConfig != null)
                     _buildSection(
                       title: '硬件加速',
                       icon: Icons.speed,
@@ -271,7 +277,8 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
                   const SizedBox(height: 24),
 
                   // HDR和特殊功能
-                  if (widget.videoInfo.isHDR || widget.videoInfo.isHighFramerate)
+                  if (widget.videoInfo.isHDR ||
+                      widget.videoInfo.isHighFramerate)
                     _buildSection(
                       title: '特殊功能',
                       icon: Icons.auto_awesome,
@@ -321,10 +328,13 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
                         '分析时间',
                         widget.videoInfo.analyzedAt.toString().substring(0, 19),
                       ),
-                      if (widget.videoInfo.lastPlayedAt != widget.videoInfo.analyzedAt)
+                      if (widget.videoInfo.lastPlayedAt !=
+                          widget.videoInfo.analyzedAt)
                         _buildInfoRow(
                           '最后播放',
-                          widget.videoInfo.lastPlayedAt.toString().substring(0, 19),
+                          widget.videoInfo.lastPlayedAt
+                              .toString()
+                              .substring(0, 19),
                         ),
                     ],
                   ),
@@ -356,9 +366,9 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
             Text(
               title,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
             ),
           ],
         ),
@@ -366,7 +376,8 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+            color:
+                Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -393,8 +404,8 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ),
           const Text(': '),
@@ -402,9 +413,10 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: valueColor ?? Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.w500,
-              ),
+                    color:
+                        valueColor ?? Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w500,
+                  ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -474,9 +486,9 @@ class VideoInfoCard extends StatelessWidget {
               Text(
                 '视频信息',
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
               ),
               const Spacer(),
               if (showMoreButton)
@@ -536,9 +548,9 @@ class VideoInfoCard extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.w500,
-            ),
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w500,
+                ),
           ),
         ],
       ),

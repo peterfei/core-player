@@ -363,7 +363,8 @@ class NotificationManager {
     );
   }
 
-  static void showSuccess(BuildContext context, String message, {String? title}) {
+  static void showSuccess(BuildContext context, String message,
+      {String? title}) {
     show(
       context: context,
       title: title ?? '成功',
@@ -372,7 +373,8 @@ class NotificationManager {
     );
   }
 
-  static void showWarning(BuildContext context, String message, {String? title}) {
+  static void showWarning(BuildContext context, String message,
+      {String? title}) {
     show(
       context: context,
       title: title ?? '警告',

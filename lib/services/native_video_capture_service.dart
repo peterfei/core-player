@@ -6,7 +6,8 @@ import 'macos_bookmark_service.dart';
 /// macOS原生视频帧捕获服务
 /// 使用AVFoundation提取真实的视频帧
 class NativeVideoCaptureService {
-  static const MethodChannel _channel = MethodChannel('com.example.vidhub/video_capture');
+  static const MethodChannel _channel =
+      MethodChannel('com.example.vidhub/video_capture');
 
   /// 检查是否支持
   static bool get isSupported => Platform.isMacOS;
@@ -88,11 +89,13 @@ class NativeVideoCaptureService {
   }
 
   /// 获取视频元数据
-  static Future<Map<String, dynamic>?> getVideoMetadata(String videoPath, {String? securityBookmark}) async {
+  static Future<Map<String, dynamic>?> getVideoMetadata(String videoPath,
+      {String? securityBookmark}) async {
     if (!isSupported) return null;
 
     try {
-      final result = await _channel.invokeMethod<Map<String, dynamic>>('getVideoMetadata', {
+      final result = await _channel
+          .invokeMethod<Map<String, dynamic>>('getVideoMetadata', {
         'videoPath': videoPath,
         'securityBookmark': securityBookmark,
       });

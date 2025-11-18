@@ -98,7 +98,8 @@ class VideoInfo {
       bitrate: json['bitrate'] as int,
       fileSize: json['fileSize'] as int,
       container: json['container'] as String,
-      videoCodec: CodecInfo.fromJson(json['videoCodec'] as Map<String, dynamic>),
+      videoCodec:
+          CodecInfo.fromJson(json['videoCodec'] as Map<String, dynamic>),
       audioCodecs: (json['audioCodecs'] as List)
           .map((e) => CodecInfo.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -171,8 +172,10 @@ class VideoInfo {
   /// 获取格式化的文件大小
   String get formattedFileSize {
     if (fileSize < 1024) return '$fileSize B';
-    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
-    if (fileSize < 1024 * 1024 * 1024) return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (fileSize < 1024 * 1024)
+      return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    if (fileSize < 1024 * 1024 * 1024)
+      return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -192,7 +195,8 @@ class VideoInfo {
   /// 获取格式化的码率
   String get formattedBitrate {
     if (bitrate < 1000) return '${bitrate} bps';
-    if (bitrate < 1000 * 1000) return '${(bitrate / 1000).toStringAsFixed(1)} kbps';
+    if (bitrate < 1000 * 1000)
+      return '${(bitrate / 1000).toStringAsFixed(1)} kbps';
     return '${(bitrate / (1000 * 1000)).toStringAsFixed(1)} Mbps';
   }
 
@@ -244,8 +248,8 @@ class VideoInfo {
   bool get hasSubtitles => subtitleTracks.isNotEmpty;
 
   /// 是否为网络视频
-  bool get isNetworkVideo => videoPath.startsWith('http://') ||
-                             videoPath.startsWith('https://');
+  bool get isNetworkVideo =>
+      videoPath.startsWith('http://') || videoPath.startsWith('https://');
 
   /// 创建副本并更新最后播放时间
   VideoInfo copyWithLastPlayed() {
@@ -277,15 +281,15 @@ class VideoInfo {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is VideoInfo &&
-           other.videoPath == videoPath &&
-           other.fileName == fileName &&
-           other.duration == duration &&
-           other.width == width &&
-           other.height == height &&
-           other.fps == fps &&
-           other.bitrate == bitrate &&
-           other.fileSize == fileSize &&
-           other.container == container;
+        other.videoPath == videoPath &&
+        other.fileName == fileName &&
+        other.duration == duration &&
+        other.width == width &&
+        other.height == height &&
+        other.fps == fps &&
+        other.bitrate == bitrate &&
+        other.fileSize == fileSize &&
+        other.container == container;
   }
 
   @override

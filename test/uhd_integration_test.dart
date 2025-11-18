@@ -209,7 +209,8 @@ void main() {
           if (service is HardwareAccelerationService) {
             final isInitialized = service.isInitialized;
             final config = service.currentConfig;
-            print('  $serviceName: ${isInitialized ? "✅" : "❌"} (已初始化: $isInitialized, 硬件加速: ${config?.enabled ?? false})');
+            print(
+                '  $serviceName: ${isInitialized ? "✅" : "❌"} (已初始化: $isInitialized, 硬件加速: ${config?.enabled ?? false})');
           } else {
             print('  $serviceName: ✅ (已就绪)');
           }

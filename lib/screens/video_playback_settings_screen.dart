@@ -12,10 +12,12 @@ class VideoPlaybackSettingsScreen extends StatefulWidget {
   const VideoPlaybackSettingsScreen({super.key});
 
   @override
-  State<VideoPlaybackSettingsScreen> createState() => _VideoPlaybackSettingsScreenState();
+  State<VideoPlaybackSettingsScreen> createState() =>
+      _VideoPlaybackSettingsScreenState();
 }
 
-class _VideoPlaybackSettingsScreenState extends State<VideoPlaybackSettingsScreen> {
+class _VideoPlaybackSettingsScreenState
+    extends State<VideoPlaybackSettingsScreen> {
   // 播放质量设置
   PlaybackQualityMode _qualityMode = PlaybackQualityMode.auto;
 
@@ -43,7 +45,8 @@ class _VideoPlaybackSettingsScreenState extends State<VideoPlaybackSettingsScree
     try {
       // 加载硬件加速信息
       await HardwareAccelerationService.instance.initialize();
-      final config = await HardwareAccelerationService.instance.getRecommendedConfig();
+      final config =
+          await HardwareAccelerationService.instance.getRecommendedConfig();
 
       setState(() {
         _hwAccelConfig = config;
@@ -308,7 +311,10 @@ class _VideoPlaybackSettingsScreenState extends State<VideoPlaybackSettingsScree
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+              color: Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withOpacity(0.3),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -325,9 +331,9 @@ class _VideoPlaybackSettingsScreenState extends State<VideoPlaybackSettingsScree
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                 ),
               ],
             ),

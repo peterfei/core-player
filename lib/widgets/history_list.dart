@@ -13,12 +13,15 @@ class HistoryListWidgetRefreshable extends StatefulWidget {
   const HistoryListWidgetRefreshable({super.key});
 
   @override
-  State<HistoryListWidgetRefreshable> createState() => HistoryListWidgetRefreshableState();
+  State<HistoryListWidgetRefreshable> createState() =>
+      HistoryListWidgetRefreshableState();
 }
 
-class HistoryListWidgetRefreshableState extends State<HistoryListWidgetRefreshable>
+class HistoryListWidgetRefreshableState
+    extends State<HistoryListWidgetRefreshable>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
-  final GlobalKey<_HistoryListWidgetState> _historyListKey = GlobalKey<_HistoryListWidgetState>();
+  final GlobalKey<_HistoryListWidgetState> _historyListKey =
+      GlobalKey<_HistoryListWidgetState>();
 
   @override
   bool get wantKeepAlive => true; // 保持状态，避免tab切换时销毁
@@ -152,7 +155,8 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('确认删除'),
-        content: Text('确定要删除选中的 ${_selectedHistories.length} 条播放历史吗？\n此操作不可恢复。'),
+        content:
+            Text('确定要删除选中的 ${_selectedHistories.length} 条播放历史吗？\n此操作不可恢复。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -182,7 +186,6 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
     }
   }
 
-  
   void _clearAllHistories() {
     showDialog(
       context: context,
@@ -249,7 +252,7 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
   void _playVideo(PlaybackHistory history, {int? seekTo}) async {
     // 判断是否是 Web 平台的视频 URL
     final isWebVideo = history.videoPath.startsWith('blob:') ||
-                       history.videoPath.startsWith('data:');
+        history.videoPath.startsWith('data:');
 
     if (history.isNetworkVideo || isWebVideo) {
       // 网络视频/Web 平台：使用 URL 方式播放
@@ -274,9 +277,11 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
       // 对于macOS，尝试使用书签恢复权限
       if (MacOSBookmarkService.isSupported) {
         print('🔐 尝试恢复文件访问权限: ${history.videoPath}');
-        accessiblePath = await MacOSBookmarkService.tryRestoreAccess(history.videoPath);
+        accessiblePath =
+            await MacOSBookmarkService.tryRestoreAccess(history.videoPath);
         if (accessiblePath != null) {
-          fileAccessible = await MacOSBookmarkService.fileExistsAtPath(history.videoPath);
+          fileAccessible =
+              await MacOSBookmarkService.fileExistsAtPath(history.videoPath);
           if (fileAccessible) {
             print('✅ 文件访问权限恢复成功');
           }
@@ -359,22 +364,29 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
               // 标题栏
               SliverToBoxAdapter(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _isSearchMode ? '搜索结果 (${_displayedHistories.length})' : '播放历史',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        _isSearchMode
+                            ? '搜索结果 (${_displayedHistories.length})'
+                            : '播放历史',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       if (_isSelectionMode)
                         Row(
                           children: [
                             TextButton(
                               onPressed: _toggleSelectAll,
-                              child: Text(_selectedHistories.length == _displayedHistories.length ? '取消全选' : '全选'),
+                              child: Text(_selectedHistories.length ==
+                                      _displayedHistories.length
+                                  ? '取消全选'
+                                  : '全选'),
                             ),
                             IconButton(
                               onPressed: _batchDelete,
@@ -550,13 +562,19 @@ class HistoryItemWidget extends StatelessWidget {
                     width: 80,
                     height: 45,
                     decoration: BoxDecoration(
-                      color: history.isNetworkVideo ? Colors.orange[300] : Colors.grey[300],
+                      color: history.isNetworkVideo
+                          ? Colors.orange[300]
+                          : Colors.grey[300],
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      history.isNetworkVideo ? Icons.link : Icons.play_circle_outline,
+                      history.isNetworkVideo
+                          ? Icons.link
+                          : Icons.play_circle_outline,
                       size: 32,
-                      color: history.isNetworkVideo ? Colors.white : Colors.grey[600],
+                      color: history.isNetworkVideo
+                          ? Colors.white
+                          : Colors.grey[600],
                     ),
                   ),
                   // 网络视频标识

@@ -11,7 +11,8 @@ class NetworkStreamService {
   static const String _urlHistoryKey = 'network_url_history';
   static const int _maxHistoryCount = 20;
 
-  static final NetworkStreamService _instance = NetworkStreamService._internal();
+  static final NetworkStreamService _instance =
+      NetworkStreamService._internal();
   factory NetworkStreamService() => _instance;
   NetworkStreamService._internal();
 
@@ -50,9 +51,11 @@ class NetworkStreamService {
 
       for (final url in testUrls) {
         try {
-          final response = await http.get(
-            Uri.parse(url),
-          ).timeout(const Duration(seconds: 5));
+          final response = await http
+              .get(
+                Uri.parse(url),
+              )
+              .timeout(const Duration(seconds: 5));
           if (response.statusCode == 200) {
             return true;
           }
@@ -73,9 +76,10 @@ class NetworkStreamService {
 
     try {
       final uri = Uri.parse(url.trim());
-      return (uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https')) ||
-             url.trim().endsWith('.m3u8') ||
-             url.trim().endsWith('.mpd');
+      return (uri.hasScheme &&
+              (uri.scheme == 'http' || uri.scheme == 'https')) ||
+          url.trim().endsWith('.m3u8') ||
+          url.trim().endsWith('.mpd');
     } catch (e) {
       return false;
     }
@@ -87,17 +91,22 @@ class NetworkStreamService {
       final protocol = _detectProtocol(url);
       final streamInfo = StreamInfo.fromUrl(url);
 
-      if (protocol == 'http' && !url.endsWith('.m3u8') && !url.endsWith('.mpd')) {
+      if (protocol == 'http' &&
+          !url.endsWith('.m3u8') &&
+          !url.endsWith('.mpd')) {
         // 尝试获取HTTP流的基本信息
-        final response = await http.head(
-          Uri.parse(url),
-        ).timeout(const Duration(seconds: 10));
+        final response = await http
+            .head(
+              Uri.parse(url),
+            )
+            .timeout(const Duration(seconds: 10));
 
         if (response.statusCode == 200) {
           final contentLength = response.headers['content-length'];
           final contentType = response.headers['content-type'];
 
-          final fileSize = contentLength != null ? int.tryParse(contentLength) : null;
+          final fileSize =
+              contentLength != null ? int.tryParse(contentLength) : null;
           final mimeType = contentType ?? _guessMimeType(url);
 
           return streamInfo.copyWith(
@@ -121,7 +130,7 @@ class NetworkStreamService {
     } else if (url.toLowerCase().contains('.mpd')) {
       return 'dash';
     } else if (url.toLowerCase().startsWith('http://') ||
-               url.toLowerCase().startsWith('https://')) {
+        url.toLowerCase().startsWith('https://')) {
       return 'http';
     } else {
       return 'unknown';
@@ -226,9 +235,11 @@ class NetworkStreamService {
   /// 测试URL是否可访问
   Future<bool> testUrlAccessibility(String url) async {
     try {
-      final response = await http.head(
-        Uri.parse(url),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .head(
+            Uri.parse(url),
+          )
+          .timeout(const Duration(seconds: 10));
 
       return response.statusCode == 200;
     } catch (e) {

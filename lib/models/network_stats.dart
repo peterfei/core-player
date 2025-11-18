@@ -4,8 +4,8 @@ import 'buffer_config.dart';
 
 /// 带宽采样数据点
 class BandwidthSample {
-  final double bandwidth;      // 带宽 (bps)
-  final DateTime timestamp;    // 采样时间
+  final double bandwidth; // 带宽 (bps)
+  final DateTime timestamp; // 采样时间
   final Duration responseTime; // 响应时间
 
   const BandwidthSample({
@@ -17,17 +17,17 @@ class BandwidthSample {
 
 /// 网络统计数据
 class NetworkStats {
-  final double currentBandwidth;    // 当前带宽 (bps)
-  final double averageBandwidth;    // 平均带宽
-  final double peakBandwidth;       // 峰值带宽
-  final double minBandwidth;        // 最低带宽
-  final double stability;           // 稳定性 (0-1)
-  final double packetLoss;          // 丢包率
-  final int latency;                // 延迟 (ms)
-  final NetworkQuality quality;     // 质量等级
+  final double currentBandwidth; // 当前带宽 (bps)
+  final double averageBandwidth; // 平均带宽
+  final double peakBandwidth; // 峰值带宽
+  final double minBandwidth; // 最低带宽
+  final double stability; // 稳定性 (0-1)
+  final double packetLoss; // 丢包率
+  final int latency; // 延迟 (ms)
+  final NetworkQuality quality; // 质量等级
   final DateTime timestamp;
   final ConnectivityResult? connectionType; // 连接类型
-  final int totalSamples;           // 总采样数
+  final int totalSamples; // 总采样数
 
   const NetworkStats({
     this.currentBandwidth = 0,
@@ -76,11 +76,12 @@ class NetworkStats {
     // 考虑稳定性的质量评估
     final adjustedBandwidth = bandwidth * (0.5 + stability * 0.5);
 
-    if (adjustedBandwidth > 10000000) return NetworkQuality.excellent; // >10 Mbps
-    if (adjustedBandwidth > 5000000) return NetworkQuality.good;      // 5-10 Mbps
-    if (adjustedBandwidth > 2000000) return NetworkQuality.moderate;   // 2-5 Mbps
-    if (adjustedBandwidth > 1000000) return NetworkQuality.poor;       // 1-2 Mbps
-    return NetworkQuality.critical;                                   // <1 Mbps
+    if (adjustedBandwidth > 10000000)
+      return NetworkQuality.excellent; // >10 Mbps
+    if (adjustedBandwidth > 5000000) return NetworkQuality.good; // 5-10 Mbps
+    if (adjustedBandwidth > 2000000) return NetworkQuality.moderate; // 2-5 Mbps
+    if (adjustedBandwidth > 1000000) return NetworkQuality.poor; // 1-2 Mbps
+    return NetworkQuality.critical; // <1 Mbps
   }
 
   Map<String, dynamic> toJson() {
@@ -112,7 +113,8 @@ class NetworkStats {
         (e) => e.name == json['quality'],
         orElse: () => NetworkQuality.critical,
       ),
-      timestamp: DateTime.parse(json['timestamp'] ?? DateTime.now().toIso8601String()),
+      timestamp:
+          DateTime.parse(json['timestamp'] ?? DateTime.now().toIso8601String()),
       connectionType: json['connectionType'] != null
           ? ConnectivityResult.values.firstWhere(
               (e) => e.name == json['connectionType'],
@@ -126,8 +128,8 @@ class NetworkStats {
 /// 带宽历史记录
 class BandwidthHistory {
   final List<BandwidthSample> samples;
-  final Duration maxAge;          // 保留的最大时间长度
-  final int maxSamples;           // 最大样本数
+  final Duration maxAge; // 保留的最大时间长度
+  final int maxSamples; // 最大样本数
 
   BandwidthHistory({
     List<BandwidthSample>? samples,
@@ -160,7 +162,8 @@ class BandwidthHistory {
     final recent = getRecentSamples(window);
     if (recent.isEmpty) return 0;
 
-    return recent.map((s) => s.bandwidth).reduce((a, b) => a + b) / recent.length;
+    return recent.map((s) => s.bandwidth).reduce((a, b) => a + b) /
+        recent.length;
   }
 
   /// 计算稳定性指数 (基于标准差)
@@ -168,8 +171,11 @@ class BandwidthHistory {
     final recent = getRecentSamples(window);
     if (recent.length < 2) return 1.0;
 
-    final avg = recent.map((s) => s.bandwidth).reduce((a, b) => a + b) / recent.length;
-    final variance = recent.map((s) => pow(s.bandwidth - avg, 2)).reduce((a, b) => a + b) / recent.length;
+    final avg =
+        recent.map((s) => s.bandwidth).reduce((a, b) => a + b) / recent.length;
+    final variance =
+        recent.map((s) => pow(s.bandwidth - avg, 2)).reduce((a, b) => a + b) /
+            recent.length;
     final stdDev = sqrt(variance);
 
     // 稳定性 = 1 - (标准差/平均值的比例)
@@ -212,7 +218,7 @@ class BandwidthHistory {
 /// 缓冲事件记录
 class BufferEvent {
   final BufferHealth health;
-  final double bufferProgress;    // 0-100%
+  final double bufferProgress; // 0-100%
   final Duration bufferedDuration;
   final DateTime timestamp;
   final NetworkStats? networkStats;
@@ -243,7 +249,8 @@ class BufferEvent {
       ),
       bufferProgress: json['bufferProgress']?.toDouble() ?? 0,
       bufferedDuration: Duration(milliseconds: json['bufferedDurationMs'] ?? 0),
-      timestamp: DateTime.parse(json['timestamp'] ?? DateTime.now().toIso8601String()),
+      timestamp:
+          DateTime.parse(json['timestamp'] ?? DateTime.now().toIso8601String()),
       networkStats: json['networkStats'] != null
           ? NetworkStats.fromJson(json['networkStats'])
           : null,
@@ -259,7 +266,7 @@ class PlaybackQualityReport {
   final Duration averageBufferDuration;
   final List<QualityLevel> qualitySwitches;
   final NetworkStats networkStats;
-  final double qualityScore;  // 0-100
+  final double qualityScore; // 0-100
   final DateTime startTime;
   final DateTime endTime;
 
@@ -321,17 +328,21 @@ class PlaybackQualityReport {
       totalPlayTime: Duration(milliseconds: json['totalPlayTimeMs'] ?? 0),
       totalBufferTime: Duration(milliseconds: json['totalBufferTimeMs'] ?? 0),
       bufferEventCount: json['bufferEventCount'] ?? 0,
-      averageBufferDuration: Duration(milliseconds: json['averageBufferDurationMs'] ?? 0),
+      averageBufferDuration:
+          Duration(milliseconds: json['averageBufferDurationMs'] ?? 0),
       qualitySwitches: (json['qualitySwitches'] as List<dynamic>?)
-          ?.map((q) => QualityLevel.values.firstWhere(
-                (e) => e.name == q,
-                orElse: () => QualityLevel.auto,
-              ))
-          .toList() ?? [],
+              ?.map((q) => QualityLevel.values.firstWhere(
+                    (e) => e.name == q,
+                    orElse: () => QualityLevel.auto,
+                  ))
+              .toList() ??
+          [],
       networkStats: NetworkStats.fromJson(json['networkStats'] ?? {}),
       qualityScore: json['qualityScore']?.toDouble() ?? 0,
-      startTime: DateTime.parse(json['startTime'] ?? DateTime.now().toIso8601String()),
-      endTime: DateTime.parse(json['endTime'] ?? DateTime.now().toIso8601String()),
+      startTime:
+          DateTime.parse(json['startTime'] ?? DateTime.now().toIso8601String()),
+      endTime:
+          DateTime.parse(json['endTime'] ?? DateTime.now().toIso8601String()),
     );
   }
 
@@ -396,7 +407,8 @@ class ConnectionStatus {
         orElse: () => ConnectionState.failed,
       ),
       message: json['message'] ?? '',
-      timestamp: DateTime.parse(json['timestamp'] ?? DateTime.now().toIso8601String()),
+      timestamp:
+          DateTime.parse(json['timestamp'] ?? DateTime.now().toIso8601String()),
       retryCount: json['retryCount'] ?? 0,
     );
   }

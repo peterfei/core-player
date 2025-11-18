@@ -4,51 +4,46 @@ import '../models/video_info.dart';
 
 /// 缓冲策略枚举
 enum BufferStrategy {
-  conservative,  // 保守策略：大缓冲，适合不稳定网络
-  balanced,      // 平衡策略：中等缓冲，默认选择
-  aggressive,    // 激进策略：小缓冲，适合高速网络
-  adaptive       // 自适应策略：根据网络动态调整
+  conservative, // 保守策略：大缓冲，适合不稳定网络
+  balanced, // 平衡策略：中等缓冲，默认选择
+  aggressive, // 激进策略：小缓冲，适合高速网络
+  adaptive // 自适应策略：根据网络动态调整
 }
 
 /// 缓冲健康状态
 enum BufferHealth {
-  critical,  // 红色：缓冲 < 2秒，即将卡顿
-  warning,   // 黄色：缓冲 < 10秒，需要加速
-  healthy,   // 绿色：缓冲充足
-  excellent  // 蓝色：缓冲超过目标值
+  critical, // 红色：缓冲 < 2秒，即将卡顿
+  warning, // 黄色：缓冲 < 10秒，需要加速
+  healthy, // 绿色：缓冲充足
+  excellent // 蓝色：缓冲超过目标值
 }
 
 /// 网络质量等级
 enum NetworkQuality {
-  excellent,  // >10 Mbps, 稳定
-  good,       // 5-10 Mbps
-  moderate,   // 2-5 Mbps
-  poor,       // 1-2 Mbps
-  critical    // <1 Mbps, 不稳定
+  excellent, // >10 Mbps, 稳定
+  good, // 5-10 Mbps
+  moderate, // 2-5 Mbps
+  poor, // 1-2 Mbps
+  critical // <1 Mbps, 不稳定
 }
 
 /// 连接状态
-enum ConnectionState {
-  connected,
-  reconnecting,
-  offline,
-  failed
-}
+enum ConnectionState { connected, reconnecting, offline, failed }
 
 /// ABR算法类型
 enum AbrAlgorithm {
-  throughput,  // 吞吐量算法
-  bola,        // BOLA算法
-  dynamic      // 动态算法
+  throughput, // 吞吐量算法
+  bola, // BOLA算法
+  dynamic // 动态算法
 }
 
 /// 缓冲阈值配置
 class BufferThresholds {
-  final Duration minBuffer;      // 最小缓冲时长: 5秒
-  final Duration maxBuffer;      // 最大缓冲时长: 60秒
-  final Duration targetBuffer;   // 目标缓冲时长: 30秒
+  final Duration minBuffer; // 最小缓冲时长: 5秒
+  final Duration maxBuffer; // 最大缓冲时长: 60秒
+  final Duration targetBuffer; // 目标缓冲时长: 30秒
   final Duration rebufferTrigger; // 重缓冲触发阈值: 2秒
-  final int bufferSizeMB;        // 缓冲区大小: 10-100MB
+  final int bufferSizeMB; // 缓冲区大小: 10-100MB
   final Duration? lowBufferThreshold; // 低缓冲阈值
 
   const BufferThresholds({
@@ -86,13 +81,13 @@ class BufferThresholds {
 
 /// 预加载策略
 class PreloadStrategy {
-  final Duration prebufferDuration;     // 播放前预缓冲时长
-  final bool enableBackgroundPreload;   // 是否启用后台预加载
-  final Duration lowPowerPrebuffer;     // 低功耗模式下的预加载策略
-  final int preloadNextSegments;        // 预加载下一段数量
-  final Duration preloadWindow;          // 预加载窗口大小
-  final bool networkAware;              // 是否网络感知
-  final bool bandwidthBased;            // 是否基于带宽调整
+  final Duration prebufferDuration; // 播放前预缓冲时长
+  final bool enableBackgroundPreload; // 是否启用后台预加载
+  final Duration lowPowerPrebuffer; // 低功耗模式下的预加载策略
+  final int preloadNextSegments; // 预加载下一段数量
+  final Duration preloadWindow; // 预加载窗口大小
+  final bool networkAware; // 是否网络感知
+  final bool bandwidthBased; // 是否基于带宽调整
 
   const PreloadStrategy({
     this.prebufferDuration = const Duration(seconds: 10),
@@ -118,9 +113,11 @@ class PreloadStrategy {
 
   factory PreloadStrategy.fromJson(Map<String, dynamic> json) {
     return PreloadStrategy(
-      prebufferDuration: Duration(seconds: json['prebufferDurationSeconds'] ?? 10),
+      prebufferDuration:
+          Duration(seconds: json['prebufferDurationSeconds'] ?? 10),
       enableBackgroundPreload: json['enableBackgroundPreload'] ?? true,
-      lowPowerPrebuffer: Duration(seconds: json['lowPowerPrebufferSeconds'] ?? 5),
+      lowPowerPrebuffer:
+          Duration(seconds: json['lowPowerPrebufferSeconds'] ?? 5),
       preloadNextSegments: json['preloadNextSegments'] ?? 1,
       preloadWindow: Duration(seconds: json['preloadWindowSeconds'] ?? 30),
       networkAware: json['networkAware'] ?? true,
@@ -227,26 +224,32 @@ class BufferConfig {
     int bufferSizeMB = thresholds.bufferSizeMB;
 
     // 根据分辨率调整
-    if (videoInfo.height >= 4320) { // 8K
+    if (videoInfo.height >= 4320) {
+      // 8K
       baseBufferSec = 30;
       maxBufferSec = 90;
       bufferSizeMB = 2000; // 2GB
-      print('🎬 为8K视频优化缓冲: ${baseBufferSec}s/${maxBufferSec}s, ${bufferSizeMB}MB');
-    } else if (videoInfo.height >= 2160) { // 4K
+      print(
+          '🎬 为8K视频优化缓冲: ${baseBufferSec}s/${maxBufferSec}s, ${bufferSizeMB}MB');
+    } else if (videoInfo.height >= 2160) {
+      // 4K
       baseBufferSec = 20;
       maxBufferSec = 60;
       bufferSizeMB = 1000; // 1GB
-      print('🎬 为4K视频优化缓冲: ${baseBufferSec}s/${maxBufferSec}s, ${bufferSizeMB}MB');
+      print(
+          '🎬 为4K视频优化缓冲: ${baseBufferSec}s/${maxBufferSec}s, ${bufferSizeMB}MB');
     }
 
     // 根据码率进一步调整
     final bitrateMbps = videoInfo.bitrate ~/ (1000 * 1000);
-    if (bitrateMbps > 50) { // 超高码率
+    if (bitrateMbps > 50) {
+      // 超高码率
       baseBufferSec += 10;
       maxBufferSec += 30;
       bufferSizeMB = (bufferSizeMB * 1.5).round();
       print('🎬 为超高码率(${bitrateMbps}Mbps)优化缓冲');
-    } else if (bitrateMbps > 20) { // 高码率
+    } else if (bitrateMbps > 20) {
+      // 高码率
       baseBufferSec += 5;
       maxBufferSec += 15;
       bufferSizeMB = (bufferSizeMB * 1.2).round();
@@ -297,9 +300,9 @@ class BufferConfig {
   /// 获取当前配置的描述
   String getDescription() {
     return '缓冲策略: ${strategy.name}, '
-           '目标缓冲: ${thresholds.targetBuffer.inSeconds}s, '
-           '缓冲大小: ${thresholds.bufferSizeMB}MB, '
-           '自动调整: ${autoAdjust ? "开启" : "关闭"}';
+        '目标缓冲: ${thresholds.targetBuffer.inSeconds}s, '
+        '缓冲大小: ${thresholds.bufferSizeMB}MB, '
+        '自动调整: ${autoAdjust ? "开启" : "关闭"}';
   }
 
   /// 获取性能等级
@@ -468,8 +471,8 @@ enum QualityLevel {
   const QualityLevel(this.name, this.bitrate, this.height, this.displayName);
 
   final String name;
-  final int bitrate;    // bps
-  final int height;     // 像素高度
+  final int bitrate; // bps
+  final int height; // 像素高度
   final String displayName;
 }
 

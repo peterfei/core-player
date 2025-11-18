@@ -66,8 +66,8 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
                 Text(
                   '用户反馈',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const Spacer(),
                 IconButton(
@@ -89,9 +89,10 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
                       // 反馈类型
                       Text(
                         '反馈类型',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
@@ -110,8 +111,12 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
                               }
                             },
                             backgroundColor: Colors.grey.withOpacity(0.1),
-                            selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                            checkmarkColor: Theme.of(context).colorScheme.primary,
+                            selectedColor: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.2),
+                            checkmarkColor:
+                                Theme.of(context).colorScheme.primary,
                           );
                         }).toList(),
                       ),
@@ -217,7 +222,8 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+                  onPressed:
+                      _isSubmitting ? null : () => Navigator.of(context).pop(),
                   child: const Text('取消'),
                 ),
                 const SizedBox(width: 8),
@@ -254,7 +260,9 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
         'type': _selectedType.toString(),
         'title': _issueController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        'email': _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
         'videoPath': widget.videoPath,
         'includeSystemInfo': _includeSystemInfo,
         'timestamp': DateTime.now().toIso8601String(),

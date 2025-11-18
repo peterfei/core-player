@@ -23,7 +23,8 @@ class ServiceIntegrationTest {
       results['codecInfoModel'] = await _testCodecInfoModel();
 
       // 测试3: 硬件加速配置模型
-      results['hwAccelConfigModel'] = await _testHardwareAccelerationConfigModel();
+      results['hwAccelConfigModel'] =
+          await _testHardwareAccelerationConfigModel();
 
       // 测试4: 视频分析服务
       results['videoAnalyzerService'] = await _testVideoAnalyzerService();
@@ -39,7 +40,6 @@ class ServiceIntegrationTest {
 
       // 测试8: 格式兼容性检测
       results['formatCompatibility'] = await _testFormatCompatibility();
-
     } catch (e) {
       print('❌ 测试过程中发生错误: $e');
       results['error'] = false;
@@ -163,7 +163,8 @@ class ServiceIntegrationTest {
 
     try {
       // 创建默认配置
-      final defaultConfig = HardwareAccelerationConfig.forPlatform(enabled: true);
+      final defaultConfig =
+          HardwareAccelerationConfig.forPlatform(enabled: true);
 
       assert(defaultConfig.enabled == true);
       assert(defaultConfig.supportedCodecs.isNotEmpty);
@@ -211,7 +212,8 @@ class ServiceIntegrationTest {
 
       // 测试格式兼容性检测（使用模拟路径）
       if (!kIsWeb) {
-        final compatibility = await service.checkCompatibility('/test/nonexistent.mp4');
+        final compatibility =
+            await service.checkCompatibility('/test/nonexistent.mp4');
         assert(compatibility != null);
       }
 
@@ -355,7 +357,8 @@ class ServiceIntegrationTest {
           type: CodecType.video,
         );
 
-        final isSupported = codecInfo.supportStatus == CodecSupportStatus.fullySupported;
+        final isSupported =
+            codecInfo.supportStatus == CodecSupportStatus.fullySupported;
 
         print('    编解码器支持: $isSupported');
 
@@ -383,7 +386,8 @@ class ServiceIntegrationTest {
     buffer.writeln('测试总数: $totalTests');
     buffer.writeln('通过: $passedTests ✅');
     buffer.writeln('失败: $failedTests ❌');
-    buffer.writeln('成功率: ${((passedTests / totalTests) * 100).toStringAsFixed(1)}%');
+    buffer.writeln(
+        '成功率: ${((passedTests / totalTests) * 100).toStringAsFixed(1)}%');
     buffer.writeln('');
 
     buffer.writeln('详细结果:');

@@ -63,8 +63,8 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
-  }) : videoFile = null,
-       webVideoUrl = videoPath;
+  })  : videoFile = null,
+        webVideoUrl = videoPath;
 
   // 用于本地视频的便捷构造函数
   PlayerScreen.local({
@@ -73,8 +73,8 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
-  }) : videoFile = videoFile,
-       webVideoUrl = null;
+  })  : videoFile = videoFile,
+        webVideoUrl = null;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -141,7 +141,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       // 再初始化硬件加速服务
       await HardwareAccelerationService.instance.initialize();
-      _hwAccelConfig = await HardwareAccelerationService.instance.getRecommendedConfig();
+      _hwAccelConfig =
+          await HardwareAccelerationService.instance.getRecommendedConfig();
       print('🔧 硬件加速服务初始化完成');
 
       // 创建播放器配置
@@ -356,7 +357,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (mounted && !_isPlaying) return; // 如果已经停止播放，不启动监控
 
       try {
-        PerformanceMonitorService.instance.startMonitoring(player, intervalMs: 1000);
+        PerformanceMonitorService.instance
+            .startMonitoring(player, intervalMs: 1000);
 
         // 设置解码器类型
         final decoderType = _hwAccelConfig?.enabled == true
@@ -365,12 +367,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
         PerformanceMonitorService.instance.setDecoderType(decoderType);
 
         // 监听性能指标，用于覆盖层显示
-        _performanceSubscription = PerformanceMonitorService.instance.metricsStream.listen(
+        _performanceSubscription =
+            PerformanceMonitorService.instance.metricsStream.listen(
           (metrics) {
             if (mounted) {
               // 性能警告日志
               if (metrics.isPoorPerformance) {
-                print('⚠️ 性能警告: FPS=${metrics.fps.toStringAsFixed(1)}, CPU=${metrics.cpuUsage.toStringAsFixed(1)}%');
+                print(
+                    '⚠️ 性能警告: FPS=${metrics.fps.toStringAsFixed(1)}, CPU=${metrics.cpuUsage.toStringAsFixed(1)}%');
                 // 可以在这里显示用户友好的提示
                 _showPerformanceWarningIfNeeded(metrics);
               }
@@ -434,7 +438,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       print('🔍 开始分析视频信息: $_videoPath');
 
       // 分析视频文件
-      final videoInfo = await VideoAnalyzerService.instance.analyzeVideo(_videoPath);
+      final videoInfo =
+          await VideoAnalyzerService.instance.analyzeVideo(_videoPath);
 
       if (mounted) {
         setState(() {
@@ -446,12 +451,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
       await _optimizeBufferForVideo(videoInfo);
 
       // 检查格式兼容性
-      final compatibility = await VideoAnalyzerService.instance.checkCompatibility(_videoPath);
+      final compatibility =
+          await VideoAnalyzerService.instance.checkCompatibility(_videoPath);
 
       // 显示分析结果
-      if (!kIsWeb) { // Web平台不显示这些通知
+      if (!kIsWeb) {
+        // Web平台不显示这些通知
         if (videoInfo.isUltraHD) {
-          print('🎬 检测到超高清视频: ${videoInfo.qualityLabel} ${videoInfo.resolutionLabel}');
+          print(
+              '🎬 检测到超高清视频: ${videoInfo.qualityLabel} ${videoInfo.resolutionLabel}');
           if (videoInfo.isHighFramerate) {
             print('🎬 高帧率视频: ${videoInfo.fpsLabel}');
           }
@@ -466,7 +474,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
         // 检查硬件加速能力
         final hwService = HardwareAccelerationService.instance;
-        final codecSupported = hwService.isCodecSupported(videoInfo.videoCodec.codec);
+        final codecSupported =
+            hwService.isCodecSupported(videoInfo.videoCodec.codec);
 
         if (!codecSupported && videoInfo.videoCodec.isHighQuality) {
           print('⚠️ 编解码器 ${videoInfo.videoCodec.displayName} 可能需要硬件加速');
@@ -475,7 +484,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
         // 检查性能需求
         if (videoInfo.isUltraHD || videoInfo.isHighFramerate) {
-          final recommendations = PerformanceMonitorService.instance.getPerformanceRecommendations();
+          final recommendations = PerformanceMonitorService.instance
+              .getPerformanceRecommendations();
           if (recommendations.isNotEmpty) {
             print('💡 性能建议: ${recommendations.join(', ')}');
           }
@@ -527,8 +537,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         'cache-size': (config.thresholds.bufferSizeMB * 1024).toString(), // KB
 
         // 其他缓冲优化
-        'demuxer-max-bytes': (config.thresholds.bufferSizeMB * 1024 * 1024).toString(),
-        'demuxer-max-back-bytes': (config.thresholds.bufferSizeMB * 512 * 1024).toString(),
+        'demuxer-max-bytes':
+            (config.thresholds.bufferSizeMB * 1024 * 1024).toString(),
+        'demuxer-max-back-bytes':
+            (config.thresholds.bufferSizeMB * 512 * 1024).toString(),
       };
 
       // 如果视频已开始播放，动态调整某些参数
@@ -637,7 +649,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // 高级缓冲相关
   BufferConfig _bufferConfig = const BufferConfig();
   BufferHealth _bufferHealth = BufferHealth.critical;
-  double _bufferProgress = 0.0;      // 0-100%
+  double _bufferProgress = 0.0; // 0-100%
   Duration _bufferedDuration = Duration.zero;
   NetworkStats _currentNetworkStats = NetworkStats(timestamp: DateTime.now());
   StreamSubscription<NetworkStats>? _networkStatsSubscription;
@@ -657,7 +669,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 字幕相关
   final SubtitleService _subtitleService = SubtitleService.instance;
-  
+
   // 播放器监听器
   StreamSubscription? _playingSubscription;
   StreamSubscription? _positionSubscription;
@@ -688,7 +700,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     // 设置视频路径和名称
     _videoPath = widget.webVideoUrl ?? widget.videoFile?.path ?? '';
-    _videoName = widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
+    _videoName =
+        widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
 
     // 如果是网络视频，设置网络监控和高级缓冲
     if (_isNetworkVideo) {
@@ -782,7 +795,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
             final loadedExternalSubtitle = await _autoLoadSubtitles();
 
             // 只有在没有成功加载外部字幕的情况下，才自动选择内置字幕
-            if (mounted && !loadedExternalSubtitle && _subtitleTracks.isNotEmpty) {
+            if (mounted &&
+                !loadedExternalSubtitle &&
+                _subtitleTracks.isNotEmpty) {
               // 查找第一个非 disabled 的轨道
               final firstSubtitle = _subtitleTracks.firstWhere(
                 (track) => track.id != 'disabled',
@@ -791,7 +806,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
               // 只有找到实际的字幕轨道才选择
               if (firstSubtitle.id != 'disabled') {
                 await _selectSubtitleTrack(firstSubtitle);
-                debugPrint('Auto-selected first subtitle: ${firstSubtitle.title}');
+                debugPrint(
+                    'Auto-selected first subtitle: ${firstSubtitle.title}');
               } else {
                 debugPrint('No subtitle tracks available for auto-selection');
               }
@@ -831,7 +847,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
 
     // 监听字幕内容变化
-    _subtitleContentSubscription = player.stream.subtitle.listen((subtitleLines) {
+    _subtitleContentSubscription =
+        player.stream.subtitle.listen((subtitleLines) {
       // 字幕内容更新时可以在这里处理，例如显示在自定义 UI 中
       // debugPrint('Subtitle: $subtitleLines');
     });
@@ -846,7 +863,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
           final wasBuffering = _isBuffering;
           setState(() {
             _isBuffering = isBuffering;
-            _networkStatus = isBuffering ? '缓冲中...' : (_isPlaying ? '播放中' : '暂停中');
+            _networkStatus =
+                isBuffering ? '缓冲中...' : (_isPlaying ? '播放中' : '暂停中');
           });
 
           if (isBuffering) {
@@ -868,7 +886,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _bufferSubscription = player.stream.buffer.listen((buffer) {
         if (mounted && _totalDuration.inMilliseconds > 0) {
           // 计算缓冲进度和时长
-          final progress = (buffer.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+          final progress =
+              (buffer.inMilliseconds / _totalDuration.inMilliseconds) * 100;
           setState(() {
             _bufferProgress = min(100.0, progress);
             _bufferedDuration = buffer;
@@ -890,7 +909,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 定期更新缓冲状态
     void startFallbackUpdate() {
       bufferUpdateTimer?.cancel();
-      bufferUpdateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      bufferUpdateTimer =
+          Timer.periodic(const Duration(milliseconds: 500), (_) {
         if (mounted && _isBuffering) {
           _estimateBufferProgress();
         } else if (!_isBuffering) {
@@ -924,7 +944,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     int updateCount = 0;
 
-    _bufferProgressTimer = Timer.periodic(const Duration(milliseconds: 800), (timer) { // 降低到800ms
+    _bufferProgressTimer =
+        Timer.periodic(const Duration(milliseconds: 800), (timer) {
+      // 降低到800ms
       if (!_isBuffering) {
         print('Buffering stopped, cancelling updater');
         timer.cancel();
@@ -960,16 +982,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       // 根据网络状况和缓冲时间估算已缓冲的时长
       final bufferedSeconds = _estimateBufferedSeconds();
-      final estimatedBuffered = currentPosition + Duration(seconds: bufferedSeconds);
+      final estimatedBuffered =
+          currentPosition + Duration(seconds: bufferedSeconds);
 
       // 计算缓冲进度百分比
-      double progress = (estimatedBuffered.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+      double progress =
+          (estimatedBuffered.inMilliseconds / _totalDuration.inMilliseconds) *
+              100;
       progress = min(100.0, max(0.0, progress));
 
       // 移除随机波动，保持稳定性
       // 只有当进度有显著变化时才更新UI（避免闪烁）
-      if ((_bufferProgress - progress).abs() > 1.0) { // 提高阈值到1%
-        print('Updating buffer progress: ${progress.toStringAsFixed(1)}% (${_bufferedDuration.inSeconds}s)');
+      if ((_bufferProgress - progress).abs() > 1.0) {
+        // 提高阈值到1%
+        print(
+            'Updating buffer progress: ${progress.toStringAsFixed(1)}% (${_bufferedDuration.inSeconds}s)');
         setState(() {
           _bufferProgress = progress;
           _bufferedDuration = estimatedBuffered;
@@ -987,9 +1014,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     final currentPosition = _currentPosition;
     final bufferedSeconds = _estimateBufferedSeconds();
-    final estimatedBuffered = currentPosition + Duration(seconds: bufferedSeconds);
+    final estimatedBuffered =
+        currentPosition + Duration(seconds: bufferedSeconds);
 
-    double progress = (estimatedBuffered.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+    double progress =
+        (estimatedBuffered.inMilliseconds / _totalDuration.inMilliseconds) *
+            100;
     progress = min(100.0, max(0.0, progress));
 
     print('Estimating buffer progress: ${progress.toStringAsFixed(1)}%');
@@ -1043,16 +1073,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     const animationDuration = Duration(seconds: 5); // 5秒内完成缓冲动画
     const steps = 50; // 动画步数
-    final stepDuration = Duration(milliseconds: animationDuration.inMilliseconds ~/ steps);
+    final stepDuration =
+        Duration(milliseconds: animationDuration.inMilliseconds ~/ steps);
 
     int currentStep = 0;
 
     // 计算目标进度：基于当前播放位置和预估缓冲时长
     final currentPositionMs = _currentPosition.inMilliseconds;
     final bufferedSeconds = _estimateBufferedSeconds();
-    final targetProgress = min(100.0, (currentPositionMs + bufferedSeconds * 1000) / _totalDuration.inMilliseconds * 100);
+    final targetProgress = min(
+        100.0,
+        (currentPositionMs + bufferedSeconds * 1000) /
+            _totalDuration.inMilliseconds *
+            100);
 
-    print('Starting buffer animation: current=${currentPositionMs}ms, buffered=${bufferedSeconds}s, target=${targetProgress.toStringAsFixed(1)}%');
+    print(
+        'Starting buffer animation: current=${currentPositionMs}ms, buffered=${bufferedSeconds}s, target=${targetProgress.toStringAsFixed(1)}%');
 
     Timer.periodic(stepDuration, (timer) {
       currentStep++;
@@ -1060,10 +1096,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final progress = (targetProgress * currentStep / steps).clamp(0.0, 100.0);
 
       if (mounted && _isBuffering) {
-        final bufferedDuration = Duration(milliseconds: (_totalDuration.inMilliseconds * progress / 100).round());
+        final bufferedDuration = Duration(
+            milliseconds:
+                (_totalDuration.inMilliseconds * progress / 100).round());
         final bufferedSecondsDisplay = bufferedDuration.inSeconds;
 
-        print('Buffer animation step $currentStep: progress=${progress.toStringAsFixed(1)}%, buffered=${bufferedSecondsDisplay}s');
+        print(
+            'Buffer animation step $currentStep: progress=${progress.toStringAsFixed(1)}%, buffered=${bufferedSecondsDisplay}s');
 
         setState(() {
           _bufferProgress = progress;
@@ -1109,7 +1148,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// 记录缓冲事件
   void _recordBufferEvent() {
     final now = DateTime.now();
-    if (_lastBufferEvent == null || now.difference(_lastBufferEvent!).inSeconds > 2) {
+    if (_lastBufferEvent == null ||
+        now.difference(_lastBufferEvent!).inSeconds > 2) {
       _bufferEventCount++;
       _lastBufferEvent = now;
 
@@ -1123,12 +1163,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_totalDuration.inMilliseconds == 0) return;
 
     // 计算当前播放位置进度
-    final positionProgress = (_currentPosition.inMilliseconds / _totalDuration.inMilliseconds) * 100;
+    final positionProgress =
+        (_currentPosition.inMilliseconds / _totalDuration.inMilliseconds) * 100;
 
     // 添加预估的缓冲时长（5-15秒）
     final bufferedSeconds = _estimateBufferedSeconds();
-    final bufferedDurationMs = _currentPosition.inMilliseconds + (bufferedSeconds * 1000);
-    final bufferProgress = min(100.0, (bufferedDurationMs / _totalDuration.inMilliseconds) * 100);
+    final bufferedDurationMs =
+        _currentPosition.inMilliseconds + (bufferedSeconds * 1000);
+    final bufferProgress =
+        min(100.0, (bufferedDurationMs / _totalDuration.inMilliseconds) * 100);
 
     setState(() {
       _bufferProgress = max(positionProgress, bufferProgress);
@@ -1136,7 +1179,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _bufferHealth = _calculateBufferHealth();
     });
 
-    print('Buffer progress initialized: ${_bufferProgress.toStringAsFixed(1)}% (${_bufferedDuration.inSeconds}s buffered)');
+    print(
+        'Buffer progress initialized: ${_bufferProgress.toStringAsFixed(1)}% (${_bufferedDuration.inSeconds}s buffered)');
   }
 
   /// 强制更新缓冲进度（测试用）
@@ -1145,19 +1189,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     // 基础缓冲计算：当前播放位置 + 动态缓冲秒数
     final bufferedSeconds = _estimateBufferedSeconds();
-    final baseBufferedMs = _currentPosition.inMilliseconds + (bufferedSeconds * 1000);
+    final baseBufferedMs =
+        _currentPosition.inMilliseconds + (bufferedSeconds * 1000);
 
     // 使用更稳定的线性增长算法
-    final targetProgress = min(95.0, (baseBufferedMs / _totalDuration.inMilliseconds) * 100); // 最高到95%
+    final targetProgress = min(
+        95.0, (baseBufferedMs / _totalDuration.inMilliseconds) * 100); // 最高到95%
 
     // 线性插值：从当前进度平滑增长到目标进度
     final maxIncrease = 2.0; // 每次最多增加2%
-    final desiredIncrease = (targetProgress - _bufferProgress).clamp(0.1, maxIncrease);
+    final desiredIncrease =
+        (targetProgress - _bufferProgress).clamp(0.1, maxIncrease);
     final newProgress = (_bufferProgress + desiredIncrease).clamp(0.0, 100.0);
 
     // 只有当进度确实增长时才更新
     if (newProgress > _bufferProgress + 0.1) {
-      final finalBufferedMs = (_totalDuration.inMilliseconds * newProgress / 100).toInt();
+      final finalBufferedMs =
+          (_totalDuration.inMilliseconds * newProgress / 100).toInt();
 
       setState(() {
         _bufferProgress = newProgress;
@@ -1165,7 +1213,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _bufferHealth = _calculateBufferHealth();
       });
 
-      print('Force updated buffer progress: ${_bufferProgress.toStringAsFixed(1)}% (update #$updateCount, +${desiredIncrease.toStringAsFixed(1)}%)');
+      print(
+          'Force updated buffer progress: ${_bufferProgress.toStringAsFixed(1)}% (update #$updateCount, +${desiredIncrease.toStringAsFixed(1)}%)');
     }
   }
 
@@ -1181,7 +1230,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _startGlobalBufferMonitor();
 
     // 监听网络状态变化
-    _networkStatsSubscription = _bandwidthMonitor.networkStatsStream.listen((stats) {
+    _networkStatsSubscription =
+        _bandwidthMonitor.networkStatsStream.listen((stats) {
       if (mounted) {
         setState(() {
           _currentNetworkStats = stats;
@@ -1298,7 +1348,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       // Note: media_kit player doesn't expose setProperty directly
       // Consider using player configuration or custom protocols if needed
 
-      print('MPV buffer options configured: ${thresholds.bufferSizeMB}MB, ${thresholds.maxBuffer.inSeconds}s');
+      print(
+          'MPV buffer options configured: ${thresholds.bufferSizeMB}MB, ${thresholds.maxBuffer.inSeconds}s');
     } catch (e) {
       print('Failed to configure MPV options: $e');
     }
@@ -1325,7 +1376,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
           break;
         case NetworkQuality.critical:
           // 网络差时暂停播放等待更多缓冲
-          if (_bufferedDuration.inSeconds < _bufferConfig.thresholds.rebufferTrigger.inSeconds && _isPlaying) {
+          if (_bufferedDuration.inSeconds <
+                  _bufferConfig.thresholds.rebufferTrigger.inSeconds &&
+              _isPlaying) {
             player.pause();
             setState(() {
               _networkStatus = '网络较差，等待缓冲...';
@@ -1385,7 +1438,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 初始化播放历史记录
   void _initializeHistory() async {
-    if (_videoPath == null || _videoName == null || _totalDuration.inSeconds <= 0) {
+    if (_videoPath == null ||
+        _videoName == null ||
+        _totalDuration.inSeconds <= 0) {
       return;
     }
 
@@ -1401,8 +1456,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
           videoName: existingHistory.videoName,
           currentPosition: widget.seekTo ?? 0,
           totalDuration: _totalDuration.inSeconds,
-          securityBookmark: _securityBookmark ?? existingHistory.securityBookmark,
-          thumbnailCachePath: _thumbnailCachePath ?? existingHistory.thumbnailCachePath,
+          securityBookmark:
+              _securityBookmark ?? existingHistory.securityBookmark,
+          thumbnailCachePath:
+              _thumbnailCachePath ?? existingHistory.thumbnailCachePath,
           sourceType: existingHistory.sourceType,
           watchCount: existingHistory.watchCount + 1,
         );
@@ -1418,8 +1475,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
           videoName: existingHistory.videoName,
           currentPosition: 0,
           totalDuration: _totalDuration.inSeconds,
-          securityBookmark: _securityBookmark ?? existingHistory.securityBookmark,
-          thumbnailCachePath: _thumbnailCachePath ?? existingHistory.thumbnailCachePath,
+          securityBookmark:
+              _securityBookmark ?? existingHistory.securityBookmark,
+          thumbnailCachePath:
+              _thumbnailCachePath ?? existingHistory.thumbnailCachePath,
           sourceType: existingHistory.sourceType,
           watchCount: existingHistory.watchCount + 1,
         );
@@ -1435,12 +1494,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
         thumbnailCachePath: _thumbnailCachePath,
         sourceType: _isNetworkVideo ? 'network' : 'local',
         streamUrl: _isNetworkVideo ? _videoPath : null,
-        streamProtocol: _isNetworkVideo ? _getStreamProtocol(_videoPath!) : null,
+        streamProtocol:
+            _isNetworkVideo ? _getStreamProtocol(_videoPath!) : null,
         watchCount: 1,
       );
     }
 
-    
     // 开始定期保存播放进度
     _startHistoryTimer();
 
@@ -1497,7 +1556,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 保存播放进度（增强版）
   void _saveProgress() async {
-    if (_videoPath == null || _videoName == null || _currentPosition.inSeconds <= 0) {
+    if (_videoPath == null ||
+        _videoName == null ||
+        _currentPosition.inSeconds <= 0) {
       return;
     }
 
@@ -1511,7 +1572,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         thumbnailCachePath: _thumbnailCachePath,
         sourceType: _isNetworkVideo ? 'network' : 'local',
         streamUrl: _isNetworkVideo ? widget.webVideoUrl : null,
-        streamProtocol: _isNetworkVideo ? _getStreamProtocol(_videoPath!) : null,
+        streamProtocol:
+            _isNetworkVideo ? _getStreamProtocol(_videoPath!) : null,
       );
     } catch (e) {
       print('❌ 定期保存播放进度失败: $e');
@@ -1549,10 +1611,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
     String hours = twoDigits(duration.inHours);
     String minutes = twoDigits(duration.inMinutes.remainder(60));
     String seconds = twoDigits(duration.inSeconds.remainder(60));
-    return duration.inHours > 0 ? "$hours:$minutes:$seconds" : "$minutes:$seconds";
+    return duration.inHours > 0
+        ? "$hours:$minutes:$seconds"
+        : "$minutes:$seconds";
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -1573,24 +1635,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 alignment: Alignment.center,
                 children: [
                   // 只在初始化完成后显示视频播放器
-                if (_isInitialized && controller != null)
-                  Video(
-                    controller: controller!,
-                    subtitleViewConfiguration: _buildSubtitleViewConfiguration(),
-                  )
-                else
-                  const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('初始化播放器...', style: TextStyle(color: Colors.white)),
-                      ],
+                  if (_isInitialized && controller != null)
+                    Video(
+                      controller: controller!,
+                      subtitleViewConfiguration:
+                          _buildSubtitleViewConfiguration(),
+                    )
+                  else
+                    const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('初始化播放器...',
+                              style: TextStyle(color: Colors.white)),
+                        ],
+                      ),
                     ),
-                  ),
-                   // 网络视频增强缓冲指示器
-                   if (_isNetworkVideo)
+                  // 网络视频增强缓冲指示器
+                  if (_isNetworkVideo)
                     EnhancedBufferingIndicator(
                       isBuffering: _isBuffering,
                       bufferProgress: _bufferProgress,
@@ -1663,14 +1727,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         children: [
                           // 返回按钮
                           IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
                             onPressed: () => Navigator.of(context).pop(),
                           ),
                           // 标题
                           Expanded(
                             child: Text(
-                              widget.webVideoName ?? widget.videoFile?.path.split('/').last ?? 'Unknown',
-                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                              widget.webVideoName ??
+                                  widget.videoFile?.path.split('/').last ??
+                                  'Unknown',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 16),
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
                             ),
@@ -1678,14 +1746,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // 视频信息按钮
                           if (_currentVideoInfo != null)
                             IconButton(
-                              icon: const Icon(Icons.info_outline, color: Colors.white),
+                              icon: const Icon(Icons.info_outline,
+                                  color: Colors.white),
                               onPressed: () => _showVideoInfoPanel(),
                               tooltip: '视频信息',
                             ),
                           // 全屏按钮
                           IconButton(
                             icon: Icon(
-                              _isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                              _isFullscreen
+                                  ? Icons.fullscreen_exit
+                                  : Icons.fullscreen,
                               color: Colors.white,
                             ),
                             onPressed: _toggleFullscreen,
@@ -1703,7 +1774,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // 字幕控制按钮（始终可用，允许加载外部字幕）
                           IconButton(
                             icon: Icon(
-                              _hasSubtitles && _currentSubtitleTrack?.id != 'disabled'
+                              _hasSubtitles &&
+                                      _currentSubtitleTrack?.id != 'disabled'
                                   ? Icons.subtitles
                                   : Icons.subtitles_off,
                               color: Colors.white,
@@ -1724,7 +1796,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       child: Center(
                         child: IconButton(
                           icon: Icon(
-                            _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                            _isPlaying
+                                ? Icons.pause_circle_filled
+                                : Icons.play_circle_filled,
                             size: 80,
                             color: Colors.white,
                           ),
@@ -1740,11 +1814,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           // 进度条
                           Slider(
                             value: _totalDuration.inSeconds > 0
-                                ? _currentPosition.inSeconds / _totalDuration.inSeconds
+                                ? _currentPosition.inSeconds /
+                                    _totalDuration.inSeconds
                                 : 0.0,
                             onChanged: (value) {
                               final position = Duration(
-                                seconds: (value * _totalDuration.inSeconds).round(),
+                                seconds:
+                                    (value * _totalDuration.inSeconds).round(),
                               );
                               _seekTo(position);
                             },
@@ -1812,16 +1888,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
       // 检查是否有配套的字幕文件
       String? subtitlePath;
       if (!_isNetworkVideo && widget.videoFile != null) {
-        subtitlePath = await _subtitleService.findMatchingSubtitle(widget.videoFile!.path);
+        subtitlePath =
+            await _subtitleService.findMatchingSubtitle(widget.videoFile!.path);
         if (subtitlePath != null) {
           debugPrint('Found matching subtitle: $subtitlePath');
         }
       }
 
       // 对于macOS本地视频，创建安全书签
-      if (MacOSBookmarkService.isSupported && !_isNetworkVideo && widget.videoFile != null) {
+      if (MacOSBookmarkService.isSupported &&
+          !_isNetworkVideo &&
+          widget.videoFile != null) {
         print('🔐 创建macOS安全书签: ${widget.videoFile!.path}');
-        _securityBookmark = await MacOSBookmarkService.createBookmark(widget.videoFile!.path);
+        _securityBookmark =
+            await MacOSBookmarkService.createBookmark(widget.videoFile!.path);
         if (_securityBookmark != null) {
           print('✅ 安全书签创建成功');
         } else {
@@ -1851,7 +1931,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (subtitlePath != null) {
         // 延迟加载字幕，让video完全初始化
         await Future.delayed(const Duration(milliseconds: 500));
-        final track = await _subtitleService.loadExternalSubtitle(player, subtitlePath);
+        final track =
+            await _subtitleService.loadExternalSubtitle(player, subtitlePath);
         if (track != null && mounted) {
           setState(() {
             _currentSubtitleTrack = track;
@@ -1859,19 +1940,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
           debugPrint('Auto-loaded subtitle file: $subtitlePath');
         }
       }
-      
+
       // 确保字幕已启用（某些播放器版本可能需要显式启用）
       debugPrint('Video opened, waiting for subtitle tracks to load...');
-      
+
       // 延迟一下让字幕轨道信息加载
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       // 打印当前字幕轨道信息
       final subtitleTracks = player.state.tracks.subtitle;
-      debugPrint('Subtitle tracks available after opening: ${subtitleTracks.length}');
+      debugPrint(
+          'Subtitle tracks available after opening: ${subtitleTracks.length}');
       for (int i = 0; i < subtitleTracks.length; i++) {
         final track = subtitleTracks[i];
-        debugPrint('  Subtitle $i: id=${track.id}, title=${track.title}, language=${track.language}');
+        debugPrint(
+            '  Subtitle $i: id=${track.id}, title=${track.title}, language=${track.language}');
       }
 
       // 网络视频在开始播放后更新状态
@@ -1924,7 +2007,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       print('  Cache entry: ${cacheEntry != null ? "found" : "not found"}');
       if (cacheEntry != null) {
         print('  Cache file size: ${cacheEntry.fileSize}');
-        print('  Cache progress: ${(cacheEntry.downloadProgress * 100).toStringAsFixed(1)}%');
+        print(
+            '  Cache progress: ${(cacheEntry.downloadProgress * 100).toStringAsFixed(1)}%');
         print('  Is complete: ${cacheEntry.isComplete}');
       }
 
@@ -2012,7 +2096,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       // 单独监听下载进度
       downloadService.getDownloadProgress(originalUrl).listen(
         (progress) {
-          print('Download progress: ${(progress.progressPercentage * 100).toStringAsFixed(1)}%');
+          print(
+              'Download progress: ${(progress.progressPercentage * 100).toStringAsFixed(1)}%');
         },
       );
     } catch (e) {
@@ -2042,10 +2127,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     try {
       final downloadService = CacheDownloadService.instance;
-      downloadService.downloadAndCache(
+      downloadService
+          .downloadAndCache(
         widget.webVideoUrl!,
         title: _videoName,
-      ).listen(
+      )
+          .listen(
         (_) {},
         onError: (error) {
           print('Download error: $error');
@@ -2153,7 +2240,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (_cacheEntry!.fileSize > 0)
               Text('文件大小: ${_formatFileSize(_cacheEntry!.fileSize)}'),
             if (_cacheEntry!.downloadedBytes > 0 && _cacheEntry!.fileSize > 0)
-              Text('下载进度: ${(_cacheEntry!.downloadProgress * 100).toStringAsFixed(1)}%'),
+              Text(
+                  '下载进度: ${(_cacheEntry!.downloadProgress * 100).toStringAsFixed(1)}%'),
             Text('缓存时间: ${_formatDateTime(_cacheEntry!.createdAt)}'),
             Text('访问次数: ${_cacheEntry!.accessCount}'),
             Text('最后访问: ${_formatDateTime(_cacheEntry!.lastAccessedAt)}'),
@@ -2178,7 +2266,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -2190,7 +2279,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// 设置网络监控
   void _setupNetworkMonitoring() {
-    _connectivitySubscription = _networkService.connectivityStream.listen((result) {
+    _connectivitySubscription =
+        _networkService.connectivityStream.listen((result) {
       if (mounted) {
         setState(() {
           _networkStatus = _networkService.getConnectivityDescription(result);
@@ -2212,7 +2302,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else if (url.toLowerCase().contains('.mpd')) {
       return 'dash';
     } else if (url.toLowerCase().startsWith('http://') ||
-               url.toLowerCase().startsWith('https://')) {
+        url.toLowerCase().startsWith('https://')) {
       return 'http';
     } else {
       return 'unknown';
@@ -2272,7 +2362,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
           widget.videoFile!.path,
         );
         if (subtitlePath != null) {
-          final track = await _subtitleService.loadExternalSubtitle(player, subtitlePath);
+          final track =
+              await _subtitleService.loadExternalSubtitle(player, subtitlePath);
           if (track != null) {
             // 等待一下以确保字幕轨道已加载到播放器
             await Future.delayed(const Duration(milliseconds: 500));
@@ -2323,18 +2414,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// 选择字幕轨道
   Future<void> _selectSubtitleTrack(subtitle_models.SubtitleTrack track) async {
-   try {
-     await _subtitleService.selectTrack(player, track);
-     if (mounted) {
-       setState(() {
-         _currentSubtitleTrack = track;
-       });
-     }
-     debugPrint('Selected subtitle track: ${track.title}');
-   } catch (e) {
-     debugPrint('Error selecting subtitle track: $e');
-     _showError('选择字幕轨道失败: $e');
-   }
+    try {
+      await _subtitleService.selectTrack(player, track);
+      if (mounted) {
+        setState(() {
+          _currentSubtitleTrack = track;
+        });
+      }
+      debugPrint('Selected subtitle track: ${track.title}');
+    } catch (e) {
+      debugPrint('Error selecting subtitle track: $e');
+      _showError('选择字幕轨道失败: $e');
+    }
   }
 
   /// 加载外部字幕
@@ -2342,7 +2433,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       final filePath = await _subtitleService.pickSubtitleFile();
       if (filePath != null) {
-        final track = await _subtitleService.loadExternalSubtitle(player, filePath);
+        final track =
+            await _subtitleService.loadExternalSubtitle(player, filePath);
         if (track != null) {
           // 更新字幕轨道列表
           await _loadSubtitleTracks();
@@ -2386,28 +2478,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// 显示字幕下载界面
   void _showSubtitleDownload() {
-    Navigator.of(context).push<String>(
+    Navigator.of(context)
+        .push<String>(
       MaterialPageRoute(
         builder: (context) => SubtitleDownloadScreen(
           videoTitle: _videoName ?? '未知视频',
           videoPath: widget.videoFile?.path,
         ),
       ),
-    ).then((subtitlePath) async {
+    )
+        .then((subtitlePath) async {
       // 处理下载完成后返回的字幕文件路径
       if (subtitlePath != null && subtitlePath.isNotEmpty) {
         debugPrint('Subtitle downloaded: $subtitlePath');
-        
+
         // 加载下载的字幕
-        final track = await _subtitleService.loadExternalSubtitle(player, subtitlePath);
+        final track =
+            await _subtitleService.loadExternalSubtitle(player, subtitlePath);
         if (track != null && mounted) {
           // 刷新字幕轨道列表
           await _loadSubtitleTracks();
-          
+
           setState(() {
             _currentSubtitleTrack = track;
           });
-          
+
           _showSuccess('字幕加载成功');
           debugPrint('Downloaded subtitle loaded: ${track.title}');
         }
@@ -2467,20 +2562,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
   VideoErrorType _getErrorType(dynamic error) {
     final errorString = error.toString().toLowerCase();
 
-    if (errorString.contains('format') || errorString.contains('codec') ||
-        errorString.contains('unsupported') || errorString.contains('mpv')) {
+    if (errorString.contains('format') ||
+        errorString.contains('codec') ||
+        errorString.contains('unsupported') ||
+        errorString.contains('mpv')) {
       return VideoErrorType.codecNotSupported;
-    } else if (errorString.contains('permission') || errorString.contains('access denied') ||
-               errorString.contains('file not found') || errorString.contains('no such file')) {
+    } else if (errorString.contains('permission') ||
+        errorString.contains('access denied') ||
+        errorString.contains('file not found') ||
+        errorString.contains('no such file')) {
       return VideoErrorType.fileNotFound;
-    } else if (errorString.contains('network') || errorString.contains('connection') ||
-               errorString.contains('timeout') || errorString.contains('host')) {
+    } else if (errorString.contains('network') ||
+        errorString.contains('connection') ||
+        errorString.contains('timeout') ||
+        errorString.contains('host')) {
       return VideoErrorType.networkError;
-    } else if (errorString.contains('memory') || errorString.contains('out of memory') ||
-               errorString.contains('allocation')) {
+    } else if (errorString.contains('memory') ||
+        errorString.contains('out of memory') ||
+        errorString.contains('allocation')) {
       return VideoErrorType.memoryError;
-    } else if (errorString.contains('hardware') || errorString.contains('gpu') ||
-               errorString.contains('acceleration')) {
+    } else if (errorString.contains('hardware') ||
+        errorString.contains('gpu') ||
+        errorString.contains('acceleration')) {
       return VideoErrorType.hardwareAccelerationFailed;
     } else {
       return VideoErrorType.unknown;
@@ -2649,17 +2752,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                _buildPerformanceMetricRow('帧率', '${metrics.fps.toStringAsFixed(1)} / ${metrics.targetFps.toStringAsFixed(1)} FPS'),
-                _buildPerformanceMetricRow('丢帧率', '${metrics.droppedFramePercentage.toStringAsFixed(1)}%'),
-                _buildPerformanceMetricRow('CPU占用', '${metrics.cpuUsage.toStringAsFixed(1)}%'),
-                _buildPerformanceMetricRow('内存占用', '${metrics.memoryUsage.toStringAsFixed(1)} MB'),
-                _buildPerformanceMetricRow('GPU占用', '${metrics.gpuUsage.toStringAsFixed(1)}%'),
-                _buildPerformanceMetricRow('缓冲进度', '${metrics.bufferPercentage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('帧率',
+                    '${metrics.fps.toStringAsFixed(1)} / ${metrics.targetFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow('丢帧率',
+                    '${metrics.droppedFramePercentage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow(
+                    'CPU占用', '${metrics.cpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow(
+                    '内存占用', '${metrics.memoryUsage.toStringAsFixed(1)} MB'),
+                _buildPerformanceMetricRow(
+                    'GPU占用', '${metrics.gpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow(
+                    '缓冲进度', '${metrics.bufferPercentage.toStringAsFixed(1)}%'),
                 _buildPerformanceMetricRow('缓冲时长', '${metrics.bufferedMs} ms'),
                 _buildPerformanceMetricRow('解码器', metrics.decoderType),
                 _buildPerformanceMetricRow('分辨率', metrics.resolution),
                 if (metrics.networkBandwidth != null)
-                  _buildPerformanceMetricRow('网络带宽', '${_formatBandwidth(metrics.networkBandwidth!)}'),
+                  _buildPerformanceMetricRow(
+                      '网络带宽', '${_formatBandwidth(metrics.networkBandwidth!)}'),
                 const Divider(),
               ],
 
@@ -2670,14 +2780,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                _buildPerformanceMetricRow('状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
+                _buildPerformanceMetricRow(
+                    '状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
                 _buildPerformanceMetricRow('加速类型', _hwAccelConfig!.displayName),
-                _buildPerformanceMetricRow('支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
+                _buildPerformanceMetricRow(
+                    '支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
                 if (_hwAccelConfig!.gpuInfo != null) ...[
-                  _buildPerformanceMetricRow('GPU', '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
+                  _buildPerformanceMetricRow('GPU',
+                      '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
                   if (_hwAccelConfig!.gpuInfo!.memoryMB != null)
-                    _buildPerformanceMetricRow('GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
-                  _buildPerformanceMetricRow('性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
+                    _buildPerformanceMetricRow(
+                        'GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
+                  _buildPerformanceMetricRow(
+                      '性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
                 ],
                 const Divider(),
               ],
@@ -2689,16 +2804,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                _buildPerformanceMetricRow('平均帧率', '${stats.averageFps.toStringAsFixed(1)} FPS'),
-                _buildPerformanceMetricRow('最高帧率', '${stats.maxFps.toStringAsFixed(1)} FPS'),
-                _buildPerformanceMetricRow('最低帧率', '${stats.minFps.toStringAsFixed(1)} FPS'),
-                _buildPerformanceMetricRow('总丢帧数', '${stats.totalDroppedFrames}'),
-                _buildPerformanceMetricRow('平均CPU', '${stats.averageCpuUsage.toStringAsFixed(1)}%'),
-                _buildPerformanceMetricRow('峰值CPU', '${stats.maxCpuUsage.toStringAsFixed(1)}%'),
-                _buildPerformanceMetricRow('平均内存', '${stats.averageMemoryUsage.toStringAsFixed(1)} MB'),
-                _buildPerformanceMetricRow('峰值内存', '${stats.maxMemoryUsage.toStringAsFixed(1)} MB'),
-                _buildPerformanceMetricRow('监控时长', '${stats.monitoringDuration} 秒'),
-                _buildPerformanceMetricRow('性能问题', '${stats.performanceIssues} 次'),
+                _buildPerformanceMetricRow(
+                    '平均帧率', '${stats.averageFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow(
+                    '最高帧率', '${stats.maxFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow(
+                    '最低帧率', '${stats.minFps.toStringAsFixed(1)} FPS'),
+                _buildPerformanceMetricRow(
+                    '总丢帧数', '${stats.totalDroppedFrames}'),
+                _buildPerformanceMetricRow(
+                    '平均CPU', '${stats.averageCpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow(
+                    '峰值CPU', '${stats.maxCpuUsage.toStringAsFixed(1)}%'),
+                _buildPerformanceMetricRow('平均内存',
+                    '${stats.averageMemoryUsage.toStringAsFixed(1)} MB'),
+                _buildPerformanceMetricRow(
+                    '峰值内存', '${stats.maxMemoryUsage.toStringAsFixed(1)} MB'),
+                _buildPerformanceMetricRow(
+                    '监控时长', '${stats.monitoringDuration} 秒'),
+                _buildPerformanceMetricRow(
+                    '性能问题', '${stats.performanceIssues} 次'),
               ],
             ],
           ),
@@ -2762,7 +2887,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// 显示右键上下文菜单
   void _showContextMenu(BuildContext context, Offset position) {
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
 
     final List<PopupMenuEntry<String>> menuItems = [
       const PopupMenuItem(
@@ -2903,15 +3029,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_hwAccelConfig != null) ...[
-                _buildPerformanceMetricRow('状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
+                _buildPerformanceMetricRow(
+                    '状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
                 _buildPerformanceMetricRow('加速类型', _hwAccelConfig!.displayName),
-                _buildPerformanceMetricRow('支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
+                _buildPerformanceMetricRow(
+                    '支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
                 if (_hwAccelConfig!.gpuInfo != null) ...[
-                  _buildPerformanceMetricRow('GPU', '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
+                  _buildPerformanceMetricRow('GPU',
+                      '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
                   if (_hwAccelConfig!.gpuInfo!.memoryMB != null)
-                    _buildPerformanceMetricRow('GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
-                  _buildPerformanceMetricRow('性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
-                  _buildPerformanceMetricRow('支持4K解码', _hwAccelConfig!.gpuInfo!.supports4KDecoding ? '是' : '否'),
+                    _buildPerformanceMetricRow(
+                        'GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
+                  _buildPerformanceMetricRow(
+                      '性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
+                  _buildPerformanceMetricRow('支持4K解码',
+                      _hwAccelConfig!.gpuInfo!.supports4KDecoding ? '是' : '否'),
                 ],
               ] else ...[
                 const Text('硬件加速配置未加载'),
@@ -2980,7 +3112,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _bufferProgressTimer?.cancel();
     _globalBufferMonitor?.cancel();
     _downloadProgressSubscription?.cancel();
-    
+
     // 取消播放器监听器
     _playingSubscription?.cancel();
     _positionSubscription?.cancel();
@@ -3047,7 +3179,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
           await thumbsDir.create(recursive: true);
         }
 
-        _thumbnailCachePath = path.join(thumbsDir.path, '${historyId}_320x180.jpg');
+        _thumbnailCachePath =
+            path.join(thumbsDir.path, '${historyId}_320x180.jpg');
 
         // 保存截图
         await File(_thumbnailCachePath!).writeAsBytes(screenshot);
@@ -3071,7 +3204,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
         // 备用方案：使用SimpleThumbnailService
         final historyId = _videoPath.hashCode.abs().toString();
-        _thumbnailCachePath = await SimpleThumbnailService.generateAndCacheThumbnail(
+        _thumbnailCachePath =
+            await SimpleThumbnailService.generateAndCacheThumbnail(
           videoPath: _videoPath,
           historyId: historyId,
           width: 320,
@@ -3095,7 +3229,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// Build SubtitleViewConfiguration with current subtitle settings
   SubtitleViewConfiguration _buildSubtitleViewConfiguration() {
     final config = SubtitleService.instance.config;
-    
+
     return SubtitleViewConfiguration(
       style: TextStyle(
         fontSize: config.fontSize,
@@ -3111,8 +3245,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ),
       textAlign: TextAlign.center,
       padding: EdgeInsets.only(
-        bottom: config.position == SubtitlePosition.bottom ? 50.0 : 
-                config.position == SubtitlePosition.center ? 0.0 : 300.0,
+        bottom: config.position == SubtitlePosition.bottom
+            ? 50.0
+            : config.position == SubtitlePosition.center
+                ? 0.0
+                : 300.0,
       ),
     );
   }
@@ -3157,7 +3294,8 @@ class _SubtitleSelectorDialog extends StatelessWidget {
                   return ListTile(
                     title: Text(track.title),
                     subtitle: track.id != 'disabled'
-                        ? Text('${track.languageName} • ${track.format.toUpperCase()}')
+                        ? Text(
+                            '${track.languageName} • ${track.format.toUpperCase()}')
                         : null,
                     leading: isSelected
                         ? const Icon(Icons.check, color: Colors.blue)
@@ -3177,26 +3315,32 @@ class _SubtitleSelectorDialog extends StatelessWidget {
             ListTile(
               title: const Text('字幕同步设置'),
               leading: const Icon(Icons.sync),
-              onTap: onShowSyncControl != null ? () {
-                Navigator.of(context).pop();
-                onShowSyncControl!();
-              } : null,
+              onTap: onShowSyncControl != null
+                  ? () {
+                      Navigator.of(context).pop();
+                      onShowSyncControl!();
+                    }
+                  : null,
             ),
             ListTile(
               title: const Text('字幕样式设置'),
               leading: const Icon(Icons.style),
-              onTap: onShowSettings != null ? () {
-                Navigator.of(context).pop();
-                onShowSettings!();
-              } : null,
+              onTap: onShowSettings != null
+                  ? () {
+                      Navigator.of(context).pop();
+                      onShowSettings!();
+                    }
+                  : null,
             ),
             ListTile(
               title: const Text('在线搜索字幕'),
               leading: const Icon(Icons.search),
-              onTap: onShowDownload != null ? () {
-                Navigator.of(context).pop();
-                onShowDownload!();
-              } : null,
+              onTap: onShowDownload != null
+                  ? () {
+                      Navigator.of(context).pop();
+                      onShowDownload!();
+                    }
+                  : null,
             ),
           ],
         ),
@@ -3284,7 +3428,8 @@ class _SubtitleSyncDialogState extends State<_SubtitleSyncDialog> {
             children: [
               IconButton(
                 icon: const Icon(Icons.remove),
-                onPressed: () => _updateDelay((_currentDelay.inMilliseconds / 1000.0) - 0.5),
+                onPressed: () =>
+                    _updateDelay((_currentDelay.inMilliseconds / 1000.0) - 0.5),
               ),
               Expanded(
                 child: TextField(
@@ -3300,7 +3445,8 @@ class _SubtitleSyncDialogState extends State<_SubtitleSyncDialog> {
               ),
               IconButton(
                 icon: const Icon(Icons.add),
-                onPressed: () => _updateDelay((_currentDelay.inMilliseconds / 1000.0) + 0.5),
+                onPressed: () =>
+                    _updateDelay((_currentDelay.inMilliseconds / 1000.0) + 0.5),
               ),
             ],
           ),

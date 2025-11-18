@@ -8,17 +8,20 @@ import 'package:path/path.dart' as path;
 /// 字幕下载服务
 /// 提供从在线源搜索和下载字幕的功能
 class SubtitleDownloadService {
-  static final SubtitleDownloadService instance = SubtitleDownloadService._internal();
+  static final SubtitleDownloadService instance =
+      SubtitleDownloadService._internal();
 
   factory SubtitleDownloadService() => instance;
   SubtitleDownloadService._internal();
 
   // SubHD 配置
   static const String _subhdBaseUrl = 'https://subhd.tv';
-  static const String _userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  static const String _userAgent =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   // OpenSubtitles API 配置（备用）
-  static const String _openSubtitlesBaseUrl = 'https://api.opensubtitles.com/api/v1';
+  static const String _openSubtitlesBaseUrl =
+      'https://api.opensubtitles.com/api/v1';
   static const String _openSubtitlesApiKey = 'EUdOSyWZsFnUGEdCqFgh8XQbE509poUT';
 
   /// 搜索字幕
@@ -41,7 +44,8 @@ class SubtitleDownloadService {
       // 源2: OpenSubtitles REST API（备用）
       if (results.isEmpty) {
         debugPrint('No results from SubHD, trying OpenSubtitles');
-        final openSubtitlesResults = await _searchOpenSubtitles(query, language, page: page);
+        final openSubtitlesResults =
+            await _searchOpenSubtitles(query, language, page: page);
         results.addAll(openSubtitlesResults);
       }
 
@@ -87,7 +91,8 @@ class SubtitleDownloadService {
         },
       );
 
-      debugPrint('SubHD searchD response status: ${searchDResponse.statusCode}');
+      debugPrint(
+          'SubHD searchD response status: ${searchDResponse.statusCode}');
 
       if (searchDResponse.statusCode == 200) {
         try {
@@ -122,7 +127,8 @@ class SubtitleDownloadService {
         Uri.parse(searchUrl),
         headers: {
           'User-Agent': _userAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         },
       );
@@ -177,7 +183,8 @@ class SubtitleDownloadService {
   }
 
   /// 获取 SubHD 电影的字幕列表
-  Future<List<SubtitleSearchResult>> _getSubHDMovieSubtitles(Map<String, String> movie) async {
+  Future<List<SubtitleSearchResult>> _getSubHDMovieSubtitles(
+      Map<String, String> movie) async {
     final results = <SubtitleSearchResult>[];
 
     try {
@@ -193,7 +200,8 @@ class SubtitleDownloadService {
         Uri.parse(detailUrl),
         headers: {
           'User-Agent': _userAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         },
       );
@@ -218,7 +226,8 @@ class SubtitleDownloadService {
       final langPattern = RegExp(r'(简体|繁体|英语|双语|中英|中文)');
 
       // 查找格式标签
-      final formatPattern = RegExp(r'\b(SRT|ASS|SSA|SUP|SUB|VTT)\b', caseSensitive: false);
+      final formatPattern =
+          RegExp(r'\b(SRT|ASS|SSA|SUP|SUB|VTT)\b', caseSensitive: false);
 
       final matches = subtitlePattern.allMatches(html);
       int count = 0;
@@ -313,7 +322,8 @@ class SubtitleDownloadService {
       final downloadPattern = RegExp(r'(\d+)\s*次下载');
 
       // 匹配语言标签
-      final langPattern = RegExp(r'class="[^"]*lang[^"]*"[^>]*>(简体|繁体|英文|双语|中英)</');
+      final langPattern =
+          RegExp(r'class="[^"]*lang[^"]*"[^>]*>(简体|繁体|英文|双语|中英)</');
 
       final matches = linkPattern.allMatches(html);
       int count = 0;
@@ -392,7 +402,8 @@ class SubtitleDownloadService {
   }
 
   /// 下载字幕
-  Future<String?> downloadSubtitle(SubtitleSearchResult result, String targetPath) async {
+  Future<String?> downloadSubtitle(
+      SubtitleSearchResult result, String targetPath) async {
     try {
       debugPrint('Downloading subtitle: ${result.title}');
 
@@ -406,7 +417,8 @@ class SubtitleDownloadService {
 
         // SubHD 下载失败，尝试从 OpenSubtitles 搜索并下载同名字幕
         debugPrint('SubHD download failed, trying OpenSubtitles fallback...');
-        final fallbackResult = await _fallbackToOpenSubtitles(result, targetPath);
+        final fallbackResult =
+            await _fallbackToOpenSubtitles(result, targetPath);
         if (fallbackResult != null) {
           return fallbackResult;
         }
@@ -430,7 +442,8 @@ class SubtitleDownloadService {
   }
 
   /// 从 OpenSubtitles 回退下载
-  Future<String?> _fallbackToOpenSubtitles(SubtitleSearchResult subhdResult, String targetPath) async {
+  Future<String?> _fallbackToOpenSubtitles(
+      SubtitleSearchResult subhdResult, String targetPath) async {
     try {
       // 提取电影名称（去掉方括号中的内容）
       String searchQuery = subhdResult.title;
@@ -451,7 +464,8 @@ class SubtitleDownloadService {
       debugPrint('OpenSubtitles fallback search: $searchQuery');
 
       // 搜索 OpenSubtitles
-      final openSubResults = await _searchOpenSubtitles(searchQuery, subhdResult.language);
+      final openSubResults =
+          await _searchOpenSubtitles(searchQuery, subhdResult.language);
 
       if (openSubResults.isEmpty) {
         debugPrint('No results from OpenSubtitles fallback');
@@ -470,7 +484,8 @@ class SubtitleDownloadService {
   }
 
   /// 从 SubHD 下载字幕
-  Future<String?> _downloadFromSubHD(SubtitleSearchResult result, String targetPath) async {
+  Future<String?> _downloadFromSubHD(
+      SubtitleSearchResult result, String targetPath) async {
     try {
       // 从 URL 中提取字幕代码（如 QRM8SA）
       final code = result.downloadUrl.replaceFirst('subhd://', '');
@@ -482,26 +497,30 @@ class SubtitleDownloadService {
         Uri.parse(detailUrl),
         headers: {
           'User-Agent': _userAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           'Referer': _subhdBaseUrl,
         },
       );
 
       if (detailResponse.statusCode != 200) {
-        debugPrint('Failed to load SubHD subtitle page: ${detailResponse.statusCode}');
+        debugPrint(
+            'Failed to load SubHD subtitle page: ${detailResponse.statusCode}');
         return null;
       }
 
       final html = detailResponse.body;
 
       // 检查是否被 Cloudflare 阻止
-      if (html.contains('cf-browser-verification') || html.contains('challenge-platform')) {
+      if (html.contains('cf-browser-verification') ||
+          html.contains('challenge-platform')) {
         debugPrint('SubHD is protected by Cloudflare challenge');
         // 尝试使用代码作为 SID 直接调用预览 API
         final directPreview = await _tryDirectPreviewAPI(code);
         if (directPreview != null) {
-          final fileName = '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
+          final fileName =
+              '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
           final filePath = path.join(path.dirname(targetPath), fileName);
           await File(filePath).writeAsString(directPreview);
           debugPrint('Downloaded via direct preview API to: $filePath');
@@ -513,7 +532,8 @@ class SubtitleDownloadService {
       final previewContent = await _getSubHDPreview(code, html);
       if (previewContent != null && previewContent.isNotEmpty) {
         // 保存字幕文件
-        final fileName = '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
+        final fileName =
+            '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
         final filePath = path.join(path.dirname(targetPath), fileName);
 
         final file = File(filePath);
@@ -539,19 +559,23 @@ class SubtitleDownloadService {
       if (downloadResponse.statusCode == 200) {
         // 检查是否是有效的字幕内容（不是 HTML 错误页面）
         final contentType = downloadResponse.headers['content-type'] ?? '';
-        final bodyStart = downloadResponse.body.substring(0, (100).clamp(0, downloadResponse.body.length));
+        final bodyStart = downloadResponse.body
+            .substring(0, (100).clamp(0, downloadResponse.body.length));
 
         if (!contentType.contains('html') && !bodyStart.contains('<!DOCTYPE')) {
-          final fileName = '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
+          final fileName =
+              '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
           final filePath = path.join(path.dirname(targetPath), fileName);
 
           final file = File(filePath);
           await file.writeAsBytes(downloadResponse.bodyBytes);
 
-          debugPrint('Downloaded subtitle from SubHD direct link to: $filePath');
+          debugPrint(
+              'Downloaded subtitle from SubHD direct link to: $filePath');
           return filePath;
         } else {
-          debugPrint('SubHD direct download returned HTML (possibly login/captcha required)');
+          debugPrint(
+              'SubHD direct download returned HTML (possibly login/captcha required)');
         }
       }
 
@@ -569,13 +593,15 @@ class SubtitleDownloadService {
         );
 
         if (altResponse.statusCode == 200) {
-          final fileName = '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
+          final fileName =
+              '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
           final filePath = path.join(path.dirname(targetPath), fileName);
 
           final file = File(filePath);
           await file.writeAsBytes(altResponse.bodyBytes);
 
-          debugPrint('Downloaded subtitle from SubHD alternate link to: $filePath');
+          debugPrint(
+              'Downloaded subtitle from SubHD alternate link to: $filePath');
           return filePath;
         }
       }
@@ -624,8 +650,10 @@ class SubtitleDownloadService {
               }
             } catch (e) {
               // 如果不是 JSON，检查是否是有效的字幕内容
-              if (!response.body.contains('<!DOCTYPE') && !response.body.contains('<html')) {
-                if (response.body.contains('-->') || response.body.contains('Dialogue:')) {
+              if (!response.body.contains('<!DOCTYPE') &&
+                  !response.body.contains('<html')) {
+                if (response.body.contains('-->') ||
+                    response.body.contains('Dialogue:')) {
                   debugPrint('Direct API returned subtitle content');
                   return response.body;
                 }
@@ -701,7 +729,8 @@ class SubtitleDownloadService {
       // 模式6: 查找页面中的大数字（可能是 SID）
       if (sid == null) {
         // 在特定上下文中查找（如 down 按钮附近）
-        final downButtonPattern = RegExp(r'class="[^"]*down[^"]*"[^>]*>.*?(\d{5,})', dotAll: true);
+        final downButtonPattern =
+            RegExp(r'class="[^"]*down[^"]*"[^>]*>.*?(\d{5,})', dotAll: true);
         match = downButtonPattern.firstMatch(detailHtml);
         if (match != null) {
           sid = match.group(1);
@@ -711,7 +740,8 @@ class SubtitleDownloadService {
 
       if (sid == null || sid.isEmpty) {
         debugPrint('No preview SID found in SubHD subtitle page');
-        debugPrint('HTML sample: ${detailHtml.substring(0, (2000).clamp(0, detailHtml.length))}');
+        debugPrint(
+            'HTML sample: ${detailHtml.substring(0, (2000).clamp(0, detailHtml.length))}');
         return null;
       }
 
@@ -745,7 +775,9 @@ class SubtitleDownloadService {
         } catch (e) {
           // 可能直接返回文本内容
           final text = previewResponse.body;
-          if (text.isNotEmpty && !text.startsWith('{') && !text.startsWith('<')) {
+          if (text.isNotEmpty &&
+              !text.startsWith('{') &&
+              !text.startsWith('<')) {
             debugPrint('Got SubHD preview as plain text');
             return text;
           }
@@ -783,7 +815,8 @@ class SubtitleDownloadService {
   }
 
   /// 从 OpenSubtitles API 下载字幕
-  Future<String?> _downloadFromOpenSubtitles(SubtitleSearchResult result, String targetPath) async {
+  Future<String?> _downloadFromOpenSubtitles(
+      SubtitleSearchResult result, String targetPath) async {
     try {
       // 从 URL 中提取 file_id
       final fileId = result.downloadUrl.replaceFirst('opensubtitles://', '');
@@ -801,7 +834,8 @@ class SubtitleDownloadService {
         body: json.encode({'file_id': int.parse(fileId)}),
       );
 
-      debugPrint('OpenSubtitles download API response: ${downloadResponse.statusCode}');
+      debugPrint(
+          'OpenSubtitles download API response: ${downloadResponse.statusCode}');
 
       if (downloadResponse.statusCode == 200) {
         final jsonData = json.decode(downloadResponse.body);
@@ -819,7 +853,8 @@ class SubtitleDownloadService {
 
         if (subtitleResponse.statusCode == 200) {
           // 保存字幕文件
-          final fileName = '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
+          final fileName =
+              '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
           final filePath = path.join(path.dirname(targetPath), fileName);
 
           final file = File(filePath);
@@ -828,14 +863,16 @@ class SubtitleDownloadService {
           debugPrint('Downloaded subtitle to: $filePath');
           return filePath;
         } else {
-          debugPrint('Failed to download subtitle file: HTTP ${subtitleResponse.statusCode}');
+          debugPrint(
+              'Failed to download subtitle file: HTTP ${subtitleResponse.statusCode}');
           return null;
         }
       } else if (downloadResponse.statusCode == 406) {
         debugPrint('OpenSubtitles download quota exceeded');
         return null;
       } else {
-        debugPrint('OpenSubtitles download API error: ${downloadResponse.statusCode} - ${downloadResponse.body}');
+        debugPrint(
+            'OpenSubtitles download API error: ${downloadResponse.statusCode} - ${downloadResponse.body}');
         return null;
       }
     } catch (e) {
@@ -845,7 +882,9 @@ class SubtitleDownloadService {
   }
 
   /// 从 OpenSubtitles REST API 搜索
-  Future<List<SubtitleSearchResult>> _searchOpenSubtitles(String query, String? language, {int page = 1}) async {
+  Future<List<SubtitleSearchResult>> _searchOpenSubtitles(
+      String query, String? language,
+      {int page = 1}) async {
     try {
       debugPrint('Searching OpenSubtitles API for: $query');
 
@@ -865,7 +904,8 @@ class SubtitleDownloadService {
         queryParams['languages'] = 'zh,en';
       }
 
-      final uri = Uri.parse('$_openSubtitlesBaseUrl/subtitles').replace(queryParameters: queryParams);
+      final uri = Uri.parse('$_openSubtitlesBaseUrl/subtitles')
+          .replace(queryParameters: queryParams);
 
       debugPrint('OpenSubtitles API URL: $uri');
 
@@ -905,7 +945,8 @@ class SubtitleDownloadService {
             DateTime uploadDate = DateTime.now();
             if (attributes['upload_date'] != null) {
               try {
-                uploadDate = DateTime.parse(attributes['upload_date'].toString());
+                uploadDate =
+                    DateTime.parse(attributes['upload_date'].toString());
               } catch (e) {
                 // 使用默认日期
               }
@@ -916,16 +957,19 @@ class SubtitleDownloadService {
             final langName = _getLanguageNameFromCode(langCode);
 
             // 获取特性详情（电影/剧集名称）
-            final featureDetails = attributes['feature_details'] as Map<String, dynamic>? ?? {};
+            final featureDetails =
+                attributes['feature_details'] as Map<String, dynamic>? ?? {};
             final featureTitle = featureDetails['title']?.toString() ?? query;
-            final releaseTitle = attributes['release']?.toString() ?? featureTitle;
+            final releaseTitle =
+                attributes['release']?.toString() ?? featureTitle;
 
             results.add(SubtitleSearchResult(
               id: fileId,
               title: releaseTitle,
               language: langCode,
               languageName: langName,
-              format: firstFile['file_name']?.toString().split('.').last ?? 'srt',
+              format:
+                  firstFile['file_name']?.toString().split('.').last ?? 'srt',
               rating: (attributes['ratings']?.toDouble() ?? 0.0),
               downloads: attributes['download_count']?.toInt() ?? 0,
               uploadDate: uploadDate,
@@ -946,7 +990,8 @@ class SubtitleDownloadService {
         debugPrint('OpenSubtitles API rate limit exceeded');
         return [];
       } else {
-        debugPrint('OpenSubtitles API error: ${response.statusCode} - ${response.body}');
+        debugPrint(
+            'OpenSubtitles API error: ${response.statusCode} - ${response.body}');
         return [];
       }
     } catch (e) {
@@ -1010,7 +1055,8 @@ class SubtitleDownloadService {
   }
 
   /// 去重结果
-  List<SubtitleSearchResult> _deduplicateResults(List<SubtitleSearchResult> results) {
+  List<SubtitleSearchResult> _deduplicateResults(
+      List<SubtitleSearchResult> results) {
     final seen = <String>{};
     final uniqueResults = <SubtitleSearchResult>[];
 
@@ -1034,12 +1080,14 @@ class SubtitleDownloadService {
   }
 
   /// 真实字幕下载
-  Future<String?> _downloadRealSubtitle(SubtitleSearchResult result, String targetPath) async {
+  Future<String?> _downloadRealSubtitle(
+      SubtitleSearchResult result, String targetPath) async {
     try {
       final response = await http.get(Uri.parse(result.downloadUrl));
 
       if (response.statusCode == 200) {
-        final fileName = '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
+        final fileName =
+            '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
         final filePath = path.join(path.dirname(targetPath), fileName);
 
         final file = File(filePath);
@@ -1058,14 +1106,16 @@ class SubtitleDownloadService {
   }
 
   /// 模拟字幕下载（调试用）
-  Future<String?> _downloadMockSubtitle(SubtitleSearchResult result, String targetPath) async {
+  Future<String?> _downloadMockSubtitle(
+      SubtitleSearchResult result, String targetPath) async {
     try {
       await Future.delayed(const Duration(seconds: 1)); // 模拟下载时间
 
       // 创建一个简单的字幕文件内容
       final subtitleContent = _generateMockSubtitleContent(result);
 
-      final fileName = '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
+      final fileName =
+          '${path.basenameWithoutExtension(targetPath)}_${result.id}.${result.format}';
       final filePath = path.join(path.dirname(targetPath), fileName);
 
       final file = File(filePath);

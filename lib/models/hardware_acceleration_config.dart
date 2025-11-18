@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 /// 硬件加速配置模型
 /// 管理各平台的硬件加速设置和状态
@@ -51,9 +52,8 @@ class HardwareAccelerationConfig {
         orElse: () => HwAccelType.none,
       ),
       enabled: json['enabled'] as bool,
-      supportedCodecs: (json['supportedCodecs'] as List)
-          .map((e) => e as String)
-          .toList(),
+      supportedCodecs:
+          (json['supportedCodecs'] as List).map((e) => e as String).toList(),
       platformSpecificSettings: Map<String, dynamic>.from(
         json['platformSpecificSettings'] as Map,
       ),
@@ -122,7 +122,7 @@ class HardwareAccelerationConfig {
   /// 是否支持特定编解码器的硬件加速
   bool supportsCodec(String codec) {
     return supportedCodecs.contains(codec.toLowerCase()) ||
-           supportedCodecs.contains(codec.toUpperCase());
+        supportedCodecs.contains(codec.toUpperCase());
   }
 
   /// 获取media_kit配置参数
@@ -179,7 +179,8 @@ class HardwareAccelerationConfig {
       type: type ?? this.type,
       enabled: enabled ?? this.enabled,
       supportedCodecs: supportedCodecs ?? this.supportedCodecs,
-      platformSpecificSettings: platformSpecificSettings ?? this.platformSpecificSettings,
+      platformSpecificSettings:
+          platformSpecificSettings ?? this.platformSpecificSettings,
       detectedAt: detectedAt ?? this.detectedAt,
       status: status ?? this.status,
       gpuInfo: gpuInfo ?? this.gpuInfo,
@@ -490,9 +491,7 @@ class GPUInfo {
       memoryMB: json['memoryMB'] as int?,
       driverVersion: json['driverVersion'] as String?,
       apiVersion: json['apiVersion'] as String?,
-      features: (json['features'] as List)
-          .map((e) => e as String)
-          .toList(),
+      features: (json['features'] as List).map((e) => e as String).toList(),
     );
   }
 
@@ -514,8 +513,7 @@ class GPUInfo {
     final integratedKeywords = ['intel', 'amd', 'radeon', 'nvidia'];
     return !integratedKeywords.any((keyword) =>
         vendor.toLowerCase().contains(keyword) ||
-        name.toLowerCase().contains(keyword)
-    );
+        name.toLowerCase().contains(keyword));
   }
 
   /// 获取GPU级别
@@ -530,16 +528,19 @@ class GPUInfo {
 
     // 根据厂商和型号判断
     if (vendor.toLowerCase().contains('nvidia')) {
-      if (name.toLowerCase().contains('rtx 40') || name.toLowerCase().contains('rtx 30')) {
+      if (name.toLowerCase().contains('rtx 40') ||
+          name.toLowerCase().contains('rtx 30')) {
         return '高端';
       }
-      if (name.toLowerCase().contains('gtx 16') || name.toLowerCase().contains('gtx 10')) {
+      if (name.toLowerCase().contains('gtx 16') ||
+          name.toLowerCase().contains('gtx 10')) {
         return '中端';
       }
     }
 
     if (vendor.toLowerCase().contains('amd')) {
-      if (name.toLowerCase().contains('rx 6') || name.toLowerCase().contains('rx 7')) {
+      if (name.toLowerCase().contains('rx 6') ||
+          name.toLowerCase().contains('rx 7')) {
         return '高端';
       }
     }
@@ -564,13 +565,13 @@ class GPUInfo {
     ];
 
     return memoryMB != null && memoryMB! >= 2048 ||
-           fourKFeatures.any((feature) => features.contains(feature));
+        fourKFeatures.any((feature) => features.contains(feature));
   }
 
   /// 是否支持8K硬件解码
   bool get supports8KDecoding {
     return memoryMB != null && memoryMB! >= 8192 ||
-           features.contains('8k_decoding');
+        features.contains('8k_decoding');
   }
 
   @override

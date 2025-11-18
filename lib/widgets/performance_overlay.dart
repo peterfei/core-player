@@ -77,8 +77,7 @@ class _PerformanceOverlayState extends State<PerformanceOverlay>
 
   void _handleKeyEvent(RawKeyEvent event) {
     // F8键切换性能监控覆盖层
-    if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.f8) {
+    if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.f8) {
       _toggleVisibility();
     }
   }
@@ -99,7 +98,8 @@ class _PerformanceOverlayState extends State<PerformanceOverlay>
 
   void _startPerformanceMonitoring() {
     // 监听性能指标
-    _metricsSubscription = PerformanceMonitorService.instance.metricsStream.listen(
+    _metricsSubscription =
+        PerformanceMonitorService.instance.metricsStream.listen(
       (metrics) {
         setState(() {
           _currentMetrics = metrics;
@@ -354,7 +354,8 @@ class _PerformanceOverlayState extends State<PerformanceOverlay>
   }
 
   Color _getDecoderColor(PerformanceMetrics metrics) {
-    if (metrics.decoderType.contains('硬件') || metrics.decoderType.contains('hardware')) {
+    if (metrics.decoderType.contains('硬件') ||
+        metrics.decoderType.contains('hardware')) {
       return Colors.green;
     }
     return Colors.orange;
@@ -390,7 +391,8 @@ class PerformanceIndicator extends StatelessWidget {
           _buildIndicator(
             'FPS',
             '${metrics!.fps.toStringAsFixed(0)}',
-            _getIndicatorColor(metrics!.fps >= (metrics!.targetFps ?? 60.0) * 0.9),
+            _getIndicatorColor(
+                metrics!.fps >= (metrics!.targetFps ?? 60.0) * 0.9),
           ),
           const SizedBox(width: 8),
           _buildIndicator(
@@ -453,7 +455,8 @@ class PerformanceMonitorToggle extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isVisible ? Colors.green : Colors.white.withValues(alpha: 0.5),
+            color:
+                isVisible ? Colors.green : Colors.white.withValues(alpha: 0.5),
             width: 1,
           ),
         ),

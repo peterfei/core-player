@@ -7,21 +7,24 @@ import '../models/buffer_config.dart';
 
 /// 带宽监控服务
 class BandwidthMonitorService {
-  static final BandwidthMonitorService _instance = BandwidthMonitorService._internal();
+  static final BandwidthMonitorService _instance =
+      BandwidthMonitorService._internal();
   factory BandwidthMonitorService() => _instance;
   BandwidthMonitorService._internal();
 
   final BandwidthHistory _history = BandwidthHistory();
-  final StreamController<NetworkStats> _statsController = StreamController<NetworkStats>.broadcast();
+  final StreamController<NetworkStats> _statsController =
+      StreamController<NetworkStats>.broadcast();
   Timer? _monitoringTimer;
   Timer? _samplingTimer;
   bool _isMonitoring = false;
 
   // 配置参数
-  static const Duration _monitoringInterval = Duration(seconds: 2);   // 监控间隔
-  static const Duration _samplingInterval = Duration(seconds: 5);     // 采样间隔
-  static const Duration _testDuration = Duration(seconds: 2);         // 测试下载时长
-  static const String _testUrl = 'https://httpbin.org/bytes/1048576'; // 1MB 测试文件
+  static const Duration _monitoringInterval = Duration(seconds: 2); // 监控间隔
+  static const Duration _samplingInterval = Duration(seconds: 5); // 采样间隔
+  static const Duration _testDuration = Duration(seconds: 2); // 测试下载时长
+  static const String _testUrl =
+      'https://httpbin.org/bytes/1048576'; // 1MB 测试文件
   static const int _testFileSize = 1048576; // 1MB
 
   /// 获取网络统计流
@@ -97,16 +100,19 @@ class BandwidthMonitorService {
       }
 
       final stopwatch = Stopwatch()..start();
-      final response = await http.get(
-        Uri.parse(_testUrl),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse(_testUrl),
+          )
+          .timeout(const Duration(seconds: 10));
 
       stopwatch.stop();
       final downloadTime = stopwatch.elapsed;
 
       if (response.statusCode == 200 && downloadTime.inMilliseconds > 0) {
         // 计算带宽 (bits per second)
-        final bandwidth = (_testFileSize * 8) / downloadTime.inMilliseconds * 1000;
+        final bandwidth =
+            (_testFileSize * 8) / downloadTime.inMilliseconds * 1000;
 
         // 添加样本到历史记录
         final sample = BandwidthSample(
@@ -199,11 +205,11 @@ class BandwidthMonitorService {
     final quality = stats.quality;
 
     return switch (quality) {
-      NetworkQuality.excellent => 20,   // 20 MB
-      NetworkQuality.good => 30,        // 30 MB
-      NetworkQuality.moderate => 50,    // 50 MB
-      NetworkQuality.poor => 80,        // 80 MB
-      NetworkQuality.critical => 100,   // 100 MB
+      NetworkQuality.excellent => 20, // 20 MB
+      NetworkQuality.good => 30, // 30 MB
+      NetworkQuality.moderate => 50, // 50 MB
+      NetworkQuality.poor => 80, // 80 MB
+      NetworkQuality.critical => 100, // 100 MB
     };
   }
 
@@ -252,9 +258,11 @@ class BandwidthMonitorService {
     // 执行快速测试
     try {
       final testStart = DateTime.now();
-      final response = await http.get(
-        Uri.parse('https://httpbin.org/delay/0'),
-      ).timeout(const Duration(seconds: 5));
+      final response = await http
+          .get(
+            Uri.parse('https://httpbin.org/delay/0'),
+          )
+          .timeout(const Duration(seconds: 5));
       final testEnd = DateTime.now();
 
       diagnosis['testSuccessful'] = response.statusCode == 200;
@@ -274,17 +282,17 @@ class BandwidthMonitorService {
 
     if (preferQuality) {
       // 偏向质量的推荐
-      if (bandwidth > 15000000) return QualityLevel.p1440;  // 15 Mbps
-      if (bandwidth > 8000000) return QualityLevel.p1080;   // 8 Mbps
-      if (bandwidth > 4000000) return QualityLevel.p720;    // 4 Mbps
-      if (bandwidth > 2000000) return QualityLevel.p480;    // 2 Mbps
+      if (bandwidth > 15000000) return QualityLevel.p1440; // 15 Mbps
+      if (bandwidth > 8000000) return QualityLevel.p1080; // 8 Mbps
+      if (bandwidth > 4000000) return QualityLevel.p720; // 4 Mbps
+      if (bandwidth > 2000000) return QualityLevel.p480; // 2 Mbps
       return QualityLevel.p360;
     } else {
       // 偏向流畅的推荐
-      if (bandwidth > 20000000) return QualityLevel.p1440;  // 20 Mbps
-      if (bandwidth > 10000000) return QualityLevel.p1080;   // 10 Mbps
-      if (bandwidth > 5000000) return QualityLevel.p720;     // 5 Mbps
-      if (bandwidth > 2500000) return QualityLevel.p480;     // 2.5 Mbps
+      if (bandwidth > 20000000) return QualityLevel.p1440; // 20 Mbps
+      if (bandwidth > 10000000) return QualityLevel.p1080; // 10 Mbps
+      if (bandwidth > 5000000) return QualityLevel.p720; // 5 Mbps
+      if (bandwidth > 2500000) return QualityLevel.p480; // 2.5 Mbps
       return QualityLevel.p360;
     }
   }

@@ -92,7 +92,7 @@ class CodecInfo {
   }
 
   /// 获取编解码器显示名称
-  String get displayName => _getCodecDisplayName(codec);
+  String get displayName => getCodecDisplayName(codec);
 
   /// 获取完整的编解码器描述
   String get fullDescription {
@@ -112,11 +112,11 @@ class CodecInfo {
   bool get isHighQuality {
     // 高质量特征
     return bitDepth >= 10 ||
-           profile.toLowerCase().contains('high') ||
-           codec == 'hevc' ||
-           codec == 'vp9' ||
-           codec == 'av1' ||
-           codec == 'prores';
+        profile.toLowerCase().contains('high') ||
+        codec == 'hevc' ||
+        codec == 'vp9' ||
+        codec == 'av1' ||
+        codec == 'prores';
   }
 
   /// 是否为现代编解码器（近年推出的）
@@ -129,7 +129,7 @@ class CodecInfo {
   bool get isProfessional {
     final professionalCodecs = ['prores', 'dnxhr', 'cinemadng', 'lossless'];
     return professionalCodecs.contains(codec.toLowerCase()) ||
-           profile.toLowerCase().contains('professional');
+        profile.toLowerCase().contains('professional');
   }
 
   /// 获取视频码率等级
@@ -188,7 +188,8 @@ class CodecInfo {
 
   /// 获取硬件加速能力
   HardwareAccelerationCapability get hardwareCapability {
-    if (!isHardwareAccelerated) return HardwareAccelerationCapability.unsupported;
+    if (!isHardwareAccelerated)
+      return HardwareAccelerationCapability.unsupported;
 
     switch (hardwareAccelerationType?.toLowerCase()) {
       case 'videotoolbox':
@@ -256,8 +257,10 @@ class CodecInfo {
       bitDepth: bitDepth ?? this.bitDepth,
       pixelFormat: pixelFormat ?? this.pixelFormat,
       colorSpace: colorSpace ?? this.colorSpace,
-      isHardwareAccelerated: isHardwareAccelerated ?? this.isHardwareAccelerated,
-      hardwareAccelerationType: hardwareAccelerationType ?? this.hardwareAccelerationType,
+      isHardwareAccelerated:
+          isHardwareAccelerated ?? this.isHardwareAccelerated,
+      hardwareAccelerationType:
+          hardwareAccelerationType ?? this.hardwareAccelerationType,
       type: type ?? this.type,
       channels: channels ?? this.channels,
       sampleRate: sampleRate ?? this.sampleRate,
@@ -269,11 +272,11 @@ class CodecInfo {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is CodecInfo &&
-           other.codec == codec &&
-           other.profile == profile &&
-           other.level == level &&
-           other.bitDepth == bitDepth &&
-           other.type == type;
+        other.codec == codec &&
+        other.profile == profile &&
+        other.level == level &&
+        other.bitDepth == bitDepth &&
+        other.type == type;
   }
 
   @override
@@ -294,7 +297,7 @@ class CodecInfo {
   }
 
   /// 获取编解码器显示名称
-  static String _getCodecDisplayName(String codec) {
+  static String getCodecDisplayName(String codec) {
     final codecMap = {
       // 视频编解码器
       'h264': 'H.264/AVC',
@@ -330,13 +333,23 @@ class CodecInfo {
   /// 获取编解码器支持状态
   static CodecSupportStatus _getCodecSupportStatus(String codec) {
     final supportedCodecs = [
-      'h264', 'hevc', 'vp8', 'vp9', 'av1',
-      'aac', 'mp3', 'ac3', 'dts', 'flac', 'opus'
+      'h264',
+      'hevc',
+      'vp8',
+      'vp9',
+      'av1',
+      'aac',
+      'mp3',
+      'ac3',
+      'dts',
+      'flac',
+      'opus'
     ];
 
     if (supportedCodecs.contains(codec.toLowerCase())) {
       return CodecSupportStatus.fullySupported;
-    } else if (['mpeg2video', 'mpeg4', 'vorbis'].contains(codec.toLowerCase())) {
+    } else if (['mpeg2video', 'mpeg4', 'vorbis']
+        .contains(codec.toLowerCase())) {
       return CodecSupportStatus.limited;
     } else {
       return CodecSupportStatus.unsupported;
@@ -344,11 +357,13 @@ class CodecInfo {
   }
 
   /// 从media_kit track创建CodecInfo
-  static CodecInfo? fromMediaKitTrack(dynamic track, bool isHardwareAccelerated, String? hwType) {
+  static CodecInfo? fromMediaKitTrack(
+      dynamic track, bool isHardwareAccelerated, String? hwType) {
     try {
       // 尝试解析track信息
       final type = track.type.toString().toLowerCase();
-      final codecType = type.contains('video') ? CodecType.video : CodecType.audio;
+      final codecType =
+          type.contains('video') ? CodecType.video : CodecType.audio;
 
       // 获取编解码器名称
       String codec = '';
@@ -366,7 +381,8 @@ class CodecInfo {
         profile = 'Main';
         if (track.profile != null) profile = track.profile.toString();
         if (track.level != null) level = track.level.toString();
-        if (track.pixelformat != null && track.pixelformat.toString().contains('10')) {
+        if (track.pixelformat != null &&
+            track.pixelformat.toString().contains('10')) {
           bitDepth = 10;
         }
       } else if (codec.toLowerCase() == 'h264') {
@@ -400,8 +416,10 @@ enum CodecType {
 enum CodecSupportStatus {
   /// 完全支持
   fullySupported,
+
   /// 有限支持（部分功能）
   limited,
+
   /// 不支持
   unsupported,
 }
@@ -410,8 +428,10 @@ enum CodecSupportStatus {
 enum HardwareAccelerationCapability {
   /// 完全支持硬件加速
   full,
+
   /// 部分支持硬件加速
   partial,
+
   /// 不支持硬件加速
   unsupported,
 }

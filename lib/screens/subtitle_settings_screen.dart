@@ -312,8 +312,11 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
       context: context,
       builder: (context) => _ColorSelectorDialog(
         title: title,
-        initialColor: Color(title == '字体颜色' ? _config.fontColor :
-                          title == '背景颜色' ? _config.backgroundColor : _config.outlineColor),
+        initialColor: Color(title == '字体颜色'
+            ? _config.fontColor
+            : title == '背景颜色'
+                ? _config.backgroundColor
+                : _config.outlineColor),
         onColorSelected: onColorSelected,
       ),
     );
@@ -342,19 +345,21 @@ class _SubtitleSettingsScreenState extends State<SubtitleSettingsScreen> {
         title: const Text('选择编码'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: encodings.map((encoding) => RadioListTile<String>(
-            title: Text(encoding),
-            value: encoding,
-            groupValue: _config.preferredEncoding,
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _config = _config.copyWith(preferredEncoding: value);
-                });
-                Navigator.of(context).pop();
-              }
-            },
-          )).toList(),
+          children: encodings
+              .map((encoding) => RadioListTile<String>(
+                    title: Text(encoding),
+                    value: encoding,
+                    groupValue: _config.preferredEncoding,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _config = _config.copyWith(preferredEncoding: value);
+                        });
+                        Navigator.of(context).pop();
+                      }
+                    },
+                  ))
+              .toList(),
         ),
       ),
     );
@@ -448,7 +453,8 @@ class _ColorSelectorDialogState extends State<_ColorSelectorDialog> {
                     decoration: BoxDecoration(
                       color: color,
                       border: Border.all(
-                        color: _selectedColor == color ? Colors.blue : Colors.grey,
+                        color:
+                            _selectedColor == color ? Colors.blue : Colors.grey,
                         width: _selectedColor == color ? 3 : 1,
                       ),
                     ),
@@ -469,7 +475,9 @@ class _ColorSelectorDialogState extends State<_ColorSelectorDialog> {
                 child: Text(
                   '示例字幕文本',
                   style: TextStyle(
-                    color: _selectedColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                    color: _selectedColor.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -506,7 +514,8 @@ class _PositionSelectorDialog extends StatefulWidget {
   });
 
   @override
-  State<_PositionSelectorDialog> createState() => _PositionSelectorDialogState();
+  State<_PositionSelectorDialog> createState() =>
+      _PositionSelectorDialogState();
 }
 
 class _PositionSelectorDialogState extends State<_PositionSelectorDialog> {
@@ -578,7 +587,8 @@ class _LanguageSelectorDialog extends StatefulWidget {
   });
 
   @override
-  State<_LanguageSelectorDialog> createState() => _LanguageSelectorDialogState();
+  State<_LanguageSelectorDialog> createState() =>
+      _LanguageSelectorDialogState();
 }
 
 class _LanguageSelectorDialogState extends State<_LanguageSelectorDialog> {

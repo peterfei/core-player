@@ -19,7 +19,8 @@ class HistoryService {
       final histories = await getHistories();
 
       // 检查是否已存在相同路径的记录
-      final existingIndex = histories.indexWhere((h) => h.videoPath == history.videoPath);
+      final existingIndex =
+          histories.indexWhere((h) => h.videoPath == history.videoPath);
 
       if (existingIndex != -1) {
         // 更新现有记录
@@ -131,7 +132,8 @@ class HistoryService {
   }
 
   /// 过滤有效的历史记录（文件存在）
-  static Future<List<PlaybackHistory>> _filterValidHistories(List<PlaybackHistory> histories) async {
+  static Future<List<PlaybackHistory>> _filterValidHistories(
+      List<PlaybackHistory> histories) async {
     final validHistories = <PlaybackHistory>[];
 
     for (final history in histories) {
@@ -149,8 +151,8 @@ class HistoryService {
       // Web 平台特殊处理
       if (kIsWeb) {
         return history.videoPath.startsWith('blob:') ||
-               history.videoPath.startsWith('data:') ||
-               history.videoPath.startsWith('http');
+            history.videoPath.startsWith('data:') ||
+            history.videoPath.startsWith('http');
       }
 
       // 网络视频总是存在
@@ -163,9 +165,11 @@ class HistoryService {
         // 如果有书签数据，先尝试恢复权限
         if (history.hasSecurityBookmark) {
           print('尝试使用书签恢复访问权限: ${history.videoPath}');
-          final restoredPath = await MacOSBookmarkService.tryRestoreAccess(history.videoPath);
+          final restoredPath =
+              await MacOSBookmarkService.tryRestoreAccess(history.videoPath);
           if (restoredPath != null) {
-            return await MacOSBookmarkService.fileExistsAtPath(history.videoPath);
+            return await MacOSBookmarkService.fileExistsAtPath(
+                history.videoPath);
           }
           print('书签恢复失败，降级到常规检查');
         }
@@ -207,13 +211,14 @@ class HistoryService {
     int? finalFileSize = fileSize;
 
     if (sourceType == 'local') {
-      finalThumbnailPath = thumbnailPath ?? await SimpleThumbnailService.generateThumbnail(
-        videoPath: videoPath,
-        width: 320,
-        height: 180,
-        seekSeconds: 1.0,
-        securityBookmark: securityBookmark,
-      );
+      finalThumbnailPath = thumbnailPath ??
+          await SimpleThumbnailService.generateThumbnail(
+            videoPath: videoPath,
+            width: 320,
+            height: 180,
+            seekSeconds: 1.0,
+            securityBookmark: securityBookmark,
+          );
       finalFileSize = fileSize ?? await getFileSize(videoPath);
     } else {
       // 网络视频不需要生成本地缩略图
@@ -254,13 +259,14 @@ class HistoryService {
     final now = DateTime.now();
 
     // 如果没有提供缩略图路径，尝试生成
-    final finalThumbnailPath = thumbnailPath ?? await SimpleThumbnailService.generateThumbnail(
-      videoPath: videoPath,
-      width: 320,
-      height: 180,
-      seekSeconds: 1.0,
-      securityBookmark: securityBookmark,
-    );
+    final finalThumbnailPath = thumbnailPath ??
+        await SimpleThumbnailService.generateThumbnail(
+          videoPath: videoPath,
+          width: 320,
+          height: 180,
+          seekSeconds: 1.0,
+          securityBookmark: securityBookmark,
+        );
 
     // 获取文件大小
     final finalFileSize = fileSize ?? await getFileSize(videoPath);
@@ -292,7 +298,8 @@ class HistoryService {
 
     if (existingHistory != null) {
       // 如果还没有缩略图，在后台生成
-      final finalThumbnailPath = thumbnailPath ?? existingHistory.thumbnailPath ??
+      final finalThumbnailPath = thumbnailPath ??
+          existingHistory.thumbnailPath ??
           (await SimpleThumbnailService.generateThumbnail(
             videoPath: videoPath,
             width: 320,
@@ -329,11 +336,13 @@ class HistoryService {
 
       // 如果缩略图不存在或为空，尝试重新生成
       if (thumbnailPath == null || !await File(thumbnailPath).exists()) {
-        final generatedPath = await ThumbnailService.generateThumbnail(videoPath);
+        final generatedPath =
+            await ThumbnailService.generateThumbnail(videoPath);
         if (generatedPath != null) {
           // 更新历史记录中的缩略图路径
           final existingHistory = await getHistoryByPath(videoPath);
-          if (existingHistory != null && existingHistory.thumbnailPath != generatedPath) {
+          if (existingHistory != null &&
+              existingHistory.thumbnailPath != generatedPath) {
             final updatedHistory = existingHistory.copyWith(
               thumbnailPath: generatedPath,
               lastPlayedAt: DateTime.now(),
@@ -380,7 +389,8 @@ class HistoryService {
         'totalWatchCount': totalWatchCount,
         'completedCount': histories.where((h) => h.isCompleted).length,
         'recentCount': histories.where((h) {
-          final daysDifference = DateTime.now().difference(h.lastPlayedAt).inDays;
+          final daysDifference =
+              DateTime.now().difference(h.lastPlayedAt).inDays;
           return daysDifference <= 7;
         }).length,
         'todayCount': histories.where((h) => h.isWatchedToday).length,
@@ -414,7 +424,7 @@ class HistoryService {
       final lowercaseQuery = query.toLowerCase();
       return histories.where((history) {
         return history.videoName.toLowerCase().contains(lowercaseQuery) ||
-               history.videoPath.toLowerCase().contains(lowercaseQuery);
+            history.videoPath.toLowerCase().contains(lowercaseQuery);
       }).toList();
     } catch (e) {
       print('搜索历史记录失败: $e');
@@ -446,13 +456,14 @@ class HistoryService {
   }
 
   /// 按时间范围过滤历史记录
-  static Future<List<PlaybackHistory>> filterByDateRange(DateTime startDate, DateTime endDate) async {
+  static Future<List<PlaybackHistory>> filterByDateRange(
+      DateTime startDate, DateTime endDate) async {
     try {
       final histories = await getHistories();
 
       return histories.where((history) {
         return history.lastPlayedAt.isAfter(startDate) &&
-               history.lastPlayedAt.isBefore(endDate);
+            history.lastPlayedAt.isBefore(endDate);
       }).toList();
     } catch (e) {
       print('按日期过滤历史记录失败: $e');
@@ -565,7 +576,8 @@ class HistoryService {
   }
 
   /// 更新历史记录的缩略图路径
-  static Future<void> updateThumbnailPath(String historyId, String thumbnailPath) async {
+  static Future<void> updateThumbnailPath(
+      String historyId, String thumbnailPath) async {
     try {
       final histories = await getHistories();
       final index = histories.indexWhere((h) => h.id == historyId);
@@ -591,7 +603,8 @@ class HistoryService {
   }
 
   /// 更新历史记录的书签数据
-  static Future<void> updateBookmark(String historyId, String bookmarkData) async {
+  static Future<void> updateBookmark(
+      String historyId, String bookmarkData) async {
     try {
       final histories = await getHistories();
       final index = histories.indexWhere((h) => h.id == historyId);
@@ -647,7 +660,8 @@ class HistoryService {
       final now = DateTime.now();
 
       // 检查是否已存在相同路径的记录
-      final existingIndex = histories.indexWhere((h) => h.videoPath == videoPath);
+      final existingIndex =
+          histories.indexWhere((h) => h.videoPath == videoPath);
 
       PlaybackHistory history;
       if (existingIndex != -1) {
@@ -658,9 +672,13 @@ class HistoryService {
           currentPosition: currentPosition,
           totalDuration: totalDuration,
           watchCount: watchCount ?? existingHistory.watchCount + 1,
-          securityBookmark: securityBookmark ?? existingHistory.securityBookmark,
-          thumbnailCachePath: thumbnailCachePath ?? existingHistory.thumbnailCachePath,
-          thumbnailGeneratedAt: thumbnailCachePath != null ? now : existingHistory.thumbnailGeneratedAt,
+          securityBookmark:
+              securityBookmark ?? existingHistory.securityBookmark,
+          thumbnailCachePath:
+              thumbnailCachePath ?? existingHistory.thumbnailCachePath,
+          thumbnailGeneratedAt: thumbnailCachePath != null
+              ? now
+              : existingHistory.thumbnailGeneratedAt,
         );
 
         // 移动到最上方
