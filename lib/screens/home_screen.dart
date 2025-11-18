@@ -18,28 +18,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late TabController _tabController;
-  int _historyCount = 0;
+  final GlobalKey<HistoryListWidgetRefreshableState> _historyListKey = GlobalKey<HistoryListWidgetRefreshableState>();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadHistoryCount();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
-  }
-
-  void _loadHistoryCount() async {
-    final histories = await HistoryService.getHistories();
-    if (mounted) {
-      setState(() {
-        _historyCount = histories.length;
-      });
-    }
   }
 
   Future<void> _playNetworkVideo() async {
@@ -50,7 +40,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         MaterialPageRoute(
           builder: (context) => PlayerScreen.network(videoPath: url),
         ),
-      );
+      ).then((_) {
+        // 播放完成后刷新历史列表
+        _historyListKey.currentState?.refreshHistories();
+      });
     }
   }
   Future<void> _pickAndPlayVideo() async {
@@ -71,7 +64,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 videoFile: File(result.files.single.path!),
               ),
             ),
-          );
+          ).then((_) {
+            // 播放完成后刷新历史列表
+            _historyListKey.currentState?.refreshHistories();
+          });
         }
       } else if (kIsWeb && result.files.single.bytes != null) {
         // Web 平台：使用文件字节数据
@@ -93,7 +89,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 webVideoName: result.files.single.name,
               ),
             ),
-          );
+          ).then((_) {
+            // 播放完成后刷新历史列表
+            _historyListKey.currentState?.refreshHistories();
+          });
         }
       }
     }
@@ -106,8 +105,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         builder: (context) => const SettingsScreen(),
       ),
     ).then((_) {
-      // 返回时刷新历史记录数量
-      _loadHistoryCount();
+      // 返回时刷新历史列表
+      _historyListKey.currentState?.refreshHistories();
     });
   }
 
@@ -188,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // 媒体库标签页
           const MediaLibraryTab(),
           // 播放历史标签页
-          const HistoryListWidget(),
+          HistoryListWidgetRefreshable(key: _historyListKey),
         ],
       ),
       floatingActionButton: Column(

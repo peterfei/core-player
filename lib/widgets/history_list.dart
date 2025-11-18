@@ -2,12 +2,59 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/playback_history.dart';
 import '../services/history_service.dart';
-import '../services/thumbnail_service.dart';
 import '../services/simple_thumbnail_service.dart';
 import '../services/macos_bookmark_service.dart';
 import '../screens/player_screen.dart';
 import 'search_history_widget.dart';
 import 'video_thumbnail.dart';
+
+/// 可刷新的历史列表包装器（供 HomeScreen 调用）
+class HistoryListWidgetRefreshable extends StatefulWidget {
+  const HistoryListWidgetRefreshable({super.key});
+
+  @override
+  State<HistoryListWidgetRefreshable> createState() => HistoryListWidgetRefreshableState();
+}
+
+class HistoryListWidgetRefreshableState extends State<HistoryListWidgetRefreshable>
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+  final GlobalKey<_HistoryListWidgetState> _historyListKey = GlobalKey<_HistoryListWidgetState>();
+
+  @override
+  bool get wantKeepAlive => true; // 保持状态，避免tab切换时销毁
+
+  @override
+  void initState() {
+    super.initState();
+    // 添加生命周期监听，当app返回前台时刷新
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 当app从后台返回前台时，刷新历史列表
+    if (state == AppLifecycleState.resumed) {
+      refreshHistories();
+    }
+  }
+
+  /// 供外部调用的刷新方法
+  void refreshHistories() {
+    _historyListKey.currentState?._loadHistories();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context); // 必须调用，因为使用了 AutomaticKeepAliveClientMixin
+    return HistoryListWidget(key: _historyListKey);
+  }
+}
 
 class HistoryListWidget extends StatefulWidget {
   const HistoryListWidget({super.key});
