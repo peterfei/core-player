@@ -186,28 +186,161 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
     }
   }
 
-  void _clearAllHistories() {
-    showDialog(
+  void _clearAllHistories() async {
+    // 先获取清理统计信息
+    final cleanupStats = await HistoryService.getCleanupStats();
+
+    bool clearHistory = true;
+    bool clearThumbnails = false;
+    bool clearVideoCache = false;
+    bool clearNetworkCache = true;
+
+    final clearOptions = await showDialog<Map<String, bool>>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清空所有历史'),
-        content: const Text('确定要清空所有播放历史记录吗？此操作不可恢复。'),
+        title: const Text('清空历史'),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('选择要清理的内容：'),
+                const SizedBox(height: 16),
+
+                // 播放历史（总是显示）
+                CheckboxListTile(
+                  title: const Text('播放历史记录'),
+                  subtitle: Text('${cleanupStats['histories']?['total'] ?? 0} 条记录'),
+                  value: clearHistory,
+                  onChanged: (value) {
+                    clearHistory = value ?? false;
+                    setState(() {});
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+
+                // 网络视频缓存
+                CheckboxListTile(
+                  title: const Text('网络视频缓存'),
+                  subtitle: Text('${cleanupStats['histories']?['network'] ?? 0} 个网络视频'),
+                  value: clearNetworkCache,
+                  onChanged: (value) {
+                    clearNetworkCache = value ?? false;
+                    setState(() {});
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+
+                // 缩略图缓存
+                CheckboxListTile(
+                  title: const Text('缩略图缓存'),
+                  subtitle: Text('${cleanupStats['thumbnails']?['networkThumbnails'] ?? 0} 个网络缩略图'),
+                  value: clearThumbnails,
+                  onChanged: (value) {
+                    clearThumbnails = value ?? false;
+                    setState(() {});
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+
+                const SizedBox(height: 8),
+                const Text(
+                  '注意：此操作不可恢复',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).pop(null),
             child: const Text('取消'),
           ),
           TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await HistoryService.clearAllHistories();
-              _loadHistories();
+            onPressed: () {
+              Navigator.of(context).pop({
+                'clearHistory': clearHistory,
+                'clearThumbnails': clearThumbnails,
+                'clearVideoCache': clearVideoCache,
+                'clearNetworkCache': clearNetworkCache,
+              });
             },
             child: const Text('清空'),
           ),
         ],
       ),
     );
+
+    if (clearOptions != null) {
+      // 显示清理进度对话框
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('正在清理...'),
+            ],
+          ),
+        ),
+      );
+
+      try {
+        // 执行清理
+        await HistoryService.clearAllHistories(
+          clearThumbnails: clearOptions['clearThumbnails'] ?? false,
+          clearVideoCache: clearOptions['clearVideoCache'] ?? false,
+          clearNetworkCache: clearOptions['clearNetworkCache'] ?? false,
+        );
+
+        // 关闭进度对话框
+        if (mounted) Navigator.of(context).pop();
+
+        // 显示成功消息
+        if (mounted) {
+          final clearedItems = <String>[];
+          if (clearOptions['clearHistory'] == true) clearedItems.add('播放历史');
+          if (clearOptions['clearNetworkCache'] == true) clearedItems.add('网络视频缓存');
+          if (clearOptions['clearThumbnails'] == true) clearedItems.add('缩略图缓存');
+          if (clearOptions['clearVideoCache'] == true) clearedItems.add('本地视频缓存');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已清理：${clearedItems.join('、')}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+
+          // 重新加载历史列表
+          _loadHistories();
+        }
+      } catch (e) {
+        // 关闭进度对话框
+        if (mounted) Navigator.of(context).pop();
+
+        // 显示错误消息
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('清理失败：$e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    }
   }
 
   void _navigateToPlayer(PlaybackHistory history) {

@@ -89,6 +89,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   late Player player;
   VideoController? controller;
 
+  // 全局释放状态控制（静态变量，所有实例共享）
+  static bool _isPlayerScreenDisposing = false;
+
   // 超高清视频支持相关服务
   VideoInfo? _currentVideoInfo;
   HardwareAccelerationConfig? _hwAccelConfig;
@@ -3308,20 +3311,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _thumbnailGenerationScheduled = true;
 
-    // 简化的单一智能延迟策略
+    // 智能延迟策略：区分缓存视频和纯网络视频
     print('🎬 调度缩略图生成（智能延迟策略）...');
 
-    // 根据网络类型和缓冲状态决定延迟时间
-    int delaySeconds = 3; // 默认延迟
+    int delaySeconds = _calculateOptimalDelay();
 
-    // 如果是网络视频，给更多缓冲时间
-    if (_isNetworkVideo) {
-      delaySeconds = 5;
-    }
+    print('⏱️ 使用延迟策略：${delaySeconds}s，网络视频=$_isNetworkVideo');
 
     _thumbnailTimer = Timer(Duration(seconds: delaySeconds), () async {
+      // 第1层检查：全局 PlayerScreen 释放状态（最早期的检查）
+      if (_isPlayerScreenDisposing) {
+        print('⚠️ PlayerScreen正在释放，立即取消缩略图生成');
+        _thumbnailGenerationScheduled = false;
+        return;
+      }
+
+      // 第2层检查：当前实例状态
       if (!mounted || !_thumbnailGenerationScheduled) {
         print('⚠️ 播放器已销毁或生成已取消，停止缩略图生成');
+        _thumbnailGenerationScheduled = false;
+        return;
+      }
+
+      // 第3层检查：服务级别的全局释放状态
+      if (NetworkThumbnailService.isForceDisposing()) {
+        print('⚠️ 缩略图服务正在强制释放，停止缩略图生成');
         _thumbnailGenerationScheduled = false;
         return;
       }
@@ -3329,12 +3343,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
       try {
         print('🎬 开始智能缩略图生成（${delaySeconds}s延迟）...');
 
-        // 检查播放器状态
+        // 第4层检查：播放器状态
         if (_isPlayerDisposed()) {
           print('⚠️ 播放器已被释放，无法生成缩略图');
           _thumbnailGenerationScheduled = false;
           return;
         }
+
+        // 获取视频状态信息用于调试
+        final duration = player.state.duration;
+        final isPlaying = player.state.playing;
+        final isBuffering = player.state.buffering;
+
+        print('📊 当前播放器状态：时长=${duration.inSeconds}s, playing=$isPlaying, buffering=$isBuffering');
 
         final thumbnailPath = await NetworkThumbnailService.generateFromPlayer(
           player: player,
@@ -3353,6 +3374,33 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _thumbnailGenerationScheduled = false;
       }
     });
+  }
+
+  /// 计算最优延迟时间
+  int _calculateOptimalDelay() {
+    // 默认延迟
+    int delaySeconds = 3;
+
+    if (_isNetworkVideo) {
+      // 检查是否是缓存视频
+      final hasCache = VideoCacheService.instance.getCachePathSync(widget.webVideoUrl ?? '') != null;
+
+      if (hasCache) {
+        // 缓存视频延迟较短，因为数据已经本地
+        delaySeconds = 2;
+        print('🎯 检测到缓存视频，使用较短延迟：${delaySeconds}s');
+      } else {
+        // 纯网络视频需要更多时间缓冲
+        delaySeconds = 6;
+        print('🌐 纯网络视频，使用较长延迟：${delaySeconds}s');
+      }
+    } else {
+      // 本地视频延迟最短
+      delaySeconds = 1;
+      print('📁 本地视频，使用最短延迟：${delaySeconds}s');
+    }
+
+    return delaySeconds;
   }
 
   /// 检查播放器是否已被释放
@@ -3386,14 +3434,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     print('🧹 开始清理播放器资源...');
 
-    // 1. 立即取消所有缩略图生成操作（最高优先级）
-    _cancelThumbnailGeneration();
-    NetworkThumbnailService.cancelAllOperations();
+    // 第1步：立即设置全局释放状态（最高优先级，防止新操作开始）
+    _isPlayerScreenDisposing = true;
 
-    // 2. 给异步操作一些时间完成清理，然后继续其他清理
-    Future.delayed(Duration(milliseconds: 50), () {
+    // 第2步：立即取消 Timer（防止新的回调触发）
+    _cancelThumbnailGeneration();
+
+    // 第3步：强制取消所有进行中的缩略图操作
+    NetworkThumbnailService.forceCancelAllOperations();
+
+    // 第4步：立即暂停播放器（但不释放，给异步操作缓冲时间）
+    try {
+      if (player.state.playing) {
+        player.pause();
+        print('⏸️ 播放器已暂停，给异步操作缓冲时间');
+      }
+    } catch (e) {
+      print('⚠️ 暂停播放器时出错: $e');
+    }
+
+    // 第5步：延迟清理，给异步操作足够时间响应强制取消
+    Future.delayed(Duration(milliseconds: 100), () async {
       try {
         print('🧹 延迟清理：开始其他资源清理...');
+
+        // 等待确保所有缩略图操作都已完成或被取消
+        await Future.delayed(Duration(milliseconds: 50));
 
         // 停止超高清视频支持服务
         _stopPerformanceMonitoring();
@@ -3441,8 +3507,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
         print('🧹 其他资源清理完成，开始释放播放器...');
 
-        // Make sure to dispose the player and controller（最后执行）
-        player.dispose();
+        // 最后安全地释放播放器
+        try {
+          player.dispose();
+          print('✅ 播放器已安全释放');
+        } catch (e) {
+          print('❌ 释放播放器时出错: $e');
+        }
+
+        // 重置全局状态（如果这是最后一个实例）
+        if (mounted == false) {
+          _isPlayerScreenDisposing = false;
+          print('✅ PlayerScreen 释放状态已重置');
+        }
       } catch (e) {
         print('❌ 延迟清理过程中出错: $e');
       }

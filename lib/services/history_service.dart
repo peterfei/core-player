@@ -6,6 +6,7 @@ import '../models/playback_history.dart';
 import '../services/thumbnail_service.dart';
 import '../services/simple_thumbnail_service.dart';
 import '../services/macos_bookmark_service.dart';
+import '../services/video_cache_service.dart';
 
 class HistoryService {
   static const String _storageKey = 'playback_history';
@@ -97,12 +98,140 @@ class HistoryService {
   }
 
   /// 清空所有历史记录
-  static Future<void> clearAllHistories() async {
+  static Future<void> clearAllHistories({
+    bool clearThumbnails = false,
+    bool clearVideoCache = false,
+    bool clearNetworkCache = true,
+  }) async {
     try {
+      print('🧹 开始清空播放历史记录...');
+
+      // 获取当前所有历史记录（用于清理相关缓存）
+      final histories = await getHistories();
+      print('📊 找到 ${histories.length} 条历史记录');
+
+      // 清空历史记录
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_storageKey);
+      print('✅ 播放历史记录已清空');
+
+      // 清理相关缓存
+      await _cleanRelatedCaches(
+        histories,
+        clearThumbnails: clearThumbnails,
+        clearVideoCache: clearVideoCache,
+        clearNetworkCache: clearNetworkCache,
+      );
+
+      print('✅ 清空播放历史完成');
     } catch (e) {
-      print('清空播放历史失败: $e');
+      print('❌ 清空播放历史失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 清理相关缓存
+  static Future<void> _cleanRelatedCaches(
+    List<PlaybackHistory> histories, {
+    bool clearThumbnails = false,
+    bool clearVideoCache = false,
+    bool clearNetworkCache = true,
+  }) async {
+    try {
+      if (clearThumbnails) {
+        print('🗑️ 清理缩略图缓存...');
+
+        // 清理网络缩略图缓存
+        for (final history in histories) {
+          if (history.thumbnailCachePath != null) {
+            try {
+              final file = File(history.thumbnailCachePath!);
+              if (await file.exists()) {
+                await file.delete();
+                print('🗑️ 删除网络缩略图: ${history.thumbnailCachePath}');
+              }
+            } catch (e) {
+              print('⚠️ 删除网络缩略图失败: ${history.thumbnailCachePath}, 错误: $e');
+            }
+          }
+        }
+
+        // 清理本地缩略图缓存（暂时注释掉，因为SimpleThumbnailService没有deleteThumbnail方法）
+        // for (final history in histories) {
+        //   if (history.sourceType != 'network') {
+        //     await SimpleThumbnailService.deleteThumbnail(history.videoPath);
+        //   }
+        // }
+
+        print('✅ 缩略图缓存清理完成');
+      }
+
+      if (clearVideoCache || clearNetworkCache) {
+        print('💾 清理视频缓存...');
+        final cacheService = VideoCacheService.instance;
+        await cacheService.initialize();
+
+        for (final history in histories) {
+          // 清理网络视频缓存
+          if (clearNetworkCache && history.isNetworkVideo && history.streamUrl != null) {
+            try {
+              await cacheService.removeCache(history.streamUrl!);
+              print('💾 删除网络视频缓存: ${history.streamUrl}');
+            } catch (e) {
+              print('⚠️ 删除网络视频缓存失败: ${history.streamUrl}, 错误: $e');
+            }
+          }
+
+          // 清理本地视频缓存
+          if (clearVideoCache && !history.isNetworkVideo) {
+            try {
+              await cacheService.removeCache(history.videoPath);
+              print('💾 删除本地视频缓存: ${history.videoPath}');
+            } catch (e) {
+              print('⚠️ 删除本地视频缓存失败: ${history.videoPath}, 错误: $e');
+            }
+          }
+        }
+
+        print('✅ 视频缓存清理完成');
+      }
+    } catch (e) {
+      print('❌ 清理相关缓存失败: $e');
+    }
+  }
+
+  /// 获取清理统计信息
+  static Future<Map<String, dynamic>> getCleanupStats() async {
+    try {
+      final histories = await getHistories();
+      final networkHistories = histories.where((h) => h.isNetworkVideo).toList();
+      final localHistories = histories.where((h) => !h.isNetworkVideo).toList();
+
+      // 获取视频缓存统计
+      final cacheService = VideoCacheService.instance;
+      await cacheService.initialize();
+      final cacheStats = await cacheService.getStats();
+
+      return {
+        'histories': {
+          'total': histories.length,
+          'network': networkHistories.length,
+          'local': localHistories.length,
+        },
+        'videoCache': {
+          'totalSize': cacheStats.totalSize,
+          'totalEntries': cacheStats.totalEntries,
+          'completedEntries': cacheStats.completedEntries,
+        },
+        'thumbnails': {
+          'networkThumbnails': histories.where((h) => h.thumbnailCachePath != null).length,
+        },
+      };
+    } catch (e) {
+      print('❌ 获取清理统计信息失败: $e');
+      return {
+        'error': e.toString(),
+      };
     }
   }
 

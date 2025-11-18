@@ -20,6 +20,9 @@ class NetworkThumbnailService {
   /// 全局释放状态标志，用于立即阻止新操作
   static bool _isDisposing = false;
 
+  /// 强制释放状态标志（更优先的控制）
+  static bool _isForceDisposing = false;
+
   /// 互斥锁保护截图操作
   static bool _isScreenshotInProgress = false;
 
@@ -40,7 +43,13 @@ class NetworkThumbnailService {
       print('URL: $videoUrl');
       print('尺寸: ${width}x$height');
 
-      // 立即检查全局 disposing 状态
+      // 立即检查强制释放状态（最高优先级）
+      if (_isForceDisposing) {
+        print('🛑 强制释放状态，立即取消缩略图生成 [操作ID: $operationId]');
+        return null;
+      }
+
+      // 检查常规 disposing 状态
       if (_isDisposing) {
         print('⚠️ 服务正在释放中，取消缩略图生成 [操作ID: $operationId]');
         return null;
@@ -59,16 +68,45 @@ class NetworkThumbnailService {
         return null;
       }
 
+      // 记录播放器当前状态用于调试
+      final currentDuration = player.state.duration;
+      final currentPlaying = player.state.playing;
+      final currentBuffering = player.state.buffering;
+      print('📊 缩略图生成前的播放器状态：时长=${currentDuration.inSeconds}s, playing=$currentPlaying, buffering=$currentBuffering');
+
+      // 检查强制释放状态
+      if (_isForceDisposing) {
+        print('🛑 强制释放状态，在等待播放器就绪前取消 [操作ID: $operationId]');
+        return null;
+      }
+
       // 等待播放器准备就绪（改进的检测逻辑，支持缓冲和元数据检查）
       final playerReady = await _waitForPlayerReady(player, timeout: Duration(seconds: 12));
+
+      // 再次检查强制释放状态
+      if (_isForceDisposing) {
+        print('🛑 强制释放状态，在播放器就绪检查后取消 [操作ID: $operationId]');
+        return null;
+      }
+
       if (!playerReady) {
         print('⚠️ 播放器未准备就绪，尝试使用播放器状态截图');
         // 即使播放器未完全准备就绪，也尝试截图（可能已加载元数据）
-        return await _tryDirectScreenshot(player, videoUrl, width, height);
+        final fallbackResult = await _tryDirectScreenshot(player, videoUrl, width, height);
+        print('🔄 备用截图结果: ${fallbackResult != null ? "成功" : "失败"}');
+        return fallbackResult;
+      } else {
+        print('✅ 播放器准备就绪检查通过');
       }
 
       // 额外延迟等待视频缓冲
       await Future.delayed(Duration(seconds: 2));
+
+      // 再次检查强制释放状态
+      if (_isForceDisposing) {
+        print('🛑 强制释放状态，在缓冲延迟后取消 [操作ID: $operationId]');
+        return null;
+      }
 
       // 检查播放器是否已被释放
       if (_isPlayerDisposed(player)) {
@@ -83,6 +121,12 @@ class NetworkThumbnailService {
 
       // 延迟等待视频加载和缓冲
       await Future.delayed(delay ?? delayBeforeScreenshot);
+
+      // 最后再次检查强制释放状态
+      if (_isForceDisposing) {
+        print('🛑 强制释放状态，在最后延迟后取消 [操作ID: $operationId]');
+        return null;
+      }
 
       // 再次检查播放器是否已被释放
       if (_isPlayerDisposed(player)) {
@@ -178,19 +222,40 @@ class NetworkThumbnailService {
     return null;
   }
 
-  /// 等待播放器准备就绪（改进版：不仅检查播放状态，还检查缓冲和元数据）
+  /// 等待播放器准备就绪（增强版：更灵活的检测策略）
   static Future<bool> _waitForPlayerReady(Player player, {required Duration timeout}) async {
     final completer = Completer<bool>();
     late StreamSubscription<bool> playingSubscription;
     late StreamSubscription<bool> bufferingSubscription;
     bool hasStartedPlaying = false;
+    bool durationChecked = false;
+
+    print('⏳ 等待播放器准备就绪，超时时间：${timeout.inSeconds}s');
 
     // 监听播放状态
     playingSubscription = player.stream.playing.listen((playing) {
-      if (playing && !completer.isCompleted) {
-        hasStartedPlaying = true;
-        // 如果正在播放且没有在缓冲，说明播放器已准备就绪
-        if (!player.state.buffering) {
+      if (!completer.isCompleted) {
+        print('🎮 播放状态变化: playing=$playing');
+        if (playing) {
+          hasStartedPlaying = true;
+          // 如果正在播放且没有在缓冲，说明播放器已准备就绪
+          if (!player.state.buffering) {
+            print('✅ 播放器正在播放且未缓冲，准备就绪');
+            playingSubscription.cancel();
+            bufferingSubscription.cancel();
+            completer.complete(true);
+          }
+        }
+      }
+    });
+
+    // 监听缓冲状态
+    bufferingSubscription = player.stream.buffering.listen((buffering) {
+      if (!completer.isCompleted) {
+        print('🔄 缓冲状态变化: buffering=$buffering');
+        if (!buffering && hasStartedPlaying) {
+          // 如果曾经开始播放，现在不在缓冲中，说明准备就绪
+          print('✅ 播放器已播放且缓冲完成，准备就绪');
           playingSubscription.cancel();
           bufferingSubscription.cancel();
           completer.complete(true);
@@ -198,13 +263,26 @@ class NetworkThumbnailService {
       }
     });
 
-    // 监听缓冲状态
-    bufferingSubscription = player.stream.buffering.listen((buffering) {
-      if (!buffering && hasStartedPlaying && !completer.isCompleted) {
-        // 如果曾经开始播放，现在不在缓冲中，说明准备就绪
-        playingSubscription.cancel();
-        bufferingSubscription.cancel();
-        completer.complete(true);
+    // 额外监听时长变化
+    late StreamSubscription<Duration> durationSubscription;
+    durationSubscription = player.stream.duration.listen((duration) {
+      if (!completer.isCompleted && !durationChecked && duration.inMilliseconds >= 0) {
+        durationChecked = true;
+        print('🕒️ 时长更新: ${duration.inSeconds}s');
+
+        // 对于缓存视频，如果有时长信息就认为准备就绪
+        if (duration.inMilliseconds > 0) {
+          print('✅ 检测到有效时长，播放器可能已准备就绪');
+          // 给一点时间让播放器稳定，然后检查
+          Future.delayed(Duration(milliseconds: 500), () {
+            if (!completer.isCompleted) {
+              playingSubscription.cancel();
+              bufferingSubscription.cancel();
+              durationSubscription.cancel();
+              completer.complete(true);
+            }
+          });
+        }
       }
     });
 
@@ -212,9 +290,11 @@ class NetworkThumbnailService {
       // 超时保护，但即使超时也尝试检查播放器是否可以截图
       await completer.future.timeout(timeout, onTimeout: () {
         if (!completer.isCompleted) {
+          print('⏰ 等待播放器就绪超时，尝试直接检查播放器状态...');
           playingSubscription.cancel();
           bufferingSubscription.cancel();
-          print('⏰ 等待播放器就绪超时，尝试直接检查播放器状态...');
+          durationSubscription.cancel();
+
           // 即使超时，也检查播放器是否准备好截图
           return _checkPlayerReadyForScreenshot(player);
         }
@@ -228,19 +308,34 @@ class NetworkThumbnailService {
     return completer.future;
   }
 
-  /// 检查播放器是否准备好进行截图
+  /// 检查播放器是否准备好进行截图（改进版：放宽时长检查）
   static Future<bool> _checkPlayerReadyForScreenshot(Player player) async {
     try {
-      // 检查是否有有效的时长信息
-      if (player.state.duration.inMilliseconds > 0) {
-        print('✅ 播放器有时长信息，尝试测试截图...');
+      final duration = player.state.duration;
+      final durationMs = duration.inMilliseconds;
+
+      print('🔍 检查播放器状态：时长=${duration.inSeconds}s, durationMs=$durationMs');
+
+      // 放宽时长检查：允许时长为 0 的情况下也尝试截图
+      // 有些视频在初始加载时可能时长为 0，但仍然可以截图
+      if (durationMs >= 0) {
+        print('✅ 播放器时长信息可访问，尝试测试截图...');
+
         // 尝试获取测试帧（不保存）
         final testBytes = await _safeScreenshot(player);
         final canScreenshot = testBytes != null && testBytes.isNotEmpty;
+
         print('📸 测试截图结果: ${canScreenshot ? "成功" : "失败"}');
-        return canScreenshot;
+        if (canScreenshot) {
+          print('✅ 播放器可以正常截图，时长=${duration.inSeconds}s');
+          return true;
+        } else {
+          print('⚠️ 播放器无法截图，可能还在加载中');
+          // 即使截图失败，如果有有效时长，也给一次机会
+          return durationMs > 0;
+        }
       } else {
-        print('⚠️ 播放器没有有效的时长信息');
+        print('⚠️ 播放器时长信息无效');
         return false;
       }
     } catch (e) {
@@ -270,6 +365,11 @@ class NetworkThumbnailService {
 
     try {
       print('🔄 开始安全截图...');
+
+      // 记录截图前的播放器状态
+      final preScreenshotDuration = player.state.duration;
+      final preScreenshotPlaying = player.state.playing;
+      print('📸 截图前状态：时长=${preScreenshotDuration.inSeconds}s, playing=$preScreenshotPlaying');
 
       // 使用短暂的超时来避免长时间等待
       final imageBytes = await player.screenshot(format: 'image/jpeg')
@@ -305,13 +405,29 @@ class NetworkThumbnailService {
     }
   }
 
-  /// 检查播放器是否已被释放
+  /// 检查播放器是否已被释放（增强版：多属性检查）
   static bool _isPlayerDisposed(Player player) {
     try {
-      // 尝试访问播放器状态，如果已释放会抛出异常
-      final _ = player.state.playing;
+      // 更快速、更可靠的检测
+      final state = player.state;
+      if (state == null) {
+        return true;
+      }
+
+      // 检查关键属性，任何一个失败都认为已释放
+      final playingCheck = state.playing;      // 播放状态
+      final durationCheck = state.duration;     // 视频时长
+      final positionCheck = state.position;     // 当前位置
+      final bufferingCheck = state.buffering;    // 缓冲状态
+
+      // 使用变量确保编译器不会优化掉这些检查
+      final _checks = [playingCheck, durationCheck, positionCheck, bufferingCheck];
+      _checks.length; // 防止"unused variable"警告
+
+      // 如果所有属性都能正常访问，认为播放器未被释放
       return false;
     } catch (e) {
+      // 任何异常都认为播放器已被释放
       return true;
     }
   }
@@ -450,6 +566,31 @@ class NetworkThumbnailService {
       });
     }
   }
+
+  /// 强制取消所有进行中的缩略图生成操作（更严厉的控制）
+  static void forceCancelAllOperations() {
+    print('🛑 强制取消所有缩略图生成操作');
+
+    // 立即设置强制释放状态（最高优先级）
+    _isForceDisposing = true;
+
+    // 强制取消所有操作，使用异常中断
+    for (final entry in _activeOperations.entries) {
+      if (!entry.value.isCompleted) {
+        entry.value.completeError(Exception('Force cancelled due to player disposal'));
+      }
+    }
+    _activeOperations.clear();
+
+    // 更长的延迟确保所有异步操作都有时间响应强制取消
+    Future.delayed(Duration(milliseconds: 200), () {
+      _isForceDisposing = false;
+      print('✅ 强制缩略图服务释放完成，重置 force disposing 标志');
+    });
+  }
+
+  /// 检查是否在强制释放状态
+  static bool isForceDisposing() => _isForceDisposing;
 
   /// 获取当前活跃操作的数量
   static int get activeOperationsCount => _activeOperations.length;
