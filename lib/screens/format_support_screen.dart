@@ -10,7 +10,6 @@ class FormatSupportScreen extends StatefulWidget {
 }
 
 class _FormatSupportScreenState extends State<FormatSupportScreen> {
-  final CodecInfoService _codecInfoService = CodecInfoService();
   List<CodecInfo> _codecInfoList = [];
   bool _isLoading = true;
 
@@ -20,8 +19,9 @@ class _FormatSupportScreenState extends State<FormatSupportScreen> {
     _loadCodecInfo();
   }
 
-  Future<void> _loadCodecInfo() async {
-    final cachedInfo = await _codecInfoService.getCachedCodecInfo();
+  void _loadCodecInfo() {
+    // Data is already loaded at startup, just retrieve it from the singleton.
+    final cachedInfo = CodecInfoService.instance.getCachedCodecInfo();
     setState(() {
       _codecInfoList = cachedInfo;
       _isLoading = false;
@@ -43,8 +43,21 @@ class _FormatSupportScreenState extends State<FormatSupportScreen> {
                   itemBuilder: (context, index) {
                     final codecInfo = _codecInfoList[index];
                     return ListTile(
+                      leading: Icon(codecInfo.isHardwareAccelerated
+                          ? Icons.memory
+                          : Icons.developer_board),
                       title: Text(codecInfo.displayName),
                       subtitle: Text(codecInfo.fullDescription),
+                      trailing: Text(
+                        codecInfo.isHardwareAccelerated
+                            ? codecInfo.hardwareAccelerationType ?? '硬件'
+                            : '软件',
+                        style: TextStyle(
+                          color: codecInfo.isHardwareAccelerated
+                              ? Colors.green
+                              : Colors.blue,
+                        ),
+                      ),
                     );
                   },
                 ),

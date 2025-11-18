@@ -4,6 +4,9 @@ import 'package:yinghe_player/screens/home_screen.dart';
 import 'package:yinghe_player/services/video_cache_service.dart';
 import 'package:yinghe_player/services/local_proxy_server.dart';
 
+import 'package:yinghe_player/services/codec_info_service.dart';
+import 'package:yinghe_player/services/system_codec_detector_service.dart';
+
 void main() {
   // Initialize media_kit
   MediaKit.ensureInitialized();
@@ -45,6 +48,12 @@ class _MyAppState extends State<MyApp> {
     try {
       WidgetsFlutterBinding.ensureInitialized();
 
+      // Initialize services
+      await CodecInfoService.instance.initialize();
+      final codecDetector = SystemCodecDetectorService();
+      final codecs = await codecDetector.detectSupportedCodecs();
+      await CodecInfoService.instance.updateCodecInfoCache(codecs);
+
       // 异步初始化缓存服务
       await VideoCacheService.instance.initialize();
 
@@ -57,7 +66,7 @@ class _MyAppState extends State<MyApp> {
         });
       }
     } catch (e) {
-      print('Failed to initialize cache services: $e');
+      print('Failed to initialize services: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
