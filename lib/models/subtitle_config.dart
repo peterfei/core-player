@@ -86,12 +86,14 @@ class SubtitleConfig {
       backgroundOpacity: (json['backgroundOpacity'] as num?)?.toDouble() ?? 0.5,
       outlineColor: json['outlineColor'] as int? ?? 0xFF000000,
       outlineWidth: (json['outlineWidth'] as num?)?.toDouble() ?? 2.0,
-      position: _parsePosition(json['position'] as String?) ?? SubtitlePosition.bottom,
+      position: _parsePosition(json['position'] as String?) ??
+          SubtitlePosition.bottom,
       delayMs: json['delayMs'] as int? ?? 0,
       autoLoad: json['autoLoad'] as bool? ?? true,
       preferredLanguages: (json['preferredLanguages'] as List<dynamic>?)
-          ?.map((e) => e.toString())
-          .toList() ?? ['zh', 'zh-CN', 'zh-TW', 'en'],
+              ?.map((e) => e.toString())
+              .toList() ??
+          ['zh', 'zh-CN', 'zh-TW', 'en'],
       preferredEncoding: json['preferredEncoding'] as String? ?? 'UTF-8',
     );
   }
@@ -181,9 +183,9 @@ class SubtitleConfig {
   /// 创建 ARGB 颜色值
   static int createARGB(int alpha, int red, int green, int blue) {
     return ((alpha & 0xFF) << 24) |
-           ((red & 0xFF) << 16) |
-           ((green & 0xFF) << 8) |
-           (blue & 0xFF);
+        ((red & 0xFF) << 16) |
+        ((green & 0xFF) << 8) |
+        (blue & 0xFF);
   }
 
   /// 预设的字体颜色
@@ -200,7 +202,19 @@ class SubtitleConfig {
 
   /// 预设的字体大小
   static const List<double> presetFontSizes = [
-    24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0
+    24.0,
+    28.0,
+    32.0,
+    36.0,
+    40.0,
+    44.0,
+    48.0,
+    52.0,
+    56.0,
+    60.0,
+    64.0,
+    68.0,
+    72.0
   ];
 
   /// 预设的语言偏好

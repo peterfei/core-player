@@ -9,6 +9,8 @@ import 'package:yinghe_player/widgets/url_input_dialog.dart';
 import 'package:yinghe_player/services/history_service.dart';
 import 'package:yinghe_player/services/cache_test_service.dart';
 
+import 'package:yinghe_player/services/cache_test_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -18,7 +20,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late TabController _tabController;
-  final GlobalKey<HistoryListWidgetRefreshableState> _historyListKey = GlobalKey<HistoryListWidgetRefreshableState>();
+  final GlobalKey<HistoryListWidgetRefreshableState> _historyListKey =
+      GlobalKey<HistoryListWidgetRefreshableState>();
 
   @override
   void initState() {
@@ -36,16 +39,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final url = await showUrlInputDialog(context);
     if (url != null) {
       // 导航到播放器播放网络视频
-      Navigator.of(context).push(
+      Navigator.of(context)
+          .push(
         MaterialPageRoute(
           builder: (context) => PlayerScreen.network(videoPath: url),
         ),
-      ).then((_) {
+      )
+          .then((_) {
         // 播放完成后刷新历史列表
         _historyListKey.currentState?.refreshHistories();
       });
     }
   }
+
   Future<void> _pickAndPlayVideo() async {
     // Pick a file
     FilePickerResult? result = await FilePicker.platform.pickFiles(

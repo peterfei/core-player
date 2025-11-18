@@ -41,6 +41,7 @@ class SimpleThumbnailService {
     int width = 320,
     int height = 180,
     double seekSeconds = 1.0,
+    String? securityBookmark,
   }) async {
     try {
       print('=== 开始生成缩略图 ===');
@@ -86,6 +87,7 @@ class SimpleThumbnailService {
             timeInSeconds: seekSeconds,
             width: width,
             height: height,
+            securityBookmark: securityBookmark,
           );
 
           if (nativeFrame != null && nativeFrame.isNotEmpty) {
@@ -104,7 +106,8 @@ class SimpleThumbnailService {
       // macOS和Linux: 尝试FFmpeg
       if (Platform.isMacOS || Platform.isLinux) {
         print('${Platform.isMacOS ? 'macOS' : 'Linux'}: 尝试使用FFmpeg生成缩略图...');
-        final success = await _trySystemFFmpeg(videoPath, thumbnailPath, width, height, seekSeconds);
+        final success = await _trySystemFFmpeg(
+            videoPath, thumbnailPath, width, height, seekSeconds);
         if (success) {
           print('✅ 使用FFmpeg成功生成缩略图');
           return thumbnailPath;
@@ -114,7 +117,8 @@ class SimpleThumbnailService {
 
         // 尝试使用MediaKit提取真实视频帧
         print('尝试使用MediaKit提取真实视频帧...');
-        final mediaKitSuccess = await _tryMediaKitFrame(videoPath, thumbnailPath, width, height, seekSeconds);
+        final mediaKitSuccess = await _tryMediaKitFrame(
+            videoPath, thumbnailPath, width, height, seekSeconds);
         if (mediaKitSuccess) {
           print('✅ 使用MediaKit成功提取真实视频帧');
           return thumbnailPath;
@@ -125,7 +129,8 @@ class SimpleThumbnailService {
 
       // 尝试使用VideoPlayer提取真实视频帧
       print('尝试使用VideoPlayer提取真实视频帧...');
-      final success = await _tryVideoPlayerRealFrame(videoPath, thumbnailPath, width, height, seekSeconds);
+      final success = await _tryVideoPlayerRealFrame(
+          videoPath, thumbnailPath, width, height, seekSeconds);
       if (success) {
         print('✅ 使用VideoPlayer成功提取真实视频帧');
         return thumbnailPath;
@@ -135,7 +140,8 @@ class SimpleThumbnailService {
 
       // 尝试使用VideoPlayer获取视频信息创建占位符
       print('尝试使用VideoPlayer创建增强占位符...');
-      final placeholderSuccess = await _tryVideoPlayerPlaceholder(videoPath, thumbnailPath, width, height);
+      final placeholderSuccess = await _tryVideoPlayerPlaceholder(
+          videoPath, thumbnailPath, width, height);
       if (placeholderSuccess) {
         print('✅ 使用VideoPlayer创建增强占位符成功');
         return thumbnailPath;
@@ -148,7 +154,6 @@ class SimpleThumbnailService {
       await _createBasicPlaceholder(thumbnailPath, videoPath, width, height);
       print('✅ 基础占位符创建完成');
       return thumbnailPath;
-
     } catch (e) {
       print('❌ 生成缩略图失败: $e');
       return null;
@@ -172,11 +177,16 @@ class SimpleThumbnailService {
 
       // FFmpeg命令参数
       final arguments = [
-        '-i', videoPath,
-        '-ss', seekSeconds.toStringAsFixed(2),
-        '-vframes', '1',
-        '-vf', 'scale=$width:$height',
-        '-q:v', '5',
+        '-i',
+        videoPath,
+        '-ss',
+        seekSeconds.toStringAsFixed(2),
+        '-vframes',
+        '1',
+        '-vf',
+        'scale=$width:$height',
+        '-q:v',
+        '5',
         '-y',
         thumbnailPath
       ];
@@ -238,7 +248,8 @@ class SimpleThumbnailService {
         return false;
       }
 
-      print('视频信息: 分辨率=${videoController.size}, 时长=${videoController.duration}');
+      print(
+          '视频信息: 分辨率=${videoController.size}, 时长=${videoController.duration}');
 
       // 跳转到指定时间点
       await controller.seekTo(Duration(seconds: seekSeconds.toInt()));
@@ -296,7 +307,8 @@ class SimpleThumbnailService {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
 
       // 绘制视频内容模拟区域
-      final roundedRect = RRect.fromRectAndRadius(videoRect, const Radius.circular(8));
+      final roundedRect =
+          RRect.fromRectAndRadius(videoRect, const Radius.circular(8));
       canvas.drawRRect(roundedRect, videoPaint);
 
       // 添加视频边框
@@ -320,8 +332,7 @@ class SimpleThumbnailService {
         buttonShadowPaint,
       );
 
-      final buttonPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.9);
+      final buttonPaint = Paint()..color = Colors.white.withValues(alpha: 0.9);
       canvas.drawCircle(Offset(centerX, centerY), buttonRadius, buttonPaint);
 
       // 播放三角形图标
@@ -331,9 +342,9 @@ class SimpleThumbnailService {
 
       final iconSize = buttonRadius * 0.6;
       final path = Path()
-        ..moveTo(centerX - iconSize/3, centerY - iconSize/2)
-        ..lineTo(centerX - iconSize/3, centerY + iconSize/2)
-        ..lineTo(centerX + iconSize/2, centerY)
+        ..moveTo(centerX - iconSize / 3, centerY - iconSize / 2)
+        ..lineTo(centerX - iconSize / 3, centerY + iconSize / 2)
+        ..lineTo(centerX + iconSize / 2, centerY)
         ..close();
       canvas.drawPath(path, iconPaint);
 
@@ -347,7 +358,8 @@ class SimpleThumbnailService {
         final seconds = totalSeconds % 60;
 
         if (hours > 0) {
-          durationText = '${hours}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+          durationText =
+              '${hours}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
         } else {
           durationText = '${minutes}:${seconds.toString().padLeft(2, '0')}';
         }
@@ -364,9 +376,11 @@ class SimpleThumbnailService {
           } else if (fileSize < 1024 * 1024) {
             fileSizeText = '${(fileSize / 1024).toStringAsFixed(1)} KB';
           } else if (fileSize < 1024 * 1024 * 1024) {
-            fileSizeText = '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+            fileSizeText =
+                '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
           } else {
-            fileSizeText = '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+            fileSizeText =
+                '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
           }
         }
       } catch (e) {
@@ -375,7 +389,9 @@ class SimpleThumbnailService {
 
       // 添加视频信息
       final videoName = HistoryService.extractVideoName(videoPath);
-      final displayName = videoName.length > 20 ? '${videoName.substring(0, 17)}...' : videoName;
+      final displayName = videoName.length > 20
+          ? '${videoName.substring(0, 17)}...'
+          : videoName;
 
       // 创建更详细的信息显示
       final infoPainter = TextPainter(
@@ -412,7 +428,8 @@ class SimpleThumbnailService {
                 ),
               ),
             TextSpan(
-              text: '\n📐 ${videoController.size.width.toInt()}×${videoController.size.height.toInt()}',
+              text:
+                  '\n📐 ${videoController.size.width.toInt()}×${videoController.size.height.toInt()}',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 10,
@@ -500,7 +517,8 @@ class SimpleThumbnailService {
       await controller.dispose();
 
       // 创建增强的基于视频信息的占位符
-      await _createEnhancedVideoInfoPlaceholder(thumbnailPath, videoName, width, height, duration, size);
+      await _createEnhancedVideoInfoPlaceholder(
+          thumbnailPath, videoName, width, height, duration, size);
       print('✅ 增强VideoPlayer占位符创建成功');
       return true;
     } catch (e) {
@@ -541,8 +559,7 @@ class SimpleThumbnailService {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
     // 绘制半透明遮罩
-    final overlayPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.2);
+    final overlayPaint = Paint()..color = Colors.black.withValues(alpha: 0.2);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), overlayPaint);
 
     // 绘制网格纹理
@@ -575,8 +592,7 @@ class SimpleThumbnailService {
     );
 
     // 播放按钮背景
-    final buttonPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.9);
+    final buttonPaint = Paint()..color = Colors.white.withValues(alpha: 0.9);
     canvas.drawCircle(Offset(centerX, centerY), buttonRadius, buttonPaint);
 
     // 播放三角形
@@ -586,15 +602,14 @@ class SimpleThumbnailService {
 
     final iconSize = buttonRadius * 0.6;
     final path = Path()
-      ..moveTo(centerX - iconSize/3, centerY - iconSize/2)
-      ..lineTo(centerX - iconSize/3, centerY + iconSize/2)
-      ..lineTo(centerX + iconSize/2, centerY)
+      ..moveTo(centerX - iconSize / 3, centerY - iconSize / 2)
+      ..lineTo(centerX - iconSize / 3, centerY + iconSize / 2)
+      ..lineTo(centerX + iconSize / 2, centerY)
       ..close();
     canvas.drawPath(path, iconPaint);
 
     // 添加视频信息面板
-    final panelPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.7);
+    final panelPaint = Paint()..color = Colors.black.withValues(alpha: 0.7);
     final panelRect = Rect.fromLTWH(8, size.height - 50, size.width - 16, 42);
     final rrect = RRect.fromRectAndRadius(panelRect, const Radius.circular(6));
     canvas.drawRRect(rrect, panelPaint);
@@ -623,7 +638,8 @@ class SimpleThumbnailService {
     namePainter.paint(canvas, Offset(16, size.height - 45));
 
     // 添加分辨率信息
-    final resolutionText = '${videoSize.width.toInt()}×${videoSize.height.toInt()}';
+    final resolutionText =
+        '${videoSize.width.toInt()}×${videoSize.height.toInt()}';
     final resolutionPainter = TextPainter(
       text: TextSpan(
         text: resolutionText,
@@ -661,7 +677,8 @@ class SimpleThumbnailService {
     );
 
     durationPainter.layout();
-    durationPainter.paint(canvas, Offset(size.width - durationPainter.width - 16, size.height - 32));
+    durationPainter.paint(canvas,
+        Offset(size.width - durationPainter.width - 16, size.height - 32));
 
     // 添加视频类型标签
     final typeLabel = 'VIDEO';
@@ -717,11 +734,13 @@ class SimpleThumbnailService {
     int height,
   ) async {
     final videoName = HistoryService.extractVideoName(videoPath);
-    await _createVideoInfoPlaceholder(thumbnailPath, videoName, width, height, Duration.zero);
+    await _createVideoInfoPlaceholder(
+        thumbnailPath, videoName, width, height, Duration.zero);
   }
 
   /// Web平台缩略图生成
-  static Future<String?> _generateWebThumbnail(String videoPath, int width, int height) async {
+  static Future<String?> _generateWebThumbnail(
+      String videoPath, int width, int height) async {
     try {
       final videoName = HistoryService.extractVideoName(videoPath);
       final bytes = await _generateWebPlaceholder(videoName, width, height);
@@ -734,7 +753,8 @@ class SimpleThumbnailService {
   }
 
   /// Web平台占位符生成
-  static Future<Uint8List> _generateWebPlaceholder(String videoName, int width, int height) async {
+  static Future<Uint8List> _generateWebPlaceholder(
+      String videoName, int width, int height) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final size = Size(width.toDouble(), height.toDouble());
@@ -761,7 +781,8 @@ class SimpleThumbnailService {
   }
 
   /// 获取缩略图路径
-  static Future<String> _getThumbnailPath(String videoPath, int width, int height) async {
+  static Future<String> _getThumbnailPath(
+      String videoPath, int width, int height) async {
     final thumbnailsDir = await _thumbnailsDirectory;
     final pathHash = videoPath.hashCode.abs();
     final fileName = '${pathHash}_${width}x${height}.jpg';
@@ -840,7 +861,8 @@ class SimpleThumbnailService {
   static String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -878,7 +900,8 @@ class SimpleThumbnailService {
       // 对于macOS，尝试恢复文件访问权限
       if (MacOSBookmarkService.isSupported && securityBookmark != null) {
         print('尝试使用书签恢复访问权限');
-        final restoredPath = await MacOSBookmarkService.tryRestoreAccess(videoPath);
+        final restoredPath =
+            await MacOSBookmarkService.tryRestoreAccess(videoPath);
         if (restoredPath == null) {
           print('❌ 无法恢复文件访问权限，使用占位符');
           return null;
@@ -886,7 +909,8 @@ class SimpleThumbnailService {
       }
 
       // 生成缓存路径
-      final thumbnailPath = await _getCacheThumbnailPath(historyId, width, height);
+      final thumbnailPath =
+          await _getCacheThumbnailPath(historyId, width, height);
       print('缓存缩略图路径: $thumbnailPath');
 
       // 检查缓存是否已存在
@@ -907,6 +931,7 @@ class SimpleThumbnailService {
         width: width,
         height: height,
         seekSeconds: seekSeconds,
+        securityBookmark: securityBookmark,
       );
 
       if (generatedPath != null) {
@@ -931,16 +956,19 @@ class SimpleThumbnailService {
   }
 
   /// 获取缓存缩略图路径
-  static Future<String> _getCacheThumbnailPath(String historyId, int width, int height) async {
+  static Future<String> _getCacheThumbnailPath(
+      String historyId, int width, int height) async {
     final thumbnailsDir = await _thumbnailsDirectory;
     final fileName = '${historyId}_${width}x${height}.jpg';
     return path.join(thumbnailsDir.path, fileName);
   }
 
   /// 检查是否有缓存的缩略图
-  static Future<bool> hasCachedThumbnail(String historyId, {int width = 320, int height = 180}) async {
+  static Future<bool> hasCachedThumbnail(String historyId,
+      {int width = 320, int height = 180}) async {
     try {
-      final thumbnailPath = await _getCacheThumbnailPath(historyId, width, height);
+      final thumbnailPath =
+          await _getCacheThumbnailPath(historyId, width, height);
       return await File(thumbnailPath).exists();
     } catch (e) {
       return false;
@@ -948,9 +976,11 @@ class SimpleThumbnailService {
   }
 
   /// 获取缓存的缩略图路径
-  static Future<String?> getCachedThumbnailPath(String historyId, {int width = 320, int height = 180}) async {
+  static Future<String?> getCachedThumbnailPath(String historyId,
+      {int width = 320, int height = 180}) async {
     try {
-      final thumbnailPath = await _getCacheThumbnailPath(historyId, width, height);
+      final thumbnailPath =
+          await _getCacheThumbnailPath(historyId, width, height);
       if (await File(thumbnailPath).exists()) {
         return thumbnailPath;
       }
@@ -1049,7 +1079,8 @@ class SimpleThumbnailService {
       }
 
       // 其他情况，尝试生成占位符
-      final placeholderPath = await _getCacheThumbnailPath(history.id, width, height);
+      final placeholderPath =
+          await _getCacheThumbnailPath(history.id, width, height);
       await _createVideoInfoPlaceholder(
         placeholderPath,
         HistoryService.extractVideoName(history.videoPath),
@@ -1106,15 +1137,15 @@ class SimpleThumbnailService {
       print('跳转到时间点: ${finalSeekSeconds}s');
       await player.seek(Duration(seconds: finalSeekSeconds.toInt()));
 
-      // 等待跳转完成和视频稳定
-      print('等待视频稳定...');
-      await Future.delayed(const Duration(milliseconds: 1500));
+      // 关键修改：播放一小段确保帧被渲染
+      print('开始播放以渲染视频帧...');
+      await player.play();
+      await Future.delayed(const Duration(milliseconds: 500));
 
-      // 确保视频正在播放或已暂停
-      if (player.state.playing) {
-        await player.pause();
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+      // 暂停以获取稳定的帧
+      await player.pause();
+      print('已暂停，等待帧稳定...');
+      await Future.delayed(const Duration(milliseconds: 800));
 
       // 多次尝试截图，因为有时第一次可能失败
       Uint8List? frame;
@@ -1129,8 +1160,12 @@ class SimpleThumbnailService {
             print('✅ MediaKit截图生成成功，大小: ${frame.length} bytes');
             break;
           } else {
-            print('截图为空，等待后重试...');
-            await Future.delayed(const Duration(milliseconds: 1000));
+            print('截图为空，尝试再播放一小段...');
+            // 如果截图为空，再播放一小段
+            await player.play();
+            await Future.delayed(const Duration(milliseconds: 300));
+            await player.pause();
+            await Future.delayed(const Duration(milliseconds: 500));
           }
         } catch (e) {
           print('截图异常: $e');

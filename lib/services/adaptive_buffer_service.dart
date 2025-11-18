@@ -6,7 +6,8 @@ import 'bandwidth_monitor_service.dart';
 
 /// 自适应缓冲策略服务
 class AdaptiveBufferService {
-  static final AdaptiveBufferService _instance = AdaptiveBufferService._internal();
+  static final AdaptiveBufferService _instance =
+      AdaptiveBufferService._internal();
   factory AdaptiveBufferService() => _instance;
   AdaptiveBufferService._internal();
 
@@ -84,7 +85,8 @@ class AdaptiveBufferService {
   }
 
   /// 创建平衡策略配置
-  BufferConfig _createBalancedConfig(NetworkQuality quality, double bandwidth, double stability) {
+  BufferConfig _createBalancedConfig(
+      NetworkQuality quality, double bandwidth, double stability) {
     Duration targetBuffer;
     int bufferSize;
     Duration prebufferDuration;
@@ -123,20 +125,24 @@ class AdaptiveBufferService {
         minBuffer: Duration(seconds: (targetBuffer.inSeconds * 0.3).round()),
         maxBuffer: Duration(seconds: (targetBuffer.inSeconds * 2).round()),
         targetBuffer: targetBuffer,
-        rebufferTrigger: Duration(seconds: (targetBuffer.inSeconds * 0.1).round()),
+        rebufferTrigger:
+            Duration(seconds: (targetBuffer.inSeconds * 0.1).round()),
         bufferSizeMB: bufferSize,
       ),
       preload: PreloadStrategy(
         prebufferDuration: prebufferDuration,
-        enableBackgroundPreload: quality == NetworkQuality.excellent || quality == NetworkQuality.good,
-        lowPowerPrebuffer: Duration(seconds: (prebufferDuration.inSeconds * 0.6).round()),
+        enableBackgroundPreload: quality == NetworkQuality.excellent ||
+            quality == NetworkQuality.good,
+        lowPowerPrebuffer:
+            Duration(seconds: (prebufferDuration.inSeconds * 0.6).round()),
       ),
       autoAdjust: false,
     );
   }
 
   /// 创建激进策略配置
-  BufferConfig _createAggressiveConfig(NetworkQuality quality, double bandwidth, double stability) {
+  BufferConfig _createAggressiveConfig(
+      NetworkQuality quality, double bandwidth, double stability) {
     Duration targetBuffer;
     int bufferSize;
     Duration prebufferDuration;
@@ -172,7 +178,8 @@ class AdaptiveBufferService {
   }
 
   /// 创建自适应策略配置
-  BufferConfig _createAdaptiveConfig(NetworkQuality quality, double bandwidth, double stability) {
+  BufferConfig _createAdaptiveConfig(
+      NetworkQuality quality, double bandwidth, double stability) {
     // 基于带宽计算基础缓冲要求
     Duration baseTargetBuffer = _calculateTargetBufferFromBandwidth(bandwidth);
 
@@ -183,7 +190,9 @@ class AdaptiveBufferService {
     double qualityFactor = _getQualityFactor(quality);
 
     Duration adjustedTargetBuffer = Duration(
-      milliseconds: (baseTargetBuffer.inMilliseconds * stabilityFactor * qualityFactor).round(),
+      milliseconds:
+          (baseTargetBuffer.inMilliseconds * stabilityFactor * qualityFactor)
+              .round(),
     );
 
     // 限制缓冲范围
@@ -193,21 +202,27 @@ class AdaptiveBufferService {
 
     // 计算其他参数
     final bufferSize = _calculateBufferSize(adjustedTargetBuffer, bandwidth);
-    final prebufferDuration = _calculatePrebufferDuration(adjustedTargetBuffer, quality);
+    final prebufferDuration =
+        _calculatePrebufferDuration(adjustedTargetBuffer, quality);
 
     return BufferConfig(
       strategy: BufferStrategy.adaptive,
       thresholds: BufferThresholds(
-        minBuffer: Duration(seconds: max(3, (adjustedTargetBuffer.inSeconds * 0.2).round())),
-        maxBuffer: Duration(seconds: max(15, (adjustedTargetBuffer.inSeconds * 1.5).round())),
+        minBuffer: Duration(
+            seconds: max(3, (adjustedTargetBuffer.inSeconds * 0.2).round())),
+        maxBuffer: Duration(
+            seconds: max(15, (adjustedTargetBuffer.inSeconds * 1.5).round())),
         targetBuffer: adjustedTargetBuffer,
-        rebufferTrigger: Duration(seconds: max(1, (adjustedTargetBuffer.inSeconds * 0.15).round())),
+        rebufferTrigger: Duration(
+            seconds: max(1, (adjustedTargetBuffer.inSeconds * 0.15).round())),
         bufferSizeMB: bufferSize,
       ),
       preload: PreloadStrategy(
         prebufferDuration: prebufferDuration,
-        enableBackgroundPreload: quality.index <= NetworkQuality.good.index && stability > 0.7,
-        lowPowerPrebuffer: Duration(seconds: max(2, (prebufferDuration.inSeconds * 0.5).round())),
+        enableBackgroundPreload:
+            quality.index <= NetworkQuality.good.index && stability > 0.7,
+        lowPowerPrebuffer: Duration(
+            seconds: max(2, (prebufferDuration.inSeconds * 0.5).round())),
       ),
       autoAdjust: true,
     );
@@ -218,15 +233,20 @@ class AdaptiveBufferService {
     if (bandwidth <= 0) return const Duration(seconds: 30);
 
     // 高速网络减少缓冲，低速网络增加缓冲
-    if (bandwidth >= 10000000) { // >10 Mbps
+    if (bandwidth >= 10000000) {
+      // >10 Mbps
       return const Duration(seconds: 10);
-    } else if (bandwidth >= 5000000) { // 5-10 Mbps
+    } else if (bandwidth >= 5000000) {
+      // 5-10 Mbps
       return const Duration(seconds: 20);
-    } else if (bandwidth >= 2000000) { // 2-5 Mbps
+    } else if (bandwidth >= 2000000) {
+      // 2-5 Mbps
       return const Duration(seconds: 30);
-    } else if (bandwidth >= 1000000) { // 1-2 Mbps
+    } else if (bandwidth >= 1000000) {
+      // 1-2 Mbps
       return const Duration(seconds: 45);
-    } else { // <1 Mbps
+    } else {
+      // <1 Mbps
       return const Duration(seconds: 60);
     }
   }
@@ -250,7 +270,8 @@ class AdaptiveBufferService {
   /// 计算缓冲区大小
   int _calculateBufferSize(Duration targetBuffer, double bandwidth) {
     // 基于目标缓冲时长和带宽计算最小缓冲区大小
-    final minBufferSize = (bandwidth * targetBuffer.inSeconds / 8) / (1024 * 1024); // MB
+    final minBufferSize =
+        (bandwidth * targetBuffer.inSeconds / 8) / (1024 * 1024); // MB
 
     // 应用最小值和最大值限制
     final finalBufferSize = max(10, min(100, minBufferSize));
@@ -259,7 +280,8 @@ class AdaptiveBufferService {
   }
 
   /// 计算预缓冲时长
-  Duration _calculatePrebufferDuration(Duration targetBuffer, NetworkQuality quality) {
+  Duration _calculatePrebufferDuration(
+      Duration targetBuffer, NetworkQuality quality) {
     double ratio;
     switch (quality) {
       case NetworkQuality.excellent:
@@ -323,10 +345,13 @@ class AdaptiveBufferService {
   }
 
   /// 监控缓冲健康状态
-  BufferHealth getBufferHealth(Duration bufferedDuration, Duration targetBuffer) {
+  BufferHealth getBufferHealth(
+      Duration bufferedDuration, Duration targetBuffer) {
     if (bufferedDuration.inSeconds < 2) return BufferHealth.critical;
-    if (bufferedDuration.inSeconds < targetBuffer.inSeconds * 0.3) return BufferHealth.warning;
-    if (bufferedDuration.inSeconds < targetBuffer.inSeconds * 0.8) return BufferHealth.healthy;
+    if (bufferedDuration.inSeconds < targetBuffer.inSeconds * 0.3)
+      return BufferHealth.warning;
+    if (bufferedDuration.inSeconds < targetBuffer.inSeconds * 0.8)
+      return BufferHealth.healthy;
     return BufferHealth.excellent;
   }
 
@@ -335,7 +360,8 @@ class AdaptiveBufferService {
     if (bandwidth <= 0) return currentBuffer;
 
     // 基于历史数据和当前状况预测
-    final predictedBandwidth = _bandwidthMonitor.predictBandwidth(const Duration(seconds: 30));
+    final predictedBandwidth =
+        _bandwidthMonitor.predictBandwidth(const Duration(seconds: 30));
 
     // 如果预测带宽低于当前，增加缓冲需求
     if (predictedBandwidth < bandwidth) {

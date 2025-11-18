@@ -274,8 +274,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
                           subtitle: const Text('保存已播放的视频到本地存储'),
                           value: _config.isEnabled,
                           onChanged: (value) async {
-                            final newConfig = _config.copyWith(isEnabled: value);
-                            await VideoCacheService.instance.updateConfig(newConfig);
+                            final newConfig =
+                                _config.copyWith(isEnabled: value);
+                            await VideoCacheService.instance
+                                .updateConfig(newConfig);
                             setState(() {
                               _config = newConfig;
                             });
@@ -294,8 +296,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
                           max: 10 * 1024 * 1024 * 1024, // 10GB
                           divisions: 20,
                           onChanged: (value) async {
-                            final newConfig = _config.copyWith(maxSizeBytes: value.round());
-                            await VideoCacheService.instance.updateConfig(newConfig);
+                            final newConfig =
+                                _config.copyWith(maxSizeBytes: value.round());
+                            await VideoCacheService.instance
+                                .updateConfig(newConfig);
                             setState(() {
                               _config = newConfig;
                             });
@@ -316,8 +320,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
                           groupValue: _config.strategy,
                           onChanged: (value) async {
                             if (value != null) {
-                              final newConfig = _config.copyWith(strategy: value);
-                              await VideoCacheService.instance.updateConfig(newConfig);
+                              final newConfig =
+                                  _config.copyWith(strategy: value);
+                              await VideoCacheService.instance
+                                  .updateConfig(newConfig);
                               setState(() {
                                 _config = newConfig;
                               });
@@ -331,8 +337,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
                           groupValue: _config.strategy,
                           onChanged: (value) async {
                             if (value != null) {
-                              final newConfig = _config.copyWith(strategy: value);
-                              await VideoCacheService.instance.updateConfig(newConfig);
+                              final newConfig =
+                                  _config.copyWith(strategy: value);
+                              await VideoCacheService.instance
+                                  .updateConfig(newConfig);
                               setState(() {
                                 _config = newConfig;
                               });
@@ -346,8 +354,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
                           groupValue: _config.strategy,
                           onChanged: (value) async {
                             if (value != null) {
-                              final newConfig = _config.copyWith(strategy: value);
-                              await VideoCacheService.instance.updateConfig(newConfig);
+                              final newConfig =
+                                  _config.copyWith(strategy: value);
+                              await VideoCacheService.instance
+                                  .updateConfig(newConfig);
                               setState(() {
                                 _config = newConfig;
                               });
@@ -361,8 +371,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
                           subtitle: const Text('在移动网络下也会缓存视频'),
                           value: _config.allowCellular,
                           onChanged: (value) async {
-                            final newConfig = _config.copyWith(allowCellular: value);
-                            await VideoCacheService.instance.updateConfig(newConfig);
+                            final newConfig =
+                                _config.copyWith(allowCellular: value);
+                            await VideoCacheService.instance
+                                .updateConfig(newConfig);
                             setState(() {
                               _config = newConfig;
                             });
@@ -375,8 +387,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
                           subtitle: Text('自动清理超过${_config.maxAgeDays}天的缓存'),
                           value: _config.autoCleanup,
                           onChanged: (value) async {
-                            final newConfig = _config.copyWith(autoCleanup: value);
-                            await VideoCacheService.instance.updateConfig(newConfig);
+                            final newConfig =
+                                _config.copyWith(autoCleanup: value);
+                            await VideoCacheService.instance
+                                .updateConfig(newConfig);
                             setState(() {
                               _config = newConfig;
                             });
@@ -594,7 +608,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
               const SizedBox(height: 8),
               Text('文件大小: ${_formatFileSize(entry.fileSize)}'),
               const SizedBox(height: 8),
-              Text('下载进度: ${(entry.downloadProgress * 100).toStringAsFixed(1)}%'),
+              Text(
+                  '下载进度: ${(entry.downloadProgress * 100).toStringAsFixed(1)}%'),
               const SizedBox(height: 8),
               Text('创建时间: ${_formatDateTime(entry.createdAt)}'),
               const SizedBox(height: 8),
@@ -627,7 +642,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 

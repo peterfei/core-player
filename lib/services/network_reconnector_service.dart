@@ -7,7 +7,8 @@ import 'bandwidth_monitor_service.dart';
 
 /// 网络重连服务
 class NetworkReconnectorService {
-  static final NetworkReconnectorService _instance = NetworkReconnectorService._internal();
+  static final NetworkReconnectorService _instance =
+      NetworkReconnectorService._internal();
   factory NetworkReconnectorService() => _instance;
   NetworkReconnectorService._internal();
 
@@ -30,14 +31,15 @@ class NetworkReconnectorService {
   Player? _player;
   String? _currentUrl;
   Duration? _checkpointPosition; // 断点位置
-  bool _wasPlaying = false;       // 断开时是否在播放
+  bool _wasPlaying = false; // 断开时是否在播放
 
   // 定时器
   Timer? _reconnectTimer;
   Timer? _healthCheckTimer;
 
   // 事件回调
-  final StreamController<ConnectionStatus> _statusController = StreamController<ConnectionStatus>.broadcast();
+  final StreamController<ConnectionStatus> _statusController =
+      StreamController<ConnectionStatus>.broadcast();
 
   /// 获取连接状态流
   Stream<ConnectionStatus> get statusStream => _statusController.stream;
@@ -255,7 +257,8 @@ class NetworkReconnectorService {
 
       // 检查是否长时间卡顿
       if (_connectionStatus.state == ConnectionState.connected) {
-        final timeSinceLastUpdate = DateTime.now().difference(_connectionStatus.timestamp);
+        final timeSinceLastUpdate =
+            DateTime.now().difference(_connectionStatus.timestamp);
 
         // 如果超过15秒没有更新且播放器在播放，可能有问题
         if (isPlaying && timeSinceLastUpdate.inSeconds > 15) {
@@ -274,7 +277,6 @@ class NetworkReconnectorService {
         ConnectionState.connected,
         '播放正常',
       );
-
     } catch (e) {
       print('Health check error: $e');
     }

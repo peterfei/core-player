@@ -9,7 +9,8 @@ import 'bandwidth_monitor_service.dart';
 
 /// 流质量服务
 class StreamQualityService {
-  static final StreamQualityService _instance = StreamQualityService._internal();
+  static final StreamQualityService _instance =
+      StreamQualityService._internal();
   factory StreamQualityService() => _instance;
   StreamQualityService._internal();
 
@@ -17,13 +18,13 @@ class StreamQualityService {
 
   // 质量等级定义
   static const List<QualityLevel> _defaultQualities = [
-    QualityLevel.p2160,  // 4K
-    QualityLevel.p1440,  // 1440p
-    QualityLevel.p1080,  // 1080p
-    QualityLevel.p720,   // 720p
-    QualityLevel.p480,   // 480p
-    QualityLevel.p360,   // 360p
-    QualityLevel.auto,   // 自动
+    QualityLevel.p2160, // 4K
+    QualityLevel.p1440, // 1440p
+    QualityLevel.p1080, // 1080p
+    QualityLevel.p720, // 720p
+    QualityLevel.p480, // 480p
+    QualityLevel.p360, // 360p
+    QualityLevel.auto, // 自动
   ];
 
   List<QualityLevel> _availableQualities = [];
@@ -43,10 +44,12 @@ class StreamQualityService {
       StreamController<QualityChangeEvent>.broadcast();
 
   /// 获取质量变化事件流
-  Stream<QualityChangeEvent> get qualityChangeStream => _qualityChangeController.stream;
+  Stream<QualityChangeEvent> get qualityChangeStream =>
+      _qualityChangeController.stream;
 
   /// 获取可用质量列表
-  List<QualityLevel> get availableQualities => UnmodifiableListView(_availableQualities);
+  List<QualityLevel> get availableQualities =>
+      UnmodifiableListView(_availableQualities);
 
   /// 获取当前质量
   QualityLevel get currentQuality => _currentQuality;
@@ -75,7 +78,8 @@ class StreamQualityService {
     }
 
     print('Stream quality service initialized for: $url');
-    print('Available qualities: ${_availableQualities.map((q) => q.name).join(', ')}');
+    print(
+        'Available qualities: ${_availableQualities.map((q) => q.name).join(', ')}');
   }
 
   /// 检测流类型
@@ -105,7 +109,6 @@ class StreamQualityService {
 
       final manifest = response.body;
       _parseHlsContent(manifest, url);
-
     } catch (e) {
       print('Error parsing HLS manifest: $e');
       // 解析失败时使用默认质量
@@ -133,7 +136,8 @@ class StreamQualityService {
         }
 
         // 解析分辨率
-        final resolutionMatch = RegExp(r'RESOLUTION=(\d+x\d+)').firstMatch(line);
+        final resolutionMatch =
+            RegExp(r'RESOLUTION=(\d+x\d+)').firstMatch(line);
         if (resolutionMatch != null) {
           resolution = resolutionMatch.group(1);
         }
@@ -150,8 +154,13 @@ class StreamQualityService {
     // 添加自动模式
     qualities.add(QualityLevel.auto);
 
-    _availableQualities = qualities.toList()..sort((a, b) => b.height.compareTo(a.height));
-    _streamManifest = {'type': 'hls', 'parsed': true, 'qualities': qualities.length};
+    _availableQualities = qualities.toList()
+      ..sort((a, b) => b.height.compareTo(a.height));
+    _streamManifest = {
+      'type': 'hls',
+      'parsed': true,
+      'qualities': qualities.length
+    };
   }
 
   /// 根据 HLS 信息确定质量等级
@@ -168,12 +177,12 @@ class StreamQualityService {
     }
 
     if (bandwidth != null) {
-      if (bandwidth >= 20000000) return QualityLevel.p2160;  // 20 Mbps
-      if (bandwidth >= 10000000) return QualityLevel.p1440;  // 10 Mbps
-      if (bandwidth >= 5000000) return QualityLevel.p1080;   // 5 Mbps
-      if (bandwidth >= 2500000) return QualityLevel.p720;    // 2.5 Mbps
-      if (bandwidth >= 1000000) return QualityLevel.p480;    // 1 Mbps
-      if (bandwidth >= 500000) return QualityLevel.p360;     // 0.5 Mbps
+      if (bandwidth >= 20000000) return QualityLevel.p2160; // 20 Mbps
+      if (bandwidth >= 10000000) return QualityLevel.p1440; // 10 Mbps
+      if (bandwidth >= 5000000) return QualityLevel.p1080; // 5 Mbps
+      if (bandwidth >= 2500000) return QualityLevel.p720; // 2.5 Mbps
+      if (bandwidth >= 1000000) return QualityLevel.p480; // 1 Mbps
+      if (bandwidth >= 500000) return QualityLevel.p360; // 0.5 Mbps
     }
 
     return QualityLevel.auto;
@@ -189,7 +198,6 @@ class StreamQualityService {
 
       final manifest = response.body;
       _parseDashContent(manifest);
-
     } catch (e) {
       print('Error parsing DASH manifest: $e');
       // 解析失败时使用默认质量
@@ -203,7 +211,8 @@ class StreamQualityService {
     final qualities = <QualityLevel>{};
 
     // 查找质量信息（简化版本）
-    final qualityMatches = RegExp(r'qualityLevels=\[(.*?)\]').allMatches(content);
+    final qualityMatches =
+        RegExp(r'qualityLevels=\[(.*?)\]').allMatches(content);
 
     for (var match in qualityMatches) {
       final qualityStr = match.group(1)!;
@@ -213,7 +222,11 @@ class StreamQualityService {
 
     // 添加默认质量
     _availableQualities = List.from(_defaultQualities);
-    _streamManifest = {'type': 'dash', 'parsed': true, 'qualities': _availableQualities.length};
+    _streamManifest = {
+      'type': 'dash',
+      'parsed': true,
+      'qualities': _availableQualities.length
+    };
   }
 
   /// 设置 ABR 算法
@@ -284,7 +297,8 @@ class StreamQualityService {
         timestamp: DateTime.now(),
       ));
 
-      print('Auto-selected quality: ${selectedQuality.name} (${stats.currentBandwidth.toInt()} bps)');
+      print(
+          'Auto-selected quality: ${selectedQuality.name} (${stats.currentBandwidth.toInt()} bps)');
     }
   }
 
@@ -448,9 +462,9 @@ class StreamQualityService {
 /// 流类型
 enum StreamType {
   unknown,
-  direct,    // 直接视频文件
-  hls,       // HTTP Live Streaming
-  dash,      // Dynamic Adaptive Streaming over HTTP
+  direct, // 直接视频文件
+  hls, // HTTP Live Streaming
+  dash, // Dynamic Adaptive Streaming over HTTP
 }
 
 /// 质量变化事件
@@ -484,10 +498,10 @@ class QualityChangeEvent {
 
 /// 质量变化原因
 enum ChangeReason {
-  manual,     // 手动切换
-  adaptive,   // 自适应切换
-  network,    // 网络变化
-  buffer,     // 缓冲问题
+  manual, // 手动切换
+  adaptive, // 自适应切换
+  network, // 网络变化
+  buffer, // 缓冲问题
 }
 
 /// 扩展 QualityLevel 枚举

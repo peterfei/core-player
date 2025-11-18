@@ -4,9 +4,25 @@ import 'package:yinghe_player/screens/home_screen.dart';
 import 'package:yinghe_player/services/video_cache_service.dart';
 import 'package:yinghe_player/services/local_proxy_server.dart';
 
+import 'package:yinghe_player/services/codec_info_service.dart';
+import 'package:yinghe_player/services/system_codec_detector_service.dart';
+
 void main() {
   // Initialize media_kit
   MediaKit.ensureInitialized();
+
+  // 捕获 Flutter 框架错误(包括键盘事件错误)
+  FlutterError.onError = (FlutterErrorDetails details) {
+    // 过滤键盘事件相关错误
+    if (details.exception.toString().contains('KeyDownEvent') &&
+        details.exception.toString().contains('already pressed')) {
+      // 静默处理键盘事件错误,减少控制台噪音
+      return;
+    }
+
+    // 其他错误正常处理
+    FlutterError.dumpErrorToConsole(details);
+  };
 
   runApp(const MyApp());
 }
@@ -32,6 +48,12 @@ class _MyAppState extends State<MyApp> {
     try {
       WidgetsFlutterBinding.ensureInitialized();
 
+      // Initialize services
+      await CodecInfoService.instance.initialize();
+      final codecDetector = SystemCodecDetectorService();
+      final codecs = await codecDetector.detectSupportedCodecs();
+      await CodecInfoService.instance.updateCodecInfoCache(codecs);
+
       // 异步初始化缓存服务
       await VideoCacheService.instance.initialize();
 
@@ -44,7 +66,7 @@ class _MyAppState extends State<MyApp> {
         });
       }
     } catch (e) {
-      print('Failed to initialize cache services: $e');
+      print('Failed to initialize services: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();

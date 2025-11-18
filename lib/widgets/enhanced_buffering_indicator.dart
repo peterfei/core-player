@@ -5,10 +5,10 @@ import '../models/network_stats.dart';
 /// 增强版缓冲指示器
 class EnhancedBufferingIndicator extends StatelessWidget {
   final bool isBuffering;
-  final double bufferProgress;      // 0-100%
+  final double bufferProgress; // 0-100%
   final Duration bufferedDuration;
-  final double downloadSpeed;       // 当前下载速度
-  final BufferHealth health;        // 缓冲健康状态
+  final double downloadSpeed; // 当前下载速度
+  final BufferHealth health; // 缓冲健康状态
   final NetworkQuality networkQuality;
   final String? message;
   final Color? backgroundColor;
@@ -336,7 +336,8 @@ class MiniEnhancedBufferingIndicator extends StatelessWidget {
             child: CircularProgressIndicator(
               strokeWidth: 2,
               backgroundColor: Colors.white.withOpacity(0.2),
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.4)),
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.4)),
             ),
           ),
 
@@ -352,7 +353,8 @@ class MiniEnhancedBufferingIndicator extends StatelessWidget {
           ),
 
           // 健康状态点
-          if (health != BufferHealth.healthy && health != BufferHealth.excellent)
+          if (health != BufferHealth.healthy &&
+              health != BufferHealth.excellent)
             Container(
               width: size * 0.3,
               height: size * 0.3,

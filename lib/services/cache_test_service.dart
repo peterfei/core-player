@@ -18,7 +18,8 @@ class CacheTestService {
       // 测试2: 配置加载
       debugPrint('2. 测试配置加载...');
       final config = cacheService.config;
-      debugPrint('✅ 配置加载成功: 启用=${config.isEnabled}, 最大大小=${config.maxSizeBytes}');
+      debugPrint(
+          '✅ 配置加载成功: 启用=${config.isEnabled}, 最大大小=${config.maxSizeBytes}');
 
       // 测试3: 缓存统计
       debugPrint('3. 测试缓存统计...');
@@ -72,11 +73,13 @@ class CacheTestService {
   static Future<bool> testHttpDownload() async {
     try {
       final client = HttpClient();
-      final request = await client.getUrl(Uri.parse('https://httpbin.org/bytes/1024')); // 1KB测试数据
+      final request = await client
+          .getUrl(Uri.parse('https://httpbin.org/bytes/1024')); // 1KB测试数据
       final response = await request.close();
 
       if (response.statusCode == 200) {
-        final data = await response.fold<List<int>>([], (list, chunk) => list..addAll(chunk));
+        final data = await response
+            .fold<List<int>>([], (list, chunk) => list..addAll(chunk));
         debugPrint('✅ HTTP下载测试成功，下载了${data.length}字节');
         return true;
       } else {

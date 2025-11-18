@@ -38,7 +38,7 @@ class StreamInfo {
     } else if (url.toLowerCase().contains('.mpd')) {
       return 'dash';
     } else if (url.toLowerCase().startsWith('http://') ||
-               url.toLowerCase().startsWith('https://')) {
+        url.toLowerCase().startsWith('https://')) {
       return 'http';
     } else {
       return 'unknown';
@@ -71,9 +71,10 @@ class StreamInfo {
   static bool _isValidUrl(String url) {
     try {
       final uri = Uri.parse(url);
-      return (uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https')) ||
-             uri.path.endsWith('.m3u8') ||
-             uri.path.endsWith('.mpd');
+      return (uri.hasScheme &&
+              (uri.scheme == 'http' || uri.scheme == 'https')) ||
+          uri.path.endsWith('.m3u8') ||
+          uri.path.endsWith('.mpd');
     } catch (e) {
       return false;
     }

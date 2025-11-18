@@ -63,7 +63,9 @@ class _QualitySelectorState extends State<QualitySelector> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    widget.autoMode ? Icons.auto_fix_high : _getQualityIcon(widget.currentQuality),
+                    widget.autoMode
+                        ? Icons.auto_fix_high
+                        : _getQualityIcon(widget.currentQuality),
                     size: widget.iconSize ?? 16,
                     color: color,
                   ),
@@ -148,19 +150,26 @@ class _QualitySelectorState extends State<QualitySelector> {
 
   Widget _buildQualityOptions(Color color) {
     final qualities = widget.enableAutoMode
-        ? [QualityLevel.auto, ...widget.availableQualities.where((q) => q != QualityLevel.auto)]
-        : widget.availableQualities.where((q) => q != QualityLevel.auto).toList();
+        ? [
+            QualityLevel.auto,
+            ...widget.availableQualities.where((q) => q != QualityLevel.auto)
+          ]
+        : widget.availableQualities
+            .where((q) => q != QualityLevel.auto)
+            .toList();
 
     return Wrap(
       spacing: 6,
       runSpacing: 6,
-      children: qualities.map((quality) => _buildQualityChip(quality, color)).toList(),
+      children: qualities
+          .map((quality) => _buildQualityChip(quality, color))
+          .toList(),
     );
   }
 
   Widget _buildQualityChip(QualityLevel quality, Color color) {
     final isSelected = (quality == QualityLevel.auto && widget.autoMode) ||
-                      (quality != QualityLevel.auto && quality == widget.currentQuality);
+        (quality != QualityLevel.auto && quality == widget.currentQuality);
 
     return InkWell(
       onTap: () {
@@ -190,7 +199,8 @@ class _QualitySelectorState extends State<QualitySelector> {
             Text(
               quality.displayName,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
+                color:
+                    isSelected ? Colors.white : Colors.white.withOpacity(0.7),
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
@@ -205,7 +215,9 @@ class _QualitySelectorState extends State<QualitySelector> {
     return Wrap(
       spacing: 6,
       runSpacing: 6,
-      children: AbrAlgorithm.values.map((algorithm) => _buildAlgorithmChip(algorithm, color)).toList(),
+      children: AbrAlgorithm.values
+          .map((algorithm) => _buildAlgorithmChip(algorithm, color))
+          .toList(),
     );
   }
 
@@ -404,7 +416,9 @@ class CompactQualitySelector extends StatelessWidget {
                       Icon(
                         quality.icon,
                         size: 18,
-                        color: (!autoMode && quality == currentQuality) ? color : Colors.grey,
+                        color: (!autoMode && quality == currentQuality)
+                            ? color
+                            : Colors.grey,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -414,8 +428,13 @@ class CompactQualitySelector extends StatelessWidget {
                             Text(
                               quality.displayName,
                               style: TextStyle(
-                                color: (!autoMode && quality == currentQuality) ? color : null,
-                                fontWeight: (!autoMode && quality == currentQuality) ? FontWeight.w600 : null,
+                                color: (!autoMode && quality == currentQuality)
+                                    ? color
+                                    : null,
+                                fontWeight:
+                                    (!autoMode && quality == currentQuality)
+                                        ? FontWeight.w600
+                                        : null,
                               ),
                             ),
                             Text(

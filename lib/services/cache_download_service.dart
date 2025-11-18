@@ -36,7 +36,8 @@ class CacheDownloadService {
   final StreamController<DownloadProgress> _globalProgressController =
       StreamController<DownloadProgress>.broadcast();
 
-  Stream<DownloadProgress> get globalProgressStream => _globalProgressController.stream;
+  Stream<DownloadProgress> get globalProgressStream =>
+      _globalProgressController.stream;
 
   Stream<List<int>> downloadAndCache(String url, {String? title}) async* {
     // 检查是否已有缓存
@@ -56,7 +57,8 @@ class CacheDownloadService {
     final resumeFromByte = partialEntry?.downloadedBytes ?? 0;
 
     // 创建或获取缓存文件路径
-    final filePath = partialEntry?.localPath ?? await cacheService.createCacheFile(url, title: title);
+    final filePath = partialEntry?.localPath ??
+        await cacheService.createCacheFile(url, title: title);
 
     // 如果已在下载中，等待其完成
     if (_activeDownloads.containsKey(url)) {
@@ -89,7 +91,8 @@ class CacheDownloadService {
     }
   }
 
-  Stream<List<int>> _streamFromFileWithProgress(String filePath, DownloadTask task) async* {
+  Stream<List<int>> _streamFromFileWithProgress(
+      String filePath, DownloadTask task) async* {
     final file = File(filePath);
     int lastReportedSize = 0;
 
@@ -170,13 +173,17 @@ class CacheDownloadService {
           final newRequest = http.Request('GET', Uri.parse(url));
           final newResponse = await client.send(newRequest);
           if (newResponse.statusCode != 200) {
-            throw Exception('HTTP ${newResponse.statusCode}: Failed to download');
+            throw Exception(
+                'HTTP ${newResponse.statusCode}: Failed to download');
           }
-          await _processStreamedResponse(newResponse, randomAccessFile, task, url, 0);
+          await _processStreamedResponse(
+              newResponse, randomAccessFile, task, url, 0);
         } else if (streamedResponse.statusCode != 200 && resumeFromByte == 0) {
-          throw Exception('HTTP ${streamedResponse.statusCode}: Failed to download');
+          throw Exception(
+              'HTTP ${streamedResponse.statusCode}: Failed to download');
         } else {
-          await _processStreamedResponse(streamedResponse, randomAccessFile, task, url, resumeFromByte);
+          await _processStreamedResponse(
+              streamedResponse, randomAccessFile, task, url, resumeFromByte);
         }
 
         client.close();
@@ -188,7 +195,6 @@ class CacheDownloadService {
       // 获取文件大小并标记缓存完成
       final fileSize = await file.length();
       await cacheService.markCacheComplete(url, fileSize);
-
     } catch (e) {
       task.completer.completeError(e);
 
@@ -230,8 +236,10 @@ class CacheDownloadService {
 
       // 每500ms更新一次进度
       if (currentTime - lastProgressTime >= 500) {
-        final elapsedTime = (currentTime - startTime.millisecondsSinceEpoch) / 1000;
-        final speed = elapsedTime > 0 ? task.downloadedBytes / elapsedTime : 0.0;
+        final elapsedTime =
+            (currentTime - startTime.millisecondsSinceEpoch) / 1000;
+        final speed =
+            elapsedTime > 0 ? task.downloadedBytes / elapsedTime : 0.0;
 
         final progress = DownloadProgress(
           url: task.url,

@@ -81,10 +81,13 @@ class SettingsService {
   static Future<Map<String, dynamic>> getAllSettings() async {
     final prefs = await SharedPreferences.getInstance();
     return {
-      'historyEnabled': prefs.getBool(_historyEnabledKey) ?? _defaultHistoryEnabled,
-      'maxHistoryCount': prefs.getInt(_maxHistoryCountKey) ?? _defaultMaxHistoryCount,
+      'historyEnabled':
+          prefs.getBool(_historyEnabledKey) ?? _defaultHistoryEnabled,
+      'maxHistoryCount':
+          prefs.getInt(_maxHistoryCountKey) ?? _defaultMaxHistoryCount,
       'autoCleanDays': prefs.getInt(_autoCleanDaysKey) ?? _defaultAutoCleanDays,
-      'thumbnailsEnabled': prefs.getBool(_thumbnailsEnabledKey) ?? _defaultThumbnailsEnabled,
+      'thumbnailsEnabled':
+          prefs.getBool(_thumbnailsEnabledKey) ?? _defaultThumbnailsEnabled,
     };
   }
 

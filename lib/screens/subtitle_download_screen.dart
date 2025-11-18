@@ -19,7 +19,8 @@ class SubtitleDownloadScreen extends StatefulWidget {
 }
 
 class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
-  final SubtitleDownloadService _downloadService = SubtitleDownloadService.instance;
+  final SubtitleDownloadService _downloadService =
+      SubtitleDownloadService.instance;
   final SubtitleService _subtitleService = SubtitleService.instance;
   final TextEditingController _searchController = TextEditingController();
 
@@ -308,7 +309,8 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     );
   }
 
-  Widget _buildSubtitleResultCard(SubtitleSearchResult result, bool isDownloading) {
+  Widget _buildSubtitleResultCard(
+      SubtitleSearchResult result, bool isDownloading) {
     return Card(
       color: Colors.grey[900],
       margin: const EdgeInsets.only(bottom: 12),
@@ -334,7 +336,8 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _getRatingColor(result.rating),
                     borderRadius: BorderRadius.circular(12),
@@ -384,14 +387,16 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isDownloading ? null : () => _downloadSubtitle(result),
+                onPressed:
+                    isDownloading ? null : () => _downloadSubtitle(result),
                 icon: isDownloading
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : const Icon(Icons.download),

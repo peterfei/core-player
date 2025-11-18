@@ -6,7 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// macOS Security-Scoped Bookmarks 服务
 /// 用于管理macOS平台上的文件访问权限持久化
 class MacOSBookmarkService {
-  static const MethodChannel _channel = MethodChannel('com.example.vidhub/bookmarks');
+  static const MethodChannel _channel =
+      MethodChannel('com.example.vidhub/bookmarks');
   static const String _bookmarksStorageKey = 'macos_file_bookmarks';
   static const String _bookmarksVersionKey = 'macos_bookmarks_version';
 
@@ -69,7 +70,8 @@ class MacOSBookmarkService {
   ///
   /// [bookmarkData] Base64编码的书签数据
   /// 返回 恢复的文件路径，失败时返回null
-  static Future<String?> startAccessingSecurityScopedResource(String bookmarkData) async {
+  static Future<String?> startAccessingSecurityScopedResource(
+      String bookmarkData) async {
     if (!isSupported) return null;
 
     try {
@@ -98,7 +100,8 @@ class MacOSBookmarkService {
   /// 停止访问特定文件
   ///
   /// [filePath] 文件路径
-  static Future<void> stopAccessingSecurityScopedResource(String filePath) async {
+  static Future<void> stopAccessingSecurityScopedResource(
+      String filePath) async {
     if (!isSupported) return;
 
     try {
@@ -168,8 +171,7 @@ class MacOSBookmarkService {
       if (bookmarks == null) return null;
 
       final bookmarksMap = Map<String, String>.from(
-        jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>
-      );
+          jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>);
       return bookmarksMap[filePath];
     } catch (e) {
       print('⚠️ 获取缓存书签失败: $e');
@@ -178,7 +180,8 @@ class MacOSBookmarkService {
   }
 
   /// 缓存 bookmark 数据
-  static Future<void> _cacheBookmark(String filePath, String bookmarkData) async {
+  static Future<void> _cacheBookmark(
+      String filePath, String bookmarkData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String bookmarks = prefs.getString(_bookmarksStorageKey) ?? '{}';
@@ -186,8 +189,7 @@ class MacOSBookmarkService {
       Map<String, String> bookmarksMap = {};
       try {
         bookmarksMap = Map<String, String>.from(
-          jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>
-        );
+            jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>);
       } catch (e) {
         // 如果解析失败，使用空map
       }
@@ -195,9 +197,7 @@ class MacOSBookmarkService {
       bookmarksMap[filePath] = bookmarkData;
 
       // 将Map编码为JSON字符串存储
-      final jsonString = Uri.encodeComponent(
-        jsonEncode(bookmarksMap)
-      );
+      final jsonString = Uri.encodeComponent(jsonEncode(bookmarksMap));
       await prefs.setString(_bookmarksStorageKey, jsonString);
 
       print('✅ 书签数据已缓存');
@@ -216,8 +216,7 @@ class MacOSBookmarkService {
       Map<String, String> bookmarksMap = {};
       try {
         bookmarksMap = Map<String, String>.from(
-          jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>
-        );
+            jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>);
       } catch (e) {
         // 如果解析失败，直接返回
         return;
@@ -226,8 +225,7 @@ class MacOSBookmarkService {
       bookmarksMap.remove(filePath);
 
       final jsonString = Uri.encodeComponent(
-        Map<String, dynamic>.from(bookmarksMap).toString()
-      );
+          Map<String, dynamic>.from(bookmarksMap).toString());
       await prefs.setString(_bookmarksStorageKey, jsonString);
 
       print('✅ 已移除缓存的书签数据');
@@ -260,8 +258,7 @@ class MacOSBookmarkService {
       Map<String, String> bookmarksMap = {};
       try {
         bookmarksMap = Map<String, String>.from(
-          jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>
-        );
+            jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>);
       } catch (e) {
         return {'count': 0, 'totalSize': 0};
       }
@@ -286,7 +283,8 @@ class MacOSBookmarkService {
   static String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -304,7 +302,8 @@ class MacOSBookmarkService {
       }
 
       // 恢复访问权限
-      final restoredPath = await startAccessingSecurityScopedResource(bookmarkData);
+      final restoredPath =
+          await startAccessingSecurityScopedResource(bookmarkData);
       if (restoredPath != null) {
         return restoredPath;
       } else {

@@ -39,11 +39,13 @@ class LocalProxyServer {
           .addHandler(router);
 
       // 启动服务器（带超时）
-      _server = await shelf_io.serve(
-        handler,
-        InternetAddress.loopbackIPv4,
-        _port,
-      ).timeout(Duration(seconds: 5));
+      _server = await shelf_io
+          .serve(
+            handler,
+            InternetAddress.loopbackIPv4,
+            _port,
+          )
+          .timeout(Duration(seconds: 5));
 
       _isRunning = true;
       print('Local proxy server started on http://localhost:$_port');
@@ -173,7 +175,8 @@ class LocalProxyServer {
     }
   }
 
-  Future<Response> _handleRemoteDownloadWithCache(Request request, String originalUrl) async {
+  Future<Response> _handleRemoteDownloadWithCache(
+      Request request, String originalUrl) async {
     try {
       final cacheService = VideoCacheService.instance;
       final config = cacheService.config;
@@ -256,7 +259,8 @@ class LocalProxyServer {
     }
   }
 
-  Future<Response> _handleRangeRequest(File file, String rangeHeader, int fileSize) async {
+  Future<Response> _handleRangeRequest(
+      File file, String rangeHeader, int fileSize) async {
     try {
       // 解析范围头
       final ranges = _parseRangeHeader(rangeHeader, fileSize);
@@ -341,7 +345,8 @@ class LocalProxyServer {
     try {
       final cacheService = VideoCacheService.instance;
       final stats = await cacheService.getStats();
-      final activeDownloads = CacheDownloadService.instance.getActiveDownloads();
+      final activeDownloads =
+          CacheDownloadService.instance.getActiveDownloads();
 
       final statusData = {
         'cacheStats': stats.toJson(),
@@ -368,7 +373,8 @@ class LocalProxyServer {
           headers: {
             'access-control-allow-origin': '*',
             'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'access-control-allow-headers': 'Content-Type, Authorization, Range',
+            'access-control-allow-headers':
+                'Content-Type, Authorization, Range',
             'access-control-max-age': '86400',
           },
         );

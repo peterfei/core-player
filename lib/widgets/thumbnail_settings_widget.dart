@@ -6,7 +6,8 @@ class ThumbnailSettingsWidget extends StatefulWidget {
   const ThumbnailSettingsWidget({super.key});
 
   @override
-  State<ThumbnailSettingsWidget> createState() => _ThumbnailSettingsWidgetState();
+  State<ThumbnailSettingsWidget> createState() =>
+      _ThumbnailSettingsWidgetState();
 }
 
 class _ThumbnailSettingsWidgetState extends State<ThumbnailSettingsWidget> {
@@ -37,7 +38,8 @@ class _ThumbnailSettingsWidgetState extends State<ThumbnailSettingsWidget> {
   Future<void> _saveSettings() async {
     // 保存设置到SharedPreferences
     // 实际实现中需要添加相应的保存方法
-    print('保存缩略图设置: 质量=$_selectedQuality, 位置=$_selectedPosition, GIF=$_enableGif');
+    print(
+        '保存缩略图设置: 质量=$_selectedQuality, 位置=$_selectedPosition, GIF=$_enableGif');
   }
 
   @override
@@ -82,19 +84,20 @@ class _ThumbnailSettingsWidgetState extends State<ThumbnailSettingsWidget> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              ...ThumbnailQuality.values.map((quality) => RadioListTile<ThumbnailQuality>(
-                title: Text(quality.label),
-                value: quality,
-                groupValue: _selectedQuality,
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedQuality = value;
-                    });
-                    _saveSettings();
-                  }
-                },
-              )),
+              ...ThumbnailQuality.values
+                  .map((quality) => RadioListTile<ThumbnailQuality>(
+                        title: Text(quality.label),
+                        value: quality,
+                        groupValue: _selectedQuality,
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _selectedQuality = value;
+                            });
+                            _saveSettings();
+                          }
+                        },
+                      )),
 
               // 截取位置设置
               const SizedBox(height: 16),
@@ -103,19 +106,20 @@ class _ThumbnailSettingsWidgetState extends State<ThumbnailSettingsWidget> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              ...ThumbnailPosition.values.map((position) => RadioListTile<ThumbnailPosition>(
-                title: Text(position.label),
-                value: position,
-                groupValue: _selectedPosition,
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedPosition = value;
-                    });
-                    _saveSettings();
-                  }
-                },
-              )),
+              ...ThumbnailPosition.values
+                  .map((position) => RadioListTile<ThumbnailPosition>(
+                        title: Text(position.label),
+                        value: position,
+                        groupValue: _selectedPosition,
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _selectedPosition = value;
+                            });
+                            _saveSettings();
+                          }
+                        },
+                      )),
 
               // GIF设置
               const SizedBox(height: 16),
@@ -203,29 +207,30 @@ class _ThumbnailSettingsWidgetState extends State<ThumbnailSettingsWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('当前平台支持的功能：', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('当前平台支持的功能：',
+              style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           ...features.entries.map((entry) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Icon(
-                  entry.value ? Icons.check_circle : Icons.cancel,
-                  color: entry.value ? Colors.green : Colors.red,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _getFeatureDisplayName(entry.key),
-                    style: TextStyle(
-                      color: entry.value ? null : Colors.grey,
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(
+                      entry.value ? Icons.check_circle : Icons.cancel,
+                      color: entry.value ? Colors.green : Colors.red,
+                      size: 16,
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _getFeatureDisplayName(entry.key),
+                        style: TextStyle(
+                          color: entry.value ? null : Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          )),
+              )),
           if (_useMemoryCache) ...[
             const SizedBox(height: 8),
             Text('内存缓存: ${EnhancedThumbnailService.memoryCacheSize} 项'),

@@ -55,7 +55,8 @@ class VideoCacheService {
       _cacheDirectory = Directory(path.join(appDir.path, 'video_cache'));
 
       if (!await _cacheDirectory.exists()) {
-        await _cacheDirectory.create(recursive: true)
+        await _cacheDirectory
+            .create(recursive: true)
             .timeout(Duration(seconds: 5));
       }
 
@@ -89,7 +90,9 @@ class VideoCacheService {
     final cacheKey = _generateCacheKey(url);
     final entry = _cacheBox.get(cacheKey);
 
-    if (entry != null && entry.isComplete && await File(entry.localPath).exists()) {
+    if (entry != null &&
+        entry.isComplete &&
+        await File(entry.localPath).exists()) {
       entry.updateAccess();
       return entry.localPath;
     }
@@ -147,7 +150,8 @@ class VideoCacheService {
     return filePath;
   }
 
-  Future<void> updateCacheProgress(String url, int downloadedBytes, {int? totalBytes}) async {
+  Future<void> updateCacheProgress(String url, int downloadedBytes,
+      {int? totalBytes}) async {
     await _ensureInitialized();
 
     final cacheKey = _generateCacheKey(url);
@@ -173,7 +177,9 @@ class VideoCacheService {
     }
   }
 
-  Future<void> markCacheComplete(String url, int totalSize, {
+  Future<void> markCacheComplete(
+    String url,
+    int totalSize, {
     String? thumbnail,
     Duration? duration,
   }) async {
@@ -206,7 +212,8 @@ class VideoCacheService {
     await _ensureInitialized();
 
     // 清理过期条目
-    final cutoffDate = DateTime.now().subtract(Duration(days: _config.maxAgeDays));
+    final cutoffDate =
+        DateTime.now().subtract(Duration(days: _config.maxAgeDays));
     final expiredEntries = _cacheBox.values
         .where((entry) => entry.createdAt.isBefore(cutoffDate))
         .toList();
@@ -284,7 +291,8 @@ class VideoCacheService {
 
     final entries = _cacheBox.values.toList();
     final totalEntries = entries.length;
-    final totalSize = entries.fold<int>(0, (sum, entry) => sum + entry.downloadedBytes);
+    final totalSize =
+        entries.fold<int>(0, (sum, entry) => sum + entry.downloadedBytes);
     final completedEntries = entries.where((entry) => entry.isComplete).length;
     final partialEntries = totalEntries - completedEntries;
 
@@ -303,18 +311,14 @@ class VideoCacheService {
   Future<List<CacheEntry>> getAllCachedVideos() async {
     await _ensureInitialized();
 
-    return _cacheBox.values
-        .where((entry) => entry.isComplete)
-        .toList()
+    return _cacheBox.values.where((entry) => entry.isComplete).toList()
       ..sort((a, b) => b.lastAccessedAt.compareTo(a.lastAccessedAt));
   }
 
   Future<List<CacheEntry>> getPartialCachedVideos() async {
     await _ensureInitialized();
 
-    return _cacheBox.values
-        .where((entry) => !entry.isComplete)
-        .toList()
+    return _cacheBox.values.where((entry) => !entry.isComplete).toList()
       ..sort((a, b) => b.lastAccessedAt.compareTo(a.lastAccessedAt));
   }
 
@@ -338,7 +342,8 @@ class VideoCacheService {
   String formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }

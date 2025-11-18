@@ -58,7 +58,8 @@ class _CacheIndicatorState extends State<CacheIndicator> {
   Future<void> _updateCacheStatus() async {
     final cacheService = VideoCacheService.instance;
     final entry = await cacheService.getCacheEntry(widget.videoUrl);
-    final isDownloading = CacheDownloadService.instance.isDownloading(widget.videoUrl);
+    final isDownloading =
+        CacheDownloadService.instance.isDownloading(widget.videoUrl);
 
     setState(() {
       _cacheEntry = entry;
@@ -78,7 +79,8 @@ class _CacheIndicatorState extends State<CacheIndicator> {
   }
 
   bool get _isCached => _cacheEntry?.isComplete ?? false;
-  bool get _isPartiallyCached => (_cacheEntry != null && !_isCached) || _isDownloading;
+  bool get _isPartiallyCached =>
+      (_cacheEntry != null && !_isCached) || _isDownloading;
   double get _downloadPercentage {
     if (_downloadProgress != null) {
       return _downloadProgress!.progressPercentage;
@@ -197,7 +199,8 @@ class _CacheIndicatorState extends State<CacheIndicator> {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }
@@ -229,7 +232,8 @@ class _CacheControlButtonState extends State<CacheControlButton> {
   Future<void> _updateStatus() async {
     final cacheService = VideoCacheService.instance;
     final entry = await cacheService.getCacheEntry(widget.videoUrl);
-    final isDownloading = CacheDownloadService.instance.isDownloading(widget.videoUrl);
+    final isDownloading =
+        CacheDownloadService.instance.isDownloading(widget.videoUrl);
 
     setState(() {
       _cacheEntry = entry;
@@ -304,7 +308,8 @@ class _CacheControlButtonState extends State<CacheControlButton> {
     switch (value) {
       case 'download':
         try {
-          await downloadService.downloadAndCache(widget.videoUrl, title: widget.videoTitle);
+          await downloadService.downloadAndCache(widget.videoUrl,
+              title: widget.videoTitle);
           await _updateStatus();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -381,7 +386,8 @@ class _CacheControlButtonState extends State<CacheControlButton> {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
