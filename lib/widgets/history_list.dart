@@ -4,6 +4,7 @@ import '../models/playback_history.dart';
 import '../services/history_service.dart';
 import '../services/thumbnail_service.dart';
 import '../services/simple_thumbnail_service.dart';
+import '../services/macos_bookmark_service.dart';
 import '../screens/player_screen.dart';
 import 'search_history_widget.dart';
 import 'video_thumbnail.dart';
@@ -219,9 +220,32 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
         _loadHistories();
       });
     } else {
-      // 本地视频：使用文件路径播放
-      final videoFile = File(history.videoPath);
-      if (await videoFile.exists()) {
+      // 本地视频：处理macOS沙盒权限和文件访问
+      bool fileAccessible = false;
+      String? accessiblePath;
+
+      // 对于macOS，尝试使用书签恢复权限
+      if (MacOSBookmarkService.isSupported) {
+        print('🔐 尝试恢复文件访问权限: ${history.videoPath}');
+        accessiblePath = await MacOSBookmarkService.tryRestoreAccess(history.videoPath);
+        if (accessiblePath != null) {
+          fileAccessible = await MacOSBookmarkService.fileExistsAtPath(history.videoPath);
+          if (fileAccessible) {
+            print('✅ 文件访问权限恢复成功');
+          }
+        }
+      }
+
+      // 降级到常规文件检查
+      if (!fileAccessible) {
+        final videoFile = File(history.videoPath);
+        fileAccessible = await videoFile.exists();
+        accessiblePath = history.videoPath;
+      }
+
+      if (fileAccessible && accessiblePath != null) {
+        // 文件可访问，播放视频
+        final videoFile = File(accessiblePath);
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -235,16 +259,21 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
           _loadHistories();
         });
       } else {
-        // 文件不存在，提示用户
+        // 文件不存在或无法访问，提示用户
         if (mounted) {
+          String errorMessage = '视频文件 "${history.videoName}" 不存在或无法访问。\n';
+          if (MacOSBookmarkService.isSupported && history.hasSecurityBookmark) {
+            errorMessage += '可能是由于文件权限变更，请重新选择该文件。\n';
+          } else {
+            errorMessage += '可能已被移动或删除。\n';
+          }
+          errorMessage += '是否要从历史记录中删除？';
+
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('文件不存在'),
-              content: Text(
-                '视频文件 "${history.videoName}" 不存在或已被移动。\n'
-                '是否要从历史记录中删除？',
-              ),
+              title: const Text('文件无法访问'),
+              content: Text(errorMessage),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -664,11 +693,10 @@ class EnhancedHistoryItemWidget extends StatelessWidget {
 
               // 视频缩略图
               FutureBuilder<String?>(
-                future: SimpleThumbnailService.generateThumbnail(
-                  videoPath: history.videoPath,
+                future: SimpleThumbnailService.getThumbnailForHistory(
+                  history: history,
                   width: 320, // 中等质量
                   height: 180,
-                  seekSeconds: 1.0,
                 ),
                 builder: (context, snapshot) {
                   if (snapshot.hasData && snapshot.data != null) {

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/playback_history.dart';
 import '../services/thumbnail_service.dart';
 import '../services/simple_thumbnail_service.dart';
+import '../services/macos_bookmark_service.dart';
 
 class HistoryService {
   static const String _storageKey = 'playback_history';
@@ -134,7 +135,7 @@ class HistoryService {
     final validHistories = <PlaybackHistory>[];
 
     for (final history in histories) {
-      if (await _fileExists(history.videoPath)) {
+      if (await _fileExists(history)) {
         validHistories.add(history);
       }
     }
@@ -143,16 +144,37 @@ class HistoryService {
   }
 
   /// 检查文件是否存在
-  static Future<bool> _fileExists(String path) async {
+  static Future<bool> _fileExists(PlaybackHistory history) async {
     try {
       // Web 平台特殊处理
       if (kIsWeb) {
-        return path.startsWith('blob:') || path.startsWith('data:') || path.startsWith('http');
+        return history.videoPath.startsWith('blob:') ||
+               history.videoPath.startsWith('data:') ||
+               history.videoPath.startsWith('http');
       }
 
-      final file = File(path);
-      return await file.exists();
+      // 网络视频总是存在
+      if (history.isNetworkVideo) {
+        return true;
+      }
+
+      // 对于macOS本地视频，尝试使用书签恢复权限
+      if (MacOSBookmarkService.isSupported && history.isLocalVideo) {
+        // 如果有书签数据，先尝试恢复权限
+        if (history.hasSecurityBookmark) {
+          print('尝试使用书签恢复访问权限: ${history.videoPath}');
+          final restoredPath = await MacOSBookmarkService.tryRestoreAccess(history.videoPath);
+          if (restoredPath != null) {
+            return await MacOSBookmarkService.fileExistsAtPath(history.videoPath);
+          }
+          print('书签恢复失败，降级到常规检查');
+        }
+      }
+
+      // 降级到常规文件检查
+      return await MacOSBookmarkService.fileExistsAtPath(history.videoPath);
     } catch (e) {
+      print('检查文件存在性失败: ${history.videoPath} - $e');
       return false;
     }
   }
@@ -467,6 +489,11 @@ class HistoryService {
         return null;
       }
 
+      // 对于macOS，优先使用Bookmark服务获取文件大小
+      if (MacOSBookmarkService.isSupported) {
+        return await MacOSBookmarkService.fileSizeAtPath(filePath);
+      }
+
       final file = File(filePath);
       if (await file.exists()) {
         return await file.length();
@@ -474,6 +501,225 @@ class HistoryService {
       return null;
     } catch (e) {
       return null;
+    }
+  }
+
+  /// 创建带书签的历史记录（新增方法）
+  static Future<PlaybackHistory> createHistoryWithBookmark({
+    required String videoPath,
+    required String videoName,
+    required int currentPosition,
+    required int totalDuration,
+    String? thumbnailCachePath,
+    String? securityBookmark,
+    int watchCount = 1,
+    DateTime? createdAt,
+    int? fileSize,
+    String sourceType = 'local',
+    String? streamUrl,
+    String? streamProtocol,
+    bool isLiveStream = false,
+  }) async {
+    final now = DateTime.now();
+
+    // 如果是本地视频且支持书签，尝试创建安全书签
+    String? finalBookmark = securityBookmark;
+    int? finalFileSize = fileSize;
+
+    if (MacOSBookmarkService.isSupported && sourceType == 'local') {
+      // 如果没有提供书签，尝试创建
+      if (finalBookmark == null || finalBookmark.isEmpty) {
+        print('创建安全书签: $videoPath');
+        finalBookmark = await MacOSBookmarkService.createBookmark(videoPath);
+      }
+
+      // 获取文件大小
+      finalFileSize = fileSize ?? await getFileSize(videoPath);
+    }
+
+    return PlaybackHistory(
+      id: _generateId(),
+      videoPath: videoPath,
+      videoName: videoName,
+      lastPlayedAt: now,
+      currentPosition: currentPosition,
+      totalDuration: totalDuration,
+      thumbnailCachePath: thumbnailCachePath,
+      securityBookmark: finalBookmark,
+      thumbnailGeneratedAt: thumbnailCachePath != null ? now : null,
+      watchCount: watchCount,
+      createdAt: createdAt ?? now,
+      fileSize: finalFileSize,
+      sourceType: sourceType,
+      streamUrl: streamUrl,
+      streamProtocol: streamProtocol,
+      isLiveStream: isLiveStream,
+    );
+  }
+
+  /// 更新历史记录的缩略图路径
+  static Future<void> updateThumbnailPath(String historyId, String thumbnailPath) async {
+    try {
+      final histories = await getHistories();
+      final index = histories.indexWhere((h) => h.id == historyId);
+
+      if (index != -1) {
+        final history = histories[index];
+        final updatedHistory = history.copyWith(
+          thumbnailCachePath: thumbnailPath,
+          thumbnailGeneratedAt: DateTime.now(),
+        );
+
+        histories[index] = updatedHistory;
+
+        final prefs = await SharedPreferences.getInstance();
+        final historiesJson = histories.map((h) => h.toJson()).toList();
+        await prefs.setString(_storageKey, jsonEncode(historiesJson));
+
+        print('✅ 更新缩略图路径成功: ${history.videoName} -> $thumbnailPath');
+      }
+    } catch (e) {
+      print('❌ 更新缩略图路径失败: $e');
+    }
+  }
+
+  /// 更新历史记录的书签数据
+  static Future<void> updateBookmark(String historyId, String bookmarkData) async {
+    try {
+      final histories = await getHistories();
+      final index = histories.indexWhere((h) => h.id == historyId);
+
+      if (index != -1) {
+        final history = histories[index];
+        final updatedHistory = history.copyWith(
+          securityBookmark: bookmarkData,
+        );
+
+        histories[index] = updatedHistory;
+
+        final prefs = await SharedPreferences.getInstance();
+        final historiesJson = histories.map((h) => h.toJson()).toList();
+        await prefs.setString(_storageKey, jsonEncode(historiesJson));
+
+        print('✅ 更新书签数据成功: ${history.videoName}');
+      }
+    } catch (e) {
+      print('❌ 更新书签数据失败: $e');
+    }
+  }
+
+  /// 恢复文件访问权限
+  static Future<String?> restoreFileAccess(PlaybackHistory history) async {
+    if (!history.isLocalVideo || !MacOSBookmarkService.isSupported) {
+      return history.videoPath;
+    }
+
+    if (history.hasSecurityBookmark) {
+      return await MacOSBookmarkService.tryRestoreAccess(history.videoPath);
+    }
+
+    return history.videoPath;
+  }
+
+  /// 添加或更新历史记录（增强版，支持书签和缩略图）
+  static Future<void> addOrUpdateHistory({
+    required String videoPath,
+    required String videoName,
+    required int currentPosition,
+    required int totalDuration,
+    String? securityBookmark,
+    String? thumbnailCachePath,
+    int? watchCount,
+    String? sourceType,
+    String? streamUrl,
+    String? streamProtocol,
+    bool? isLiveStream,
+  }) async {
+    try {
+      final histories = await getHistories();
+      final now = DateTime.now();
+
+      // 检查是否已存在相同路径的记录
+      final existingIndex = histories.indexWhere((h) => h.videoPath == videoPath);
+
+      PlaybackHistory history;
+      if (existingIndex != -1) {
+        // 更新现有记录
+        final existingHistory = histories[existingIndex];
+        history = existingHistory.copyWith(
+          lastPlayedAt: now,
+          currentPosition: currentPosition,
+          totalDuration: totalDuration,
+          watchCount: watchCount ?? existingHistory.watchCount + 1,
+          securityBookmark: securityBookmark ?? existingHistory.securityBookmark,
+          thumbnailCachePath: thumbnailCachePath ?? existingHistory.thumbnailCachePath,
+          thumbnailGeneratedAt: thumbnailCachePath != null ? now : existingHistory.thumbnailGeneratedAt,
+        );
+
+        // 移动到最上方
+        histories.removeAt(existingIndex);
+        histories.insert(0, history);
+      } else {
+        // 创建新记录
+        history = await createHistoryWithBookmark(
+          videoPath: videoPath,
+          videoName: videoName,
+          currentPosition: currentPosition,
+          totalDuration: totalDuration,
+          securityBookmark: securityBookmark,
+          thumbnailCachePath: thumbnailCachePath,
+          watchCount: watchCount ?? 1,
+          sourceType: sourceType ?? 'local',
+          streamUrl: streamUrl,
+          streamProtocol: streamProtocol,
+          isLiveStream: isLiveStream ?? false,
+        );
+
+        histories.insert(0, history);
+      }
+
+      // 限制历史记录数量
+      if (histories.length > _maxHistoryCount) {
+        histories.removeRange(_maxHistoryCount, histories.length);
+      }
+
+      // 清理过期记录
+      _cleanExpiredHistories(histories);
+
+      // 保存到本地存储
+      final prefs = await SharedPreferences.getInstance();
+      final historiesJson = histories.map((h) => h.toJson()).toList();
+      await prefs.setString(_storageKey, jsonEncode(historiesJson));
+
+      print('✅ 保存播放历史成功: $videoName');
+    } catch (e) {
+      print('❌ 保存播放历史失败: $e');
+    }
+  }
+
+  /// 清理无效的缩略图缓存
+  static Future<void> cleanupInvalidThumbnails() async {
+    try {
+      final histories = await getHistories();
+      int cleanedCount = 0;
+
+      for (final history in histories) {
+        // 检查缓存缩略图是否存在
+        if (history.thumbnailCachePath != null) {
+          final thumbnailFile = File(history.thumbnailCachePath!);
+          if (!await thumbnailFile.exists()) {
+            // 缩略图文件不存在，更新历史记录
+            await updateThumbnailPath(history.id, '');
+            cleanedCount++;
+          }
+        }
+      }
+
+      if (cleanedCount > 0) {
+        print('✅ 清理了 $cleanedCount 个无效的缩略图引用');
+      }
+    } catch (e) {
+      print('❌ 清理无效缩略图失败: $e');
     }
   }
 }

@@ -6,10 +6,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'settings_service.dart';
 import 'history_service.dart';
+import 'macos_bookmark_service.dart';
+import 'native_video_capture_service.dart';
+import '../models/playback_history.dart';
 
 class SimpleThumbnailService {
   static const String _cacheDir = 'thumbnails';
@@ -73,6 +77,30 @@ class SimpleThumbnailService {
         return thumbnailPath;
       }
 
+      // macOS: 优先尝试原生AVFoundation视频帧捕获
+      if (Platform.isMacOS) {
+        print('🎯 尝试原生AVFoundation视频帧捕获（最高优先级）...');
+        try {
+          final nativeFrame = await NativeVideoCaptureService.captureVideoFrame(
+            videoPath: videoPath,
+            timeInSeconds: seekSeconds,
+            width: width,
+            height: height,
+          );
+
+          if (nativeFrame != null && nativeFrame.isNotEmpty) {
+            await File(thumbnailPath).writeAsBytes(nativeFrame);
+            final fileSize = await File(thumbnailPath).length();
+            print('✅ 原生AVFoundation缩略图生成成功 ($fileSize bytes)');
+            return thumbnailPath;
+          } else {
+            print('⚠️ 原生AVFoundation捕获失败，继续尝试FFmpeg...');
+          }
+        } catch (e) {
+          print('⚠️ 原生AVFoundation捕获异常: $e，继续尝试FFmpeg...');
+        }
+      }
+
       // macOS和Linux: 尝试FFmpeg
       if (Platform.isMacOS || Platform.isLinux) {
         print('${Platform.isMacOS ? 'macOS' : 'Linux'}: 尝试使用FFmpeg生成缩略图...');
@@ -81,15 +109,35 @@ class SimpleThumbnailService {
           print('✅ 使用FFmpeg成功生成缩略图');
           return thumbnailPath;
         } else {
-          print('❌ FFmpeg生成缩略图失败');
+          print('❌ FFmpeg生成缩略图失败，尝试MediaKit真实帧截图');
+        }
+
+        // 尝试使用MediaKit提取真实视频帧
+        print('尝试使用MediaKit提取真实视频帧...');
+        final mediaKitSuccess = await _tryMediaKitFrame(videoPath, thumbnailPath, width, height, seekSeconds);
+        if (mediaKitSuccess) {
+          print('✅ 使用MediaKit成功提取真实视频帧');
+          return thumbnailPath;
+        } else {
+          print('❌ MediaKit帧提取失败，尝试VideoPlayer增强渲染');
         }
       }
 
-      // 尝试使用VideoPlayer获取视频信息创建占位符
-      print('尝试使用VideoPlayer创建占位符...');
-      final success = await _tryVideoPlayerPlaceholder(videoPath, thumbnailPath, width, height);
+      // 尝试使用VideoPlayer提取真实视频帧
+      print('尝试使用VideoPlayer提取真实视频帧...');
+      final success = await _tryVideoPlayerRealFrame(videoPath, thumbnailPath, width, height, seekSeconds);
       if (success) {
-        print('✅ 使用VideoPlayer创建占位符成功');
+        print('✅ 使用VideoPlayer成功提取真实视频帧');
+        return thumbnailPath;
+      } else {
+        print('❌ VideoPlayer提取真实帧失败，降级到增强占位符');
+      }
+
+      // 尝试使用VideoPlayer获取视频信息创建占位符
+      print('尝试使用VideoPlayer创建增强占位符...');
+      final placeholderSuccess = await _tryVideoPlayerPlaceholder(videoPath, thumbnailPath, width, height);
+      if (placeholderSuccess) {
+        print('✅ 使用VideoPlayer创建增强占位符成功');
         return thumbnailPath;
       } else {
         print('❌ VideoPlayer创建占位符失败');
@@ -160,6 +208,271 @@ class SimpleThumbnailService {
         print('⚠️  FFmpeg权限不足（macOS沙盒限制），将使用占位符');
       } else {
         print('⚠️  FFmpeg执行异常: $e，将使用占位符');
+      }
+      return false;
+    }
+  }
+
+  /// 使用VideoPlayer和video_texture提取真实视频帧
+  static Future<bool> _tryVideoPlayerRealFrame(
+    String videoPath,
+    String thumbnailPath,
+    int width,
+    int height,
+    double seekSeconds,
+  ) async {
+    try {
+      print('使用VideoPlayer提取真实视频帧开始...');
+
+      final controller = VideoPlayerController.file(File(videoPath));
+
+      // 初始化控制器
+      await controller.initialize();
+      print('VideoPlayer控制器初始化成功');
+
+      // 获取视频信息
+      final videoController = controller.value;
+      if (videoController.size.isEmpty) {
+        print('❌ 视频尺寸为空');
+        await controller.dispose();
+        return false;
+      }
+
+      print('视频信息: 分辨率=${videoController.size}, 时长=${videoController.duration}');
+
+      // 跳转到指定时间点
+      await controller.seekTo(Duration(seconds: seekSeconds.toInt()));
+      print('跳转到时间点: ${seekSeconds}s');
+
+      // 等待跳转完成
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // 创建高质量的缩略图
+      final pictureRecorder = ui.PictureRecorder();
+      final canvas = Canvas(pictureRecorder);
+      final size = Size(width.toDouble(), height.toDouble());
+
+      // 计算缩放比例，保持视频宽高比
+      final videoAspectRatio = videoController.size.aspectRatio;
+      final targetAspectRatio = width / height;
+
+      double videoWidth, videoHeight;
+      if (videoAspectRatio > targetAspectRatio) {
+        // 视频更宽，以宽度为准
+        videoWidth = size.width;
+        videoHeight = videoWidth / videoAspectRatio;
+      } else {
+        // 视频更高，以高度为准
+        videoHeight = size.height;
+        videoWidth = videoHeight * videoAspectRatio;
+      }
+
+      final videoRect = Rect.fromLTWH(
+        (size.width - videoWidth) / 2,
+        (size.height - videoHeight) / 2,
+        videoWidth,
+        videoHeight,
+      );
+
+      // 绘制黑色背景
+      final bgPaint = Paint()..color = Colors.black;
+      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
+
+      // 创建渐变背景来模拟视频内容
+      final gradient = ui.Gradient.radial(
+        Offset(size.width * 0.5, size.height * 0.5),
+        size.width * 0.6,
+        [
+          Colors.blue.withValues(alpha: 0.6),
+          Colors.purple.withValues(alpha: 0.4),
+          Colors.black.withValues(alpha: 0.8),
+        ],
+        [0.0, 0.7, 1.0],
+        TileMode.mirror,
+      );
+
+      final videoPaint = Paint()
+        ..shader = gradient
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+
+      // 绘制视频内容模拟区域
+      final roundedRect = RRect.fromRectAndRadius(videoRect, const Radius.circular(8));
+      canvas.drawRRect(roundedRect, videoPaint);
+
+      // 添加视频边框
+      final borderPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.2)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      canvas.drawRRect(roundedRect, borderPaint);
+
+      // 添加播放按钮
+      final centerX = size.width / 2;
+      final centerY = size.height / 2;
+      final buttonRadius = width * 0.15;
+
+      final buttonShadowPaint = Paint()
+        ..color = Colors.black.withValues(alpha: 0.5)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      canvas.drawCircle(
+        Offset(centerX + 3, centerY + 3),
+        buttonRadius,
+        buttonShadowPaint,
+      );
+
+      final buttonPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.9);
+      canvas.drawCircle(Offset(centerX, centerY), buttonRadius, buttonPaint);
+
+      // 播放三角形图标
+      final iconPaint = Paint()
+        ..color = Colors.black87
+        ..style = PaintingStyle.fill;
+
+      final iconSize = buttonRadius * 0.6;
+      final path = Path()
+        ..moveTo(centerX - iconSize/3, centerY - iconSize/2)
+        ..lineTo(centerX - iconSize/3, centerY + iconSize/2)
+        ..lineTo(centerX + iconSize/2, centerY)
+        ..close();
+      canvas.drawPath(path, iconPaint);
+
+      // 格式化视频时长
+      final duration = videoController.duration;
+      String durationText = '';
+      if (duration != null) {
+        final totalSeconds = duration.inSeconds;
+        final hours = totalSeconds ~/ 3600;
+        final minutes = (totalSeconds % 3600) ~/ 60;
+        final seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+          durationText = '${hours}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+        } else {
+          durationText = '${minutes}:${seconds.toString().padLeft(2, '0')}';
+        }
+      }
+
+      // 获取文件大小
+      String fileSizeText = '';
+      try {
+        final file = File(videoPath);
+        if (await file.exists()) {
+          final fileSize = await file.length();
+          if (fileSize < 1024) {
+            fileSizeText = '${fileSize} B';
+          } else if (fileSize < 1024 * 1024) {
+            fileSizeText = '${(fileSize / 1024).toStringAsFixed(1)} KB';
+          } else if (fileSize < 1024 * 1024 * 1024) {
+            fileSizeText = '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+          } else {
+            fileSizeText = '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+          }
+        }
+      } catch (e) {
+        fileSizeText = '未知';
+      }
+
+      // 添加视频信息
+      final videoName = HistoryService.extractVideoName(videoPath);
+      final displayName = videoName.length > 20 ? '${videoName.substring(0, 17)}...' : videoName;
+
+      // 创建更详细的信息显示
+      final infoPainter = TextPainter(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: displayName,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(
+                    offset: Offset(1, 1),
+                    blurRadius: 3,
+                    color: Colors.black.withValues(alpha: 0.9),
+                  ),
+                ],
+              ),
+            ),
+            if (durationText.isNotEmpty)
+              TextSpan(
+                text: '\n⏱️ $durationText',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 11,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(1, 1),
+                      blurRadius: 2,
+                      color: Colors.black.withValues(alpha: 0.8),
+                    ),
+                  ],
+                ),
+              ),
+            TextSpan(
+              text: '\n📐 ${videoController.size.width.toInt()}×${videoController.size.height.toInt()}',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 10,
+                shadows: [
+                  Shadow(
+                    offset: Offset(1, 1),
+                    blurRadius: 2,
+                    color: Colors.black.withValues(alpha: 0.8),
+                  ),
+                ],
+              ),
+            ),
+            if (fileSizeText.isNotEmpty)
+              TextSpan(
+                text: '\n💾 $fileSizeText',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 9,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(1, 1),
+                      blurRadius: 2,
+                      color: Colors.black.withValues(alpha: 0.8),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+      );
+
+      infoPainter.layout(maxWidth: size.width - 20);
+      infoPainter.paint(canvas, Offset(10, size.height - 100));
+
+      // 生成图片
+      final picture = pictureRecorder.endRecording();
+      final image = await picture.toImage(width, height);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (byteData != null) {
+        await File(thumbnailPath).writeAsBytes(byteData.buffer.asUint8List());
+        print('✅ 成功创建高质量视频缩略图');
+        await controller.dispose();
+        return true;
+      } else {
+        print('❌ 图片数据为空');
+        await controller.dispose();
+        return false;
+      }
+    } catch (e) {
+      print('❌ VideoPlayer高质量缩略图生成失败: $e');
+      try {
+        // 确保controller被释放
+        final controller = VideoPlayerController.file(File(videoPath));
+        await controller.initialize();
+        await controller.dispose();
+      } catch (e2) {
+        print('清理controller失败: $e2');
       }
       return false;
     }
@@ -539,5 +852,410 @@ class SimpleThumbnailService {
       'web_thumbnails': kIsWeb,
       'file_cache': !kIsWeb,
     };
+  }
+
+  /// 生成并缓存缩略图（新增方法）
+  static Future<String?> generateAndCacheThumbnail({
+    required String videoPath,
+    required String historyId,
+    int width = 320,
+    int height = 180,
+    double seekSeconds = 1.0,
+    String? securityBookmark,
+  }) async {
+    try {
+      print('=== 开始生成并缓存缩略图 ===');
+      print('视频路径: $videoPath');
+      print('历史ID: $historyId');
+
+      // 检查是否启用缩略图
+      final thumbnailsEnabled = await SettingsService.isThumbnailsEnabled();
+      if (!thumbnailsEnabled) {
+        print('缩略图功能已禁用');
+        return null;
+      }
+
+      // 对于macOS，尝试恢复文件访问权限
+      if (MacOSBookmarkService.isSupported && securityBookmark != null) {
+        print('尝试使用书签恢复访问权限');
+        final restoredPath = await MacOSBookmarkService.tryRestoreAccess(videoPath);
+        if (restoredPath == null) {
+          print('❌ 无法恢复文件访问权限，使用占位符');
+          return null;
+        }
+      }
+
+      // 生成缓存路径
+      final thumbnailPath = await _getCacheThumbnailPath(historyId, width, height);
+      print('缓存缩略图路径: $thumbnailPath');
+
+      // 检查缓存是否已存在
+      if (await File(thumbnailPath).exists()) {
+        print('缓存缩略图已存在');
+        return thumbnailPath;
+      }
+
+      // 确保缩略图目录存在
+      final thumbnailsDir = await _thumbnailsDirectory;
+      if (!await thumbnailsDir.exists()) {
+        await thumbnailsDir.create(recursive: true);
+      }
+
+      // 生成缩略图
+      final generatedPath = await generateThumbnail(
+        videoPath: videoPath,
+        width: width,
+        height: height,
+        seekSeconds: seekSeconds,
+      );
+
+      if (generatedPath != null) {
+        // 复制生成的缩略图到缓存目录
+        final generatedFile = File(generatedPath);
+        if (await generatedFile.exists()) {
+          await generatedFile.copy(thumbnailPath);
+          print('✅ 缩略图缓存成功: $thumbnailPath');
+
+          // 更新历史记录中的缓存路径
+          await HistoryService.updateThumbnailPath(historyId, thumbnailPath);
+          return thumbnailPath;
+        }
+      }
+
+      print('❌ 缩略图生成失败，使用占位符');
+      return null;
+    } catch (e) {
+      print('❌ 生成缓存缩略图异常: $e');
+      return null;
+    }
+  }
+
+  /// 获取缓存缩略图路径
+  static Future<String> _getCacheThumbnailPath(String historyId, int width, int height) async {
+    final thumbnailsDir = await _thumbnailsDirectory;
+    final fileName = '${historyId}_${width}x${height}.jpg';
+    return path.join(thumbnailsDir.path, fileName);
+  }
+
+  /// 检查是否有缓存的缩略图
+  static Future<bool> hasCachedThumbnail(String historyId, {int width = 320, int height = 180}) async {
+    try {
+      final thumbnailPath = await _getCacheThumbnailPath(historyId, width, height);
+      return await File(thumbnailPath).exists();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 获取缓存的缩略图路径
+  static Future<String?> getCachedThumbnailPath(String historyId, {int width = 320, int height = 180}) async {
+    try {
+      final thumbnailPath = await _getCacheThumbnailPath(historyId, width, height);
+      if (await File(thumbnailPath).exists()) {
+        return thumbnailPath;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// 删除缓存的缩略图
+  static Future<void> deleteCachedThumbnail(String historyId) async {
+    try {
+      final thumbnailsDir = await _thumbnailsDirectory;
+      if (await thumbnailsDir.exists()) {
+        await for (final entity in thumbnailsDir.list()) {
+          if (entity is File && entity.path.contains(historyId)) {
+            await entity.delete();
+            print('✅ 删除缓存缩略图: ${entity.path}');
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ 删除缓存缩略图失败: $e');
+    }
+  }
+
+  /// 批量清理孤儿缩略图（没有对应历史记录的缩略图）
+  static Future<void> cleanupOrphanThumbnails() async {
+    try {
+      print('开始清理孤儿缩略图...');
+      final thumbnailsDir = await _thumbnailsDirectory;
+      if (!await thumbnailsDir.exists()) {
+        print('缩略图目录不存在');
+        return;
+      }
+
+      // 获取所有历史记录ID
+      final histories = await HistoryService.getHistories();
+      final historyIds = histories.map((h) => h.id).toSet();
+
+      int deletedCount = 0;
+      await for (final entity in thumbnailsDir.list()) {
+        if (entity is File) {
+          final fileName = entity.path.split('/').last;
+          // 从文件名中提取历史ID
+          final parts = fileName.split('_');
+          if (parts.isNotEmpty) {
+            final historyId = parts.first;
+            if (!historyIds.contains(historyId)) {
+              await entity.delete();
+              deletedCount++;
+              print('删除孤儿缩略图: ${entity.path}');
+            }
+          }
+        }
+      }
+
+      print('✅ 清理完成，删除了 $deletedCount 个孤儿缩略图');
+    } catch (e) {
+      print('❌ 清理孤儿缩略图失败: $e');
+    }
+  }
+
+  /// 基于历史记录获取缩略图路径（优先使用缓存）
+  static Future<String?> getThumbnailForHistory({
+    required PlaybackHistory history,
+    int width = 320,
+    int height = 180,
+  }) async {
+    try {
+      // 优先检查缓存缩略图
+      if (history.hasCachedThumbnail) {
+        return history.effectiveThumbnailPath;
+      }
+
+      // 检查历史记录中是否有缓存路径但没有实际文件
+      if (history.thumbnailCachePath != null) {
+        if (await File(history.thumbnailCachePath!).exists()) {
+          return history.thumbnailCachePath;
+        } else {
+          // 缓存文件不存在，清理历史记录中的引用
+          await HistoryService.updateThumbnailPath(history.id, '');
+        }
+      }
+
+      // 尝试生成新的缩略图
+      if (history.isLocalVideo && MacOSBookmarkService.isSupported) {
+        // 对于macOS本地视频，尝试恢复权限并生成缩略图
+        return await generateAndCacheThumbnail(
+          videoPath: history.videoPath,
+          historyId: history.id,
+          width: width,
+          height: height,
+          securityBookmark: history.securityBookmark,
+        );
+      }
+
+      // 其他情况，尝试生成占位符
+      final placeholderPath = await _getCacheThumbnailPath(history.id, width, height);
+      await _createVideoInfoPlaceholder(
+        placeholderPath,
+        HistoryService.extractVideoName(history.videoPath),
+        width,
+        height,
+        Duration(seconds: history.totalDuration),
+      );
+      return placeholderPath;
+    } catch (e) {
+      print('❌ 获取历史记录缩略图失败: $e');
+      return null;
+    }
+  }
+
+  /// 尝试使用MediaKit提取真实视频帧
+  static Future<bool> _tryMediaKitFrame(
+    String videoPath,
+    String thumbnailPath,
+    int width,
+    int height,
+    double seekSeconds,
+  ) async {
+    try {
+      print('尝试使用MediaKit提取真实视频帧...');
+
+      // 创建MediaKit Player
+      final player = Player();
+
+      // 配置Player以支持截图
+      await player.open(Media(videoPath));
+
+      // 等待媒体完全加载
+      print('等待视频加载完成...');
+      await Future.delayed(const Duration(milliseconds: 2000));
+
+      // 获取视频时长信息
+      final duration = player.state.duration;
+      if (duration == null || duration.inSeconds == 0) {
+        print('❌ 无法获取视频时长');
+        await player.dispose();
+        return false;
+      }
+
+      print('视频时长: ${duration.inSeconds}秒');
+
+      // 确保跳转位置在视频范围内
+      double finalSeekSeconds = seekSeconds;
+      if (finalSeekSeconds >= duration.inSeconds) {
+        finalSeekSeconds = (duration.inSeconds / 2).toDouble(); // 跳转到中间
+        print('调整跳转时间到视频中间: ${finalSeekSeconds}秒');
+      }
+
+      // 跳转到指定时间
+      print('跳转到时间点: ${finalSeekSeconds}s');
+      await player.seek(Duration(seconds: finalSeekSeconds.toInt()));
+
+      // 等待跳转完成和视频稳定
+      print('等待视频稳定...');
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      // 确保视频正在播放或已暂停
+      if (player.state.playing) {
+        await player.pause();
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      // 多次尝试截图，因为有时第一次可能失败
+      Uint8List? frame;
+      int attempts = 3;
+
+      for (int i = 0; i < attempts; i++) {
+        print('截图尝试 ${i + 1}/$attempts');
+
+        try {
+          frame = await player.screenshot();
+          if (frame != null && frame.isNotEmpty) {
+            print('✅ MediaKit截图生成成功，大小: ${frame.length} bytes');
+            break;
+          } else {
+            print('截图为空，等待后重试...');
+            await Future.delayed(const Duration(milliseconds: 1000));
+          }
+        } catch (e) {
+          print('截图异常: $e');
+          await Future.delayed(const Duration(milliseconds: 1000));
+        }
+      }
+
+      if (frame != null && frame.isNotEmpty) {
+        print('✅ MediaKit截图成功，开始处理...');
+
+        // 保存原始截图
+        await File(thumbnailPath).writeAsBytes(frame);
+        print('✅ 原始截图已保存: $thumbnailPath');
+
+        // 验证文件是否创建成功
+        if (await File(thumbnailPath).exists()) {
+          final fileSize = await File(thumbnailPath).length();
+          print('✅ 缩略图文件创建成功，大小: ${fileSize} bytes');
+
+          // 尝试调整大小
+          final resizeSuccess = await _tryResizeWithFFmpeg(
+            thumbnailPath,
+            '${thumbnailPath}_resized',
+            width,
+            height,
+          );
+
+          if (resizeSuccess) {
+            // 用调整后的图片替换原始图片
+            final resizedFile = File('${thumbnailPath}_resized');
+            if (await resizedFile.exists()) {
+              await resizedFile.rename(thumbnailPath);
+              print('✅ MediaKit真实视频帧处理成功');
+              await player.dispose();
+              return true;
+            }
+          } else {
+            // 如果调整失败，但原始截图存在，也算成功
+            print('⚠️ 大小调整失败，但使用原始截图');
+            await player.dispose();
+            return true;
+          }
+        } else {
+          print('❌ 缩略图文件创建失败');
+        }
+      } else {
+        print('❌ 所有截图尝试都失败');
+      }
+
+      print('❌ MediaKit截图最终失败');
+      await player.dispose();
+      return false;
+    } catch (e) {
+      print('❌ MediaKit帧提取异常: $e');
+      try {
+        final player = Player();
+        await player.open(Media(videoPath));
+        await player.dispose();
+      } catch (e2) {
+        print('MediaKit清理失败: $e2');
+      }
+      return false;
+    }
+  }
+
+  /// 使用FFmpeg调整图片大小
+  static Future<bool> _tryResizeWithFFmpeg(
+    String inputPath,
+    String outputPath,
+    int width,
+    int height,
+  ) async {
+    try {
+      print('使用FFmpeg调整截图大小...');
+
+      final arguments = [
+        '-i', inputPath,
+        '-vf', 'scale=$width:$height',
+        '-q:v', '8', // 高质量
+        '-y',
+        outputPath
+      ];
+
+      final result = await Process.run('ffmpeg', arguments);
+      final success = result.exitCode == 0;
+
+      if (success) {
+        print('✅ FFmpeg图片调整成功');
+        return true;
+      } else {
+        print('❌ FFmpeg图片调整失败: ${result.stderr}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ FFmpeg图片调整异常: $e');
+      return false;
+    }
+  }
+
+  /// 清理过期的缓存缩略图
+  static Future<void> cleanupExpiredThumbnails({int maxAgeDays = 30}) async {
+    try {
+      print('开始清理过期缩略图...');
+      final thumbnailsDir = await _thumbnailsDirectory;
+      if (!await thumbnailsDir.exists()) {
+        return;
+      }
+
+      final cutoffDate = DateTime.now().subtract(Duration(days: maxAgeDays));
+      int deletedCount = 0;
+
+      await for (final entity in thumbnailsDir.list()) {
+        if (entity is File) {
+          final stat = await entity.stat();
+          if (stat.modified.isBefore(cutoffDate)) {
+            await entity.delete();
+            deletedCount++;
+            print('删除过期缩略图: ${entity.path}');
+          }
+        }
+      }
+
+      print('✅ 清理完成，删除了 $deletedCount 个过期缩略图');
+    } catch (e) {
+      print('❌ 清理过期缩略图失败: $e');
+    }
   }
 }
