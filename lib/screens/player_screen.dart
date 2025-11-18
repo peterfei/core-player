@@ -2741,10 +2741,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
         content: SizedBox(
           width: 400,
-          height: 500,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // 实时性能指标
               if (metrics != null) ...[
                 const Text(
@@ -2752,24 +2752,83 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                _buildPerformanceMetricRow('帧率',
-                    '${metrics.fps.toStringAsFixed(1)} / ${metrics.targetFps.toStringAsFixed(1)} FPS'),
-                _buildPerformanceMetricRow('丢帧率',
-                    '${metrics.droppedFramePercentage.toStringAsFixed(1)}%'),
                 _buildPerformanceMetricRow(
-                    'CPU占用', '${metrics.cpuUsage.toStringAsFixed(1)}%'),
+                  '帧率',
+                  '${metrics.fps.toStringAsFixed(1)} / ${metrics.targetFps.toStringAsFixed(1)} FPS',
+                  valueColor: metrics.fps >= metrics.targetFps * 0.95
+                      ? Colors.green.shade700
+                      : metrics.fps >= metrics.targetFps * 0.8
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '内存占用', '${metrics.memoryUsage.toStringAsFixed(1)} MB'),
+                  '丢帧率',
+                  '${metrics.droppedFramePercentage.toStringAsFixed(1)}%',
+                  valueColor: metrics.droppedFramePercentage <= 0.5
+                      ? Colors.green.shade700
+                      : metrics.droppedFramePercentage <= 2.0
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    'GPU占用', '${metrics.gpuUsage.toStringAsFixed(1)}%'),
+                  'CPU占用',
+                  '${metrics.cpuUsage.toStringAsFixed(1)}%',
+                  valueColor: metrics.cpuUsage <= 50
+                      ? Colors.green.shade700
+                      : metrics.cpuUsage <= 80
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '缓冲进度', '${metrics.bufferPercentage.toStringAsFixed(1)}%'),
-                _buildPerformanceMetricRow('缓冲时长', '${metrics.bufferedMs} ms'),
-                _buildPerformanceMetricRow('解码器', metrics.decoderType),
-                _buildPerformanceMetricRow('分辨率', metrics.resolution),
+                  '内存占用',
+                  '${metrics.memoryUsage.toStringAsFixed(1)} MB',
+                  valueColor: metrics.memoryUsage <= 512
+                      ? Colors.green.shade700
+                      : metrics.memoryUsage <= 1024
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  'GPU占用',
+                  '${metrics.gpuUsage.toStringAsFixed(1)}%',
+                  valueColor: metrics.gpuUsage <= 60
+                      ? Colors.green.shade700
+                      : metrics.gpuUsage <= 80
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  '缓冲进度',
+                  '${metrics.bufferPercentage.toStringAsFixed(1)}%',
+                  valueColor: metrics.bufferPercentage >= 50
+                      ? Colors.green.shade700
+                      : metrics.bufferPercentage >= 20
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  '缓冲时长',
+                  '${metrics.bufferedMs} ms',
+                  valueColor: Colors.blue.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  '解码器',
+                  metrics.decoderType,
+                  valueColor: metrics.decoderType.contains('硬件') || metrics.decoderType.contains('Hardware')
+                      ? Colors.green.shade700
+                      : Colors.deepOrange.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  '分辨率',
+                  metrics.resolution,
+                  valueColor: Colors.indigo.shade700,
+                ),
                 if (metrics.networkBandwidth != null)
                   _buildPerformanceMetricRow(
-                      '网络带宽', '${_formatBandwidth(metrics.networkBandwidth!)}'),
+                    '网络带宽',
+                    _formatBandwidth(metrics.networkBandwidth!),
+                    valueColor: Colors.teal.shade700,
+                  ),
                 const Divider(),
               ],
 
@@ -2781,18 +2840,39 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
                 const SizedBox(height: 8),
                 _buildPerformanceMetricRow(
-                    '状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
-                _buildPerformanceMetricRow('加速类型', _hwAccelConfig!.displayName),
+                  '状态',
+                  _hwAccelConfig!.enabled ? '已启用' : '未启用',
+                  valueColor: _hwAccelConfig!.enabled
+                      ? Colors.green.shade700
+                      : Colors.orange.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
+                  '加速类型',
+                  _hwAccelConfig!.displayName,
+                  valueColor: Colors.blue.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  '支持编解码器',
+                  _hwAccelConfig!.supportedCodecs.join(', '),
+                  valueColor: Colors.purple.shade700,
+                ),
                 if (_hwAccelConfig!.gpuInfo != null) ...[
-                  _buildPerformanceMetricRow('GPU',
-                      '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
+                  _buildPerformanceMetricRow(
+                    'GPU',
+                    '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}',
+                    valueColor: Colors.indigo.shade700,
+                  ),
                   if (_hwAccelConfig!.gpuInfo!.memoryMB != null)
                     _buildPerformanceMetricRow(
-                        'GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
+                      'GPU内存',
+                      '${_hwAccelConfig!.gpuInfo!.memoryMB} MB',
+                      valueColor: Colors.cyan.shade700,
+                    ),
                   _buildPerformanceMetricRow(
-                      '性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
+                    '性能等级',
+                    _hwAccelConfig!.gpuInfo!.performanceLevel,
+                    valueColor: Colors.teal.shade700,
+                  ),
                 ],
                 const Divider(),
               ],
@@ -2805,27 +2885,82 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
                 const SizedBox(height: 8),
                 _buildPerformanceMetricRow(
-                    '平均帧率', '${stats.averageFps.toStringAsFixed(1)} FPS'),
+                  '平均帧率',
+                  '${stats.averageFps.toStringAsFixed(1)} FPS',
+                  valueColor: Colors.blue.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '最高帧率', '${stats.maxFps.toStringAsFixed(1)} FPS'),
+                  '最高帧率',
+                  '${stats.maxFps.toStringAsFixed(1)} FPS',
+                  valueColor: Colors.green.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '最低帧率', '${stats.minFps.toStringAsFixed(1)} FPS'),
+                  '最低帧率',
+                  '${stats.minFps.toStringAsFixed(1)} FPS',
+                  valueColor: Colors.deepOrange.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '总丢帧数', '${stats.totalDroppedFrames}'),
+                  '总丢帧数',
+                  '${stats.totalDroppedFrames}',
+                  valueColor: stats.totalDroppedFrames < 10
+                      ? Colors.green.shade700
+                      : stats.totalDroppedFrames < 50
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '平均CPU', '${stats.averageCpuUsage.toStringAsFixed(1)}%'),
+                  '平均CPU',
+                  '${stats.averageCpuUsage.toStringAsFixed(1)}%',
+                  valueColor: stats.averageCpuUsage <= 50
+                      ? Colors.green.shade700
+                      : stats.averageCpuUsage <= 80
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '峰值CPU', '${stats.maxCpuUsage.toStringAsFixed(1)}%'),
-                _buildPerformanceMetricRow('平均内存',
-                    '${stats.averageMemoryUsage.toStringAsFixed(1)} MB'),
+                  '峰值CPU',
+                  '${stats.maxCpuUsage.toStringAsFixed(1)}%',
+                  valueColor: stats.maxCpuUsage <= 70
+                      ? Colors.green.shade700
+                      : stats.maxCpuUsage <= 90
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '峰值内存', '${stats.maxMemoryUsage.toStringAsFixed(1)} MB'),
+                  '平均内存',
+                  '${stats.averageMemoryUsage.toStringAsFixed(1)} MB',
+                  valueColor: stats.averageMemoryUsage <= 512
+                      ? Colors.green.shade700
+                      : stats.averageMemoryUsage <= 1024
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '监控时长', '${stats.monitoringDuration} 秒'),
+                  '峰值内存',
+                  '${stats.maxMemoryUsage.toStringAsFixed(1)} MB',
+                  valueColor: stats.maxMemoryUsage <= 768
+                      ? Colors.green.shade700
+                      : stats.maxMemoryUsage <= 1536
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '性能问题', '${stats.performanceIssues} 次'),
+                  '监控时长',
+                  '${stats.monitoringDuration} 秒',
+                  valueColor: Colors.indigo.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  '性能问题',
+                  '${stats.performanceIssues} 次',
+                  valueColor: stats.performanceIssues == 0
+                      ? Colors.green.shade700
+                      : stats.performanceIssues < 5
+                          ? Colors.orange.shade700
+                          : Colors.red.shade700,
+                ),
               ],
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -2850,7 +2985,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   /// 构建性能指标行
-  Widget _buildPerformanceMetricRow(String label, String value) {
+  Widget _buildPerformanceMetricRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -2858,13 +2993,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.w500),
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.grey[300],
-              fontFamily: 'monospace',
+          Flexible(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor ?? Colors.blueGrey.shade700,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.right,
             ),
           ),
         ],
@@ -3030,20 +3172,46 @@ class _PlayerScreenState extends State<PlayerScreen> {
             children: [
               if (_hwAccelConfig != null) ...[
                 _buildPerformanceMetricRow(
-                    '状态', _hwAccelConfig!.enabled ? '已启用' : '未启用'),
-                _buildPerformanceMetricRow('加速类型', _hwAccelConfig!.displayName),
+                  '状态',
+                  _hwAccelConfig!.enabled ? '已启用' : '未启用',
+                  valueColor: _hwAccelConfig!.enabled
+                      ? Colors.green.shade700
+                      : Colors.orange.shade700,
+                ),
                 _buildPerformanceMetricRow(
-                    '支持编解码器', _hwAccelConfig!.supportedCodecs.join(', ')),
+                  '加速类型',
+                  _hwAccelConfig!.displayName,
+                  valueColor: Colors.blue.shade700,
+                ),
+                _buildPerformanceMetricRow(
+                  '支持编解码器',
+                  _hwAccelConfig!.supportedCodecs.join(', '),
+                  valueColor: Colors.purple.shade700,
+                ),
                 if (_hwAccelConfig!.gpuInfo != null) ...[
-                  _buildPerformanceMetricRow('GPU',
-                      '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}'),
+                  _buildPerformanceMetricRow(
+                    'GPU',
+                    '${_hwAccelConfig!.gpuInfo!.vendor} ${_hwAccelConfig!.gpuInfo!.model}',
+                    valueColor: Colors.indigo.shade700,
+                  ),
                   if (_hwAccelConfig!.gpuInfo!.memoryMB != null)
                     _buildPerformanceMetricRow(
-                        'GPU内存', '${_hwAccelConfig!.gpuInfo!.memoryMB} MB'),
+                      'GPU内存',
+                      '${_hwAccelConfig!.gpuInfo!.memoryMB} MB',
+                      valueColor: Colors.cyan.shade700,
+                    ),
                   _buildPerformanceMetricRow(
-                      '性能等级', _hwAccelConfig!.gpuInfo!.performanceLevel),
-                  _buildPerformanceMetricRow('支持4K解码',
-                      _hwAccelConfig!.gpuInfo!.supports4KDecoding ? '是' : '否'),
+                    '性能等级',
+                    _hwAccelConfig!.gpuInfo!.performanceLevel,
+                    valueColor: Colors.teal.shade700,
+                  ),
+                  _buildPerformanceMetricRow(
+                    '支持4K解码',
+                    _hwAccelConfig!.gpuInfo!.supports4KDecoding ? '是' : '否',
+                    valueColor: _hwAccelConfig!.gpuInfo!.supports4KDecoding
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
+                  ),
                 ],
               ] else ...[
                 const Text('硬件加速配置未加载'),

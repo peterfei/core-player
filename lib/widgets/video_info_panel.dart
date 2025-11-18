@@ -253,8 +253,8 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
                           '状态',
                           _hwAccelConfig!.enabled ? '已启用' : '未启用',
                           valueColor: _hwAccelConfig!.enabled
-                              ? Colors.green
-                              : Colors.grey,
+                              ? const Color(0xFF1565C0)  // 深蓝色，确保可见
+                              : const Color(0xFF424242),  // 深灰色
                         ),
                         if (_hwAccelConfig!.enabled)
                           _buildInfoRow(
@@ -287,7 +287,7 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
                           _buildInfoRow(
                             'HDR',
                             widget.videoInfo.hdrType ?? 'HDR',
-                            valueColor: Colors.orange,
+                            valueColor: const Color(0xFFE65100),  // 深橙色，确保可见
                           ),
                         ],
                         if (widget.videoInfo.isHighFramerate)
@@ -376,9 +376,12 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color:
-                Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+            color: const Color(0xFFFFFFFF),  // 纯白色背景
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: const Color(0xFFE0E0E0),  // 浅灰色边框
+              width: 1,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -395,7 +398,7 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
     Color? valueColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -403,20 +406,30 @@ class _VideoInfoPanelState extends State<VideoInfoPanel> {
             width: 80,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+              style: const TextStyle(
+                color: Color(0xFF000000),
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-          const Text(': '),
+          const Text(
+            ': ',
+            style: TextStyle(
+              color: Color(0xFF000000),
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           Expanded(
             child: Text(
               value,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color:
-                        valueColor ?? Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w500,
-                  ),
+              style: TextStyle(
+                color: valueColor ?? const Color(0xFF000000),
+                fontSize: 14,
+                fontWeight: FontWeight.w900,  // 最粗的字体
+                fontFamily: 'monospace',
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -465,10 +478,11 @@ class VideoInfoCard extends StatelessWidget {
       margin: const EdgeInsets.all(8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.1),
+        color: const Color(0xFFFFFFFF),  // 纯白色背景
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+          color: const Color(0xFFE0E0E0),  // 浅灰色边框
+          width: 1,
         ),
       ),
       child: Column(
