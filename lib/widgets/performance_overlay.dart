@@ -128,17 +128,11 @@ class _PerformanceOverlayState extends State<PerformanceOverlay>
 
     return Stack(
       children: [
-        AnimatedBuilder(
-          animation: _fadeAnimation,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fadeAnimation.value,
-              child: child,
-            );
-          },
-          child: Positioned(
-            top: 16,
-            right: 16,
+        Positioned(
+          top: 16,
+          right: 16,
+          child: FadeTransition(
+            opacity: _fadeAnimation,
             child: Container(
               constraints: const BoxConstraints(maxWidth: 300),
               decoration: BoxDecoration(

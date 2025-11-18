@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../models/playback_history.dart';
 import '../models/buffer_config.dart';
 import '../models/network_stats.dart';
@@ -1389,6 +1391,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           width: 320,
           height: 180,
           seekSeconds: 1.0,
+          securityBookmark: _securityBookmark,
         );
       });
     }
@@ -2402,27 +2405,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       print('🎬 开始后台生成缩略图...');
 
-      // 延迟3秒生成，避免影响视频播放
-      await Future.delayed(const Duration(seconds: 3));
+      // 延迟5秒生成，确保视频已开始播放和渲染
+      await Future.delayed(const Duration(seconds: 5));
 
       if (!mounted || _videoPath.isEmpty) return;
 
-      // 生成历史记录ID（使用当前路径的哈希）
-      final historyId = _videoPath.hashCode.abs().toString();
+      print('📸 尝试从正在播放的视频中截图...');
 
-      // 使用新的缩略图生成方法
-      _thumbnailCachePath = await SimpleThumbnailService.generateAndCacheThumbnail(
-        videoPath: _videoPath,
-        historyId: historyId,
-        width: 320,
-        height: 180,
-        seekSeconds: 1.0,
-        securityBookmark: _securityBookmark,
-      );
+      // 使用当前正在播放的player截图
+      final screenshot = await player.screenshot();
 
-      if (_thumbnailCachePath != null) {
+      if (screenshot != null && screenshot.isNotEmpty) {
+        print('✅ 从播放器截图成功，大小: ${screenshot.length} bytes');
+
+        // 生成历史记录ID（使用当前路径的哈希）
+        final historyId = _videoPath.hashCode.abs().toString();
+
+        // 获取缩略图保存路径
+        final appDir = await getApplicationDocumentsDirectory();
+        final thumbsDir = Directory(path.join(appDir.path, 'thumbnails'));
+        if (!await thumbsDir.exists()) {
+          await thumbsDir.create(recursive: true);
+        }
+
+        _thumbnailCachePath = path.join(thumbsDir.path, '${historyId}_320x180.jpg');
+
+        // 保存截图
+        await File(_thumbnailCachePath!).writeAsBytes(screenshot);
         _thumbnailGenerated = true;
-        print('✅ 缩略图生成成功: $_thumbnailCachePath');
+
+        print('✅ 缩略图已保存: $_thumbnailCachePath');
 
         // 更新历史记录中的缩略图路径
         await HistoryService.addOrUpdateHistory(
@@ -2436,7 +2448,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
           watchCount: 1,
         );
       } else {
-        print('❌ 缩略图生成失败');
+        print('❌ 播放器截图返回空，尝试备用方案...');
+
+        // 备用方案：使用SimpleThumbnailService
+        final historyId = _videoPath.hashCode.abs().toString();
+        _thumbnailCachePath = await SimpleThumbnailService.generateAndCacheThumbnail(
+          videoPath: _videoPath,
+          historyId: historyId,
+          width: 320,
+          height: 180,
+          seekSeconds: 1.0,
+          securityBookmark: _securityBookmark,
+        );
+
+        if (_thumbnailCachePath != null) {
+          _thumbnailGenerated = true;
+          print('✅ 备用方案缩略图生成成功');
+        } else {
+          print('❌ 所有缩略图生成方案都失败');
+        }
       }
     } catch (e) {
       print('❌ 后台生成缩略图异常: $e');

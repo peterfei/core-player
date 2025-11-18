@@ -198,6 +198,7 @@ class HistoryService {
     String? streamUrl,
     String? streamProtocol,
     bool isLiveStream = false,
+    String? securityBookmark,
   }) async {
     final now = DateTime.now();
 
@@ -211,6 +212,7 @@ class HistoryService {
         width: 320,
         height: 180,
         seekSeconds: 1.0,
+        securityBookmark: securityBookmark,
       );
       finalFileSize = fileSize ?? await getFileSize(videoPath);
     } else {
@@ -233,6 +235,7 @@ class HistoryService {
       streamUrl: streamUrl,
       streamProtocol: streamProtocol,
       isLiveStream: isLiveStream,
+      securityBookmark: securityBookmark,
     );
   }
 
@@ -246,6 +249,7 @@ class HistoryService {
     int watchCount = 1,
     DateTime? createdAt,
     int? fileSize,
+    String? securityBookmark,
   }) async {
     final now = DateTime.now();
 
@@ -255,6 +259,7 @@ class HistoryService {
       width: 320,
       height: 180,
       seekSeconds: 1.0,
+      securityBookmark: securityBookmark,
     );
 
     // 获取文件大小
@@ -271,6 +276,7 @@ class HistoryService {
       watchCount: watchCount,
       createdAt: createdAt ?? now,
       fileSize: finalFileSize,
+      securityBookmark: securityBookmark,
     );
   }
 
@@ -292,6 +298,7 @@ class HistoryService {
             width: 320,
             height: 180,
             seekSeconds: 1.0,
+            securityBookmark: existingHistory.securityBookmark,
           ));
 
       // 更新现有记录，增加观看次数

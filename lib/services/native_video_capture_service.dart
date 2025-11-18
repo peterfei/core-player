@@ -24,21 +24,13 @@ class NativeVideoCaptureService {
     try {
       print('🎬 开始提取原生视频帧...');
 
-      // 恢复文件访问权限
-      if (securityBookmark != null) {
-        final restoredPath = await MacOSBookmarkService.tryRestoreAccess(videoPath);
-        if (restoredPath == null) {
-          print('❌ 无法恢复文件访问权限');
-          return null;
-        }
-      }
-
-      // 调用原生方法提取视频帧
+      // 调用原生方法提取视频帧（传递securityBookmark）
       final result = await _channel.invokeMethod<Uint8List>('captureFrame', {
         'videoPath': videoPath,
         'timeInSeconds': timeInSeconds,
         'width': width,
         'height': height,
+        'securityBookmark': securityBookmark,
       });
 
       if (result != null && result.isNotEmpty) {
@@ -49,7 +41,7 @@ class NativeVideoCaptureService {
         return null;
       }
     } catch (e) {
-      print('❌ 原生视频帧提取异常: $e');
+      print('❌ 原生AVFoundation视频帧提取异常: $e');
       return null;
     }
   }
@@ -64,9 +56,19 @@ class NativeVideoCaptureService {
   }) async {
     final frames = <Uint8List>[];
 
+    // 对于macOS，先恢复访问权限（一次性）
+    String? restoredPath = videoPath;
+    if (securityBookmark != null && isSupported) {
+      restoredPath = await MacOSBookmarkService.tryRestoreAccess(videoPath);
+      if (restoredPath == null) {
+        print('❌ 批量提取时无法恢复文件访问权限');
+        return frames;
+      }
+    }
+
     for (final timePoint in timePoints) {
       final frame = await captureVideoFrame(
-        videoPath: videoPath,
+        videoPath: restoredPath!,
         timeInSeconds: timePoint,
         width: width,
         height: height,
@@ -86,12 +88,13 @@ class NativeVideoCaptureService {
   }
 
   /// 获取视频元数据
-  static Future<Map<String, dynamic>?> getVideoMetadata(String videoPath) async {
+  static Future<Map<String, dynamic>?> getVideoMetadata(String videoPath, {String? securityBookmark}) async {
     if (!isSupported) return null;
 
     try {
       final result = await _channel.invokeMethod<Map<String, dynamic>>('getVideoMetadata', {
         'videoPath': videoPath,
+        'securityBookmark': securityBookmark,
       });
 
       if (result != null) {

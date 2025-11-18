@@ -276,6 +276,47 @@ class VideoCaptureManager {
             return
         }
 
+        // 获取securityBookmark（如果提供）
+        let securityBookmark = args["securityBookmark"] as? String
+
+        // 如果需要，恢复访问权限
+        if let bookmarkStr = securityBookmark, !bookmarkStr.isEmpty,
+           let bookmarkData = Data(base64Encoded: bookmarkStr) {
+            print("🔐 使用securityBookmark恢复文件访问权限")
+            let (success, restoredPath, _) = BookmarkManager.shared.startAccessing(bookmarkData: bookmarkData)
+
+            if success, let path = restoredPath {
+                print("✅ 访问权限恢复成功: \(path)")
+                // 使用恢复后的路径（如果有变化）
+                let finalPath = restoredPath ?? videoPath
+
+                captureVideoFrame(
+                    videoPath: finalPath,
+                    timeInSeconds: timeInSeconds,
+                    width: width,
+                    height: height
+                ) { frameData in
+                    // 停止访问
+                    BookmarkManager.shared.stopAccessing(path: finalPath)
+
+                    if let frameData = frameData {
+                        result(frameData)
+                    } else {
+                        result(nil)
+                    }
+                }
+            } else {
+                print("⚠️  无法恢复访问权限，尝试直接使用原始路径")
+                captureVideoFrameWithoutBookmark(videoPath, timeInSeconds, width, height, result)
+            }
+        } else {
+            print("ℹ️  没有提供securityBookmark，尝试直接捕获")
+            captureVideoFrameWithoutBookmark(videoPath, timeInSeconds, width, height, result)
+        }
+    }
+
+    /// 不使用securityBookmark捕获视频帧（用于向后兼容）
+    private func captureVideoFrameWithoutBookmark(_ videoPath: String, _ timeInSeconds: Double, _ width: Int, _ height: Int, _ result: @escaping FlutterResult) {
         captureVideoFrame(
             videoPath: videoPath,
             timeInSeconds: timeInSeconds,
@@ -298,6 +339,41 @@ class VideoCaptureManager {
             return
         }
 
+        // 获取securityBookmark（如果提供）
+        let securityBookmark = args["securityBookmark"] as? String
+
+        // 如果需要，恢复访问权限
+        if let bookmarkStr = securityBookmark, !bookmarkStr.isEmpty,
+           let bookmarkData = Data(base64Encoded: bookmarkStr) {
+            print("🔐 使用securityBookmark恢复文件访问权限（获取元数据）")
+            let (success, restoredPath, _) = BookmarkManager.shared.startAccessing(bookmarkData: bookmarkData)
+
+            if success, let path = restoredPath {
+                print("✅ 访问权限恢复成功: \(path)")
+                let finalPath = restoredPath ?? videoPath
+
+                getVideoMetadata(videoPath: finalPath) { metadata in
+                    // 停止访问
+                    BookmarkManager.shared.stopAccessing(path: finalPath)
+
+                    if let metadata = metadata {
+                        result(metadata)
+                    } else {
+                        result(nil)
+                    }
+                }
+            } else {
+                print("⚠️  无法恢复访问权限，尝试直接使用原始路径")
+                getVideoMetadataWithoutBookmark(videoPath, result)
+            }
+        } else {
+            print("ℹ️  没有提供securityBookmark，尝试直接获取元数据")
+            getVideoMetadataWithoutBookmark(videoPath, result)
+        }
+    }
+
+    /// 不使用securityBookmark获取视频元数据（向后兼容）
+    private func getVideoMetadataWithoutBookmark(_ videoPath: String, _ result: @escaping FlutterResult) {
         getVideoMetadata(videoPath: videoPath) { metadata in
             if let metadata = metadata {
                 result(metadata)
@@ -317,7 +393,32 @@ class VideoCaptureManager {
     ) {
         print("🎬 开始捕获视频帧: \(videoPath)")
 
+        // 检查文件是否存在
+        if !FileManager.default.fileExists(atPath: videoPath) {
+            print("❌ 视频文件不存在: \(videoPath)")
+            completion(nil)
+            return
+        }
+
+        // 检查文件是否可读
+        if !FileManager.default.isReadableFile(atPath: videoPath) {
+            print("❌ 视频文件不可读（权限不足）: \(videoPath)")
+            completion(nil)
+            return
+        }
+
         let url = URL(fileURLWithPath: videoPath)
+
+        // 检查URL是否可以访问
+        do {
+            let resources = try url.resourceValues(forKeys: [.isReadableKey])
+            if resources.isReadable != true {
+                print("⚠️  URL不可读，可能需要重新恢复访问权限")
+            }
+        } catch {
+            print("⚠️  检查URL访问性时出错: \(error)")
+        }
+
         let asset = AVAsset(url: url)
 
         // 使用传统的 completion handler 方式
@@ -372,6 +473,22 @@ class VideoCaptureManager {
         videoPath: String,
         completion: @escaping ([String: Any]?) -> Void
     ) {
+        print("📊 开始获取视频元数据: \(videoPath)")
+
+        // 检查文件是否存在
+        if !FileManager.default.fileExists(atPath: videoPath) {
+            print("❌ 视频文件不存在: \(videoPath)")
+            completion(nil)
+            return
+        }
+
+        // 检查文件是否可读
+        if !FileManager.default.isReadableFile(atPath: videoPath) {
+            print("❌ 视频文件不可读（权限不足）: \(videoPath)")
+            completion(nil)
+            return
+        }
+
         let url = URL(fileURLWithPath: videoPath)
         let asset = AVAsset(url: url)
 

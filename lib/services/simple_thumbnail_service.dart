@@ -41,6 +41,7 @@ class SimpleThumbnailService {
     int width = 320,
     int height = 180,
     double seekSeconds = 1.0,
+    String? securityBookmark,
   }) async {
     try {
       print('=== 开始生成缩略图 ===');
@@ -86,6 +87,7 @@ class SimpleThumbnailService {
             timeInSeconds: seekSeconds,
             width: width,
             height: height,
+            securityBookmark: securityBookmark,
           );
 
           if (nativeFrame != null && nativeFrame.isNotEmpty) {
@@ -907,6 +909,7 @@ class SimpleThumbnailService {
         width: width,
         height: height,
         seekSeconds: seekSeconds,
+        securityBookmark: securityBookmark,
       );
 
       if (generatedPath != null) {
@@ -1106,15 +1109,15 @@ class SimpleThumbnailService {
       print('跳转到时间点: ${finalSeekSeconds}s');
       await player.seek(Duration(seconds: finalSeekSeconds.toInt()));
 
-      // 等待跳转完成和视频稳定
-      print('等待视频稳定...');
-      await Future.delayed(const Duration(milliseconds: 1500));
+      // 关键修改：播放一小段确保帧被渲染
+      print('开始播放以渲染视频帧...');
+      await player.play();
+      await Future.delayed(const Duration(milliseconds: 500));
 
-      // 确保视频正在播放或已暂停
-      if (player.state.playing) {
-        await player.pause();
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+      // 暂停以获取稳定的帧
+      await player.pause();
+      print('已暂停，等待帧稳定...');
+      await Future.delayed(const Duration(milliseconds: 800));
 
       // 多次尝试截图，因为有时第一次可能失败
       Uint8List? frame;
@@ -1129,8 +1132,12 @@ class SimpleThumbnailService {
             print('✅ MediaKit截图生成成功，大小: ${frame.length} bytes');
             break;
           } else {
-            print('截图为空，等待后重试...');
-            await Future.delayed(const Duration(milliseconds: 1000));
+            print('截图为空，尝试再播放一小段...');
+            // 如果截图为空，再播放一小段
+            await player.play();
+            await Future.delayed(const Duration(milliseconds: 300));
+            await player.pause();
+            await Future.delayed(const Duration(milliseconds: 500));
           }
         } catch (e) {
           print('截图异常: $e');
