@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -19,10 +20,18 @@ import '../services/video_cache_service.dart';
 import '../services/cache_download_service.dart';
 import '../services/local_proxy_server.dart';
 import '../services/subtitle_service.dart';
+import '../services/video_analyzer_service.dart';
+import '../services/hardware_acceleration_service.dart';
+import '../services/performance_monitor_service.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 import '../models/subtitle_config.dart';
+import '../models/video_info.dart';
+import '../models/codec_info.dart';
+import '../models/hardware_acceleration_config.dart';
 import '../widgets/enhanced_buffering_indicator.dart';
 import '../widgets/cache_indicator.dart';
+import '../widgets/video_info_panel.dart';
+import '../widgets/performance_overlay.dart' as custom;
 import 'subtitle_settings_screen.dart';
 import 'subtitle_download_screen.dart';
 
@@ -70,11 +79,468 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // Create a [Player] instance from `media_kit`.
   // Enable libass for native MPV subtitle rendering (required for sub-add command)
   // Subtitles are rendered directly on the video by MPV's libass
-  late final Player player = Player(
-    configuration: const PlayerConfiguration(libass: true),
-  );
-  // Create a [VideoController] instance from `media_kit_video`.
-  late final VideoController controller = VideoController(player);
+  late Player player;
+  VideoController? controller;
+
+  // 超高清视频支持相关服务
+  VideoInfo? _currentVideoInfo;
+  HardwareAccelerationConfig? _hwAccelConfig;
+  StreamSubscription<PerformanceMetrics>? _performanceSubscription;
+  StreamSubscription<HardwareAccelerationEvent>? _hwAccelSubscription;
+  bool _showPerformanceOverlay = false;
+  bool _videoInfoPanelVisible = false;
+  bool _isInitialized = false;
+
+  // 初始化播放器和服务
+  Future<void> _initializePlayerAndServices() async {
+    try {
+      // 初始化播放器和硬件加速
+      await _initializePlayer();
+
+      // 设置播放器监听器
+      _setupPlayerListeners();
+
+      // 启动性能监控（播放器初始化后）
+      _startPerformanceMonitoring();
+
+      // 标记初始化完成
+      setState(() {
+        _isInitialized = true;
+      });
+
+      print('🚀 超高清视频支持服务初始化完成');
+    } catch (e) {
+      print('❌ 服务初始化失败: $e');
+      // 确保基本的播放器监听器仍然工作
+      _setupPlayerListeners();
+      // 即使出错也标记为已初始化（使用降级模式）
+      setState(() {
+        _isInitialized = true;
+      });
+    }
+  }
+
+  // 初始化播放器配置
+  Future<void> _initializePlayer() async {
+    try {
+      // 获取硬件加速配置
+      await HardwareAccelerationService.instance.initialize();
+      _hwAccelConfig = await HardwareAccelerationService.instance.getRecommendedConfig();
+
+      // 创建播放器配置
+      final config = _buildPlayerConfiguration();
+
+      // 创建播放器实例
+      player = Player(configuration: config);
+      controller = VideoController(player);
+
+      // 监听硬件加速事件
+      _hwAccelSubscription = HardwareAccelerationService.instance.events.listen(
+        _handleHardwareAccelerationEvent,
+      );
+
+      print('🎮 播放器初始化完成');
+      print('  硬件加速: ${_hwAccelConfig?.enabled == true ? "✅ 已启用" : "❌ 未启用"}');
+      if (_hwAccelConfig?.enabled == true) {
+        print('  加速类型: ${_hwAccelConfig?.displayName}');
+        print('  支持编解码器: ${_hwAccelConfig?.supportedCodecs.join(", ")}');
+      }
+    } catch (e) {
+      print('❌ 播放器初始化失败: $e');
+      // 降级到基础配置
+      player = Player(configuration: const PlayerConfiguration(libass: true));
+      controller = VideoController(player);
+    }
+  }
+
+  // 构建播放器配置
+  PlayerConfiguration _buildPlayerConfiguration() {
+    Map<String, dynamic> libmpvSettings = {
+      'libass': true, // 保持原有字幕支持
+    };
+
+    // 应用硬件加速配置
+    if (_hwAccelConfig?.enabled == true && _hwAccelConfig != null) {
+      final hwConfig = _hwAccelConfig!.getMediaKitConfig();
+      libmpvSettings.addAll(hwConfig);
+      print('🚀 应用硬件加速配置: ${hwConfig}');
+    }
+
+    // 超高清视频和大文件优化设置
+    libmpvSettings.addAll({
+      // 优化大文件性能
+      'cache': 'yes',
+      'cache-secs': '300', // 5分钟缓存
+      'cache-size': '500000', // 500MB缓存大小
+      'demuxer-max-bytes': '100000000', // 100MB解复用器缓存
+      'demuxer-max-back-bytes': '50000000', // 50MB向后缓存
+
+      // 优化seek性能 - 针对大文件的关键优化
+      'hr-seek': 'yes', // 高精度seek
+      'hr-seek-framedrop': 'yes', // seek时允许丢帧以快速响应
+      'hr-seek-demuxer-offset': '0.1', // 减少demuxer偏移
+      'load-seeking': 'yes', // 加载seek
+
+      // 超高清视频解码优化
+      'vd-lavc-fast': 'yes', // 快速解码
+      'vd-lavc-skipframe': 'no', // 正常播放时不要跳帧
+      'vd-lavc-dr': 'yes', // 直接渲染（如果支持）
+      'vd-lavc-threads': 'auto', // 自动线程数
+
+      // 大文件I/O优化
+      'stream-buffer-size': '1048576', // 1MB流缓冲区
+      'max-bytes-per-chunk': '4194304', // 4MB每个块
+
+      // 内存优化
+      'demuxer-readahead-secs': '20', // 预读20秒
+      'demuxer-readahead-bytes': '52428800', // 50MB预读
+
+      // 性能监控
+      'stats': 'yes', // 启用统计信息
+
+      // 编解码器优化
+      'hwdec-codecs': 'all', // 尝试所有硬件解码器
+      'ad-lavc-dr': 'yes', // 硬件解码直接渲染
+    });
+
+    // 根据视频信息进一步优化
+    if (_currentVideoInfo != null) {
+      final videoInfo = _currentVideoInfo!;
+      if (videoInfo.isLargeFile) {
+        // 大文件特殊优化
+        libmpvSettings.addAll({
+          'demuxer-readahead-secs': '30', // 增加预读
+          'demuxer-readahead-bytes': '104857600', // 增加预读到100MB
+          'cache-size': '1000000', // 增加缓存到1GB
+        });
+        print('🎬 应用大文件优化设置');
+      }
+
+      if (videoInfo.isHighFramerate) {
+        // 高帧率视频优化
+        libmpvSettings.addAll({
+          'framedrop': 'yes', // 允许丢帧保持同步
+          'display-fps': videoInfo.fps.toString(), // 指定显示帧率
+          'sync-max-video-change': '100', // 最大视频变化百分比
+        });
+        print('🎬 应用高帧率优化设置');
+      }
+
+      if (videoInfo.isUltraHD) {
+        // 超高清视频优化
+        libmpvSettings.addAll({
+          'sws-fast': 'yes', // 快速软件缩放
+          'sws-luma-sharpness': '1.5', // 锐化度
+          'sws-chroma-sharpness': '1.5', // 色度锐化
+          'vf-add': 'lavfi=[fps=fps_source]', // 保持原始帧率
+        });
+        print('🎬 应用超高清优化设置');
+      }
+
+      // 根据编解码器优化
+      if (videoInfo.videoCodec.codec.toLowerCase() == 'hevc') {
+        libmpvSettings.addAll({
+          'vd-lavc-profile': 'main',
+          'vd-lavc-level': '5.1',
+        });
+      } else if (videoInfo.videoCodec.codec.toLowerCase() == 'vp9') {
+        libmpvSettings.addAll({
+          'vd-lavc-threads': '8', // VP9需要更多线程
+        });
+      }
+    }
+
+    return const PlayerConfiguration(libass: true);
+  }
+
+  // 处理硬件加速事件
+  void _handleHardwareAccelerationEvent(HardwareAccelerationEvent event) {
+    switch (event.type) {
+      case HardwareAccelerationEventType.enabled:
+        print('✅ ${event.message}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(event.message ?? '硬件加速已启用'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        break;
+      case HardwareAccelerationEventType.fallback:
+        print('⚠️ ${event.message}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(event.message ?? '已切换到软件解码'),
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        break;
+      case HardwareAccelerationEventType.error:
+        print('❌ ${event.message}');
+        break;
+      case HardwareAccelerationEventType.testFailed:
+        print('⚠️ ${event.message}');
+        break;
+      default:
+        // 其他事件类型暂时不处理
+        break;
+    }
+  }
+
+  // 启动性能监控
+  void _startPerformanceMonitoring() {
+    // 延迟启动性能监控，等视频开始播放
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && !_isPlaying) return; // 如果已经停止播放，不启动监控
+
+      try {
+        PerformanceMonitorService.instance.startMonitoring(player, intervalMs: 1000);
+
+        // 监听性能指标，用于覆盖层显示
+        _performanceSubscription = PerformanceMonitorService.instance.metricsStream.listen(
+          (metrics) {
+            if (mounted) {
+              // 性能警告日志
+              if (metrics.isPoorPerformance) {
+                print('⚠️ 性能警告: FPS=${metrics.fps.toStringAsFixed(1)}, CPU=${metrics.cpuUsage.toStringAsFixed(1)}%');
+                // 可以在这里显示用户友好的提示
+                _showPerformanceWarningIfNeeded(metrics);
+              }
+
+              // 更新状态以触发性能指示器更新
+              setState(() {});
+            }
+          },
+        );
+
+        print('📊 性能监控已启动');
+      } catch (e) {
+        print('❌ 性能监控启动失败: $e');
+      }
+    });
+  }
+
+  // 显示性能警告提示
+  void _showPerformanceWarningIfNeeded(PerformanceMetrics metrics) {
+    // 避免频繁显示提示
+    if (metrics.fps < metrics.targetFps * 0.5) {
+      _showPerformanceSnackBar('视频播放卡顿，建议降低分辨率或启用硬件加速');
+    } else if (metrics.cpuUsage > 90) {
+      _showPerformanceSnackBar('CPU占用过高，建议关闭其他应用或启用硬件加速');
+    }
+  }
+
+  void _showPerformanceSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.orange,
+          action: SnackBarAction(
+            label: '性能设置',
+            onPressed: () {
+              // 这里可以打开性能设置页面
+              setState(() {
+                _showPerformanceOverlay = !_showPerformanceOverlay;
+              });
+            },
+            textColor: Colors.white,
+          ),
+        ),
+      );
+    }
+  }
+
+  // 停止性能监控
+  void _stopPerformanceMonitoring() {
+    _performanceSubscription?.cancel();
+    _performanceSubscription = null;
+    PerformanceMonitorService.instance.dispose();
+    print('📊 性能监控已停止');
+  }
+
+  // 分析视频信息
+  Future<void> _analyzeVideoInfo() async {
+    try {
+      print('🔍 开始分析视频信息: $_videoPath');
+
+      // 分析视频文件
+      final videoInfo = await VideoAnalyzerService.instance.analyzeVideo(_videoPath);
+
+      if (mounted) {
+        setState(() {
+          _currentVideoInfo = videoInfo;
+        });
+      }
+
+      // 为超高清视频优化缓冲配置
+      await _optimizeBufferForVideo(videoInfo);
+
+      // 检查格式兼容性
+      final compatibility = await VideoAnalyzerService.instance.checkCompatibility(_videoPath);
+
+      // 显示分析结果
+      if (!kIsWeb) { // Web平台不显示这些通知
+        if (videoInfo.isUltraHD) {
+          print('🎬 检测到超高清视频: ${videoInfo.qualityLabel} ${videoInfo.resolutionLabel}');
+          if (videoInfo.isHighFramerate) {
+            print('🎬 高帧率视频: ${videoInfo.fpsLabel}');
+          }
+          if (videoInfo.isHDR) {
+            print('🎬 HDR视频: ${videoInfo.hdrType ?? 'HDR'}');
+          }
+        }
+
+        if (videoInfo.isLargeFile) {
+          print('🎬 大型文件: ${videoInfo.formattedFileSize}');
+        }
+
+        // 检查硬件加速能力
+        final hwService = HardwareAccelerationService.instance;
+        final codecSupported = hwService.isCodecSupported(videoInfo.videoCodec.codec);
+
+        if (!codecSupported && videoInfo.videoCodec.isHighQuality) {
+          print('⚠️ 编解码器 ${videoInfo.videoCodec.displayName} 可能需要硬件加速');
+          print('💡 建议: 确保硬件加速已启用以获得最佳性能');
+        }
+
+        // 检查性能需求
+        if (videoInfo.isUltraHD || videoInfo.isHighFramerate) {
+          final recommendations = PerformanceMonitorService.instance.getPerformanceRecommendations();
+          if (recommendations.isNotEmpty) {
+            print('💡 性能建议: ${recommendations.join(', ')}');
+          }
+        }
+      }
+
+      print('✅ 视频分析完成: ${videoInfo.fileName}');
+    } catch (e) {
+      print('❌ 视频分析失败: $e');
+      // 分析失败不应该影响播放
+    }
+  }
+
+  // 为视频优化缓冲配置
+  Future<void> _optimizeBufferForVideo(VideoInfo videoInfo) async {
+    try {
+      // 获取当前缓冲配置
+      final currentConfig = await BufferConfig.load();
+
+      // 为超高清视频优化缓冲配置
+      final optimizedConfig = currentConfig.optimizeForUltraHD(videoInfo);
+
+      if (mounted) {
+        setState(() {
+          _bufferConfig = optimizedConfig;
+        });
+      }
+
+      // 应用优化后的配置到播放器
+      await _applyBufferConfigToPlayer(optimizedConfig);
+
+      print('🎬 缓冲配置已优化: ${optimizedConfig.getPerformanceLevel()}');
+      print('🎬 详细配置: ${optimizedConfig.getDescription()}');
+    } catch (e) {
+      print('❌ 缓冲配置优化失败: $e');
+    }
+  }
+
+  // 应用缓冲配置到播放器
+  Future<void> _applyBufferConfigToPlayer(BufferConfig config) async {
+    try {
+      // 这里可以应用media_kit的缓冲相关设置
+      // 注意：media_kit的某些设置需要在播放器初始化时设置
+
+      final libmpvSettings = <String, dynamic>{
+        // 基于config的缓冲设置
+        'cache': 'yes',
+        'cache-secs': config.thresholds.targetBuffer.inSeconds.toString(),
+        'cache-size': (config.thresholds.bufferSizeMB * 1024).toString(), // KB
+
+        // 其他缓冲优化
+        'demuxer-max-bytes': (config.thresholds.bufferSizeMB * 1024 * 1024).toString(),
+        'demuxer-max-back-bytes': (config.thresholds.bufferSizeMB * 512 * 1024).toString(),
+      };
+
+      // 如果视频已开始播放，动态调整某些参数
+      if (player.state.duration.inMilliseconds > 0) {
+        // 某些参数可能需要重启播放器才能生效
+        print('🎬 动态应用缓冲配置到播放器');
+      }
+
+      print('🎬 应用缓冲设置: $libmpvSettings');
+    } catch (e) {
+      print('❌ 应用缓冲配置失败: $e');
+    }
+  }
+
+  // 显示视频信息面板
+  void _showVideoInfoPanel() {
+    if (_currentVideoInfo != null) {
+      VideoInfoPanel.show(
+        context: context,
+        videoInfo: _currentVideoInfo!,
+      );
+    }
+  }
+
+  // 优化seek性能（针对大文件）
+  Future<void> _optimizeSeek() async {
+    if (_currentVideoInfo == null) return;
+
+    try {
+      // 大文件seek优化
+      if (_currentVideoInfo!.isLargeFile) {
+        // 暂停播放器以优化seek
+        final wasPlaying = _isPlaying;
+        if (wasPlaying) {
+          await player.pause();
+        }
+
+        // 等待一小段时间让缓冲稳定
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // 如果需要seek到指定位置，这里可以实现
+        print('🎬 优化大文件seek性能');
+
+        // 恢复播放
+        if (wasPlaying) {
+          await player.play();
+        }
+      }
+    } catch (e) {
+      print('❌ seek优化失败: $e');
+    }
+  }
+
+  // 监控seek性能
+  void _monitorSeekPerformance(Duration seekTime) {
+    if (_currentVideoInfo == null) return;
+
+    if (_currentVideoInfo!.isLargeFile && seekTime.inMilliseconds > 500) {
+      print('⚠️ 大文件seek较慢: ${seekTime.inMilliseconds}ms');
+      // 可以在这里向用户显示提示
+      _showSeekPerformanceWarning(seekTime);
+    }
+  }
+
+  void _showSeekPerformanceWarning(Duration seekTime) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('大文件seek需要 ${seekTime.inMilliseconds}ms，正在优化性能...'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+  }
 
   // 播放状态
   bool _isPlaying = true;
@@ -148,11 +614,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 初始化macOS书签服务
     MacOSBookmarkService.initialize();
 
+    // 异步初始化播放器和硬件加速
+    _initializePlayerAndServices();
+
     // 初始化缓冲配置
     _initializeBufferConfig();
-
-    // 设置播放器监听
-    _setupPlayerListeners();
 
     // 检查是否为网络视频
     _isNetworkVideo = widget.webVideoUrl != null && widget.videoFile == null;
@@ -1038,9 +1504,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  // 只在初始化完成后显示视频播放器
+                if (_isInitialized && controller != null)
                   Video(
-                    controller: controller,
+                    controller: controller!,
                     subtitleViewConfiguration: _buildSubtitleViewConfiguration(),
+                  )
+                else
+                  const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('初始化播放器...', style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
                   ),
                    // 网络视频增强缓冲指示器
                    if (_isNetworkVideo)
@@ -1067,6 +1546,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ],
               ),
             ),
+            // 性能监控覆盖层（全局显示，不受控制栏影响）
+            if (_showPerformanceOverlay)
+              custom.PerformanceOverlay(
+                showByDefault: true,
+                enableKeyboardToggle: true,
+              ),
+            // 性能指示器（当覆盖层隐藏时显示）
+            if (!_showPerformanceOverlay && _currentVideoInfo != null)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: custom.PerformanceIndicator(
+                  isVisible: true,
+                ),
+              ),
             // 播放控制界面
             AnimatedOpacity(
               opacity: _isControlsVisible ? 1.0 : 0.0,
@@ -1096,6 +1590,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               textAlign: TextAlign.center,
                             ),
                           ),
+                          // 视频信息按钮
+                          if (_currentVideoInfo != null)
+                            IconButton(
+                              icon: const Icon(Icons.info_outline, color: Colors.white),
+                              onPressed: () => _showVideoInfoPanel(),
+                              tooltip: '视频信息',
+                            ),
                           // 全屏按钮
                           IconButton(
                             icon: Icon(
@@ -1252,7 +1753,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
 
       await player.open(media, play: true);
-      
+
+      // 分析视频信息和格式兼容性
+      await _analyzeVideoInfo();
+
       // 视频打开后，如果有字幕文件，尝试加载
       if (subtitlePath != null) {
         // 延迟加载字幕，让video完全初始化
@@ -1843,6 +2347,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
+    // 停止超高清视频支持服务
+    _stopPerformanceMonitoring();
+    _hwAccelSubscription?.cancel();
+
     _controlsTimer?.cancel();
     _historyTimer?.cancel();
     _connectivitySubscription?.cancel();

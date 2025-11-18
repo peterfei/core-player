@@ -198,7 +198,7 @@ class HardwareAccelerationService {
     if (_currentConfig != null && _currentConfig!.enabled) {
       _fireEvent(const HardwareAccelerationEvent.fallingBack());
       await disableHardwareAcceleration();
-      _fireEvent(const HardwareAccelerationEvent.fallback('已切换到软件解码'));
+      _fireEvent(HardwareAccelerationEvent.fallback('已切换到软件解码'));
     }
   }
 
@@ -493,13 +493,15 @@ class HardwareAccelerationEvent {
     );
   }
 
-  HardwareAccelerationEvent.disabled()
+  const HardwareAccelerationEvent.disabled()
       : type = HardwareAccelerationEventType.disabled,
-        message = '硬件加速已禁用';
+        message = '硬件加速已禁用',
+        config = null;
 
-  HardwareAccelerationEvent.fallingBack()
+  const HardwareAccelerationEvent.fallingBack()
       : type = HardwareAccelerationEventType.fallingBack,
-        message = '正在降级到软件解码...';
+        message = '正在降级到软件解码...',
+        config = null;
 
   factory HardwareAccelerationEvent.fallback(String message) {
     return HardwareAccelerationEvent._(
@@ -524,9 +526,10 @@ class HardwareAccelerationEvent {
     );
   }
 
-  HardwareAccelerationEvent.reset()
+  const HardwareAccelerationEvent.reset()
       : type = HardwareAccelerationEventType.reset,
-        message = '硬件加速配置已重置';
+        message = '硬件加速配置已重置',
+        config = null;
 
   @override
   String toString() {

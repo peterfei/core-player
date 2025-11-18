@@ -350,7 +350,7 @@ class PerformanceMonitorService {
       'timestamp': DateTime.now().toIso8601String(),
       'currentMetrics': current?.toJson(),
       'statistics': stats?.toJson(),
-      'systemInfo': _systemInfo?.toJson(),
+      'systemInfo': _systemInfo.toString(),
       'monitoringDuration': _monitoringStartTime != null
           ? DateTime.now().difference(_monitoringStartTime!).inSeconds
           : 0,
