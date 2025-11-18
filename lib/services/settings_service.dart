@@ -1,20 +1,26 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum PlaybackQualityMode {
+  auto,
+  highQuality,
+  lowPower,
+  compatibility,
+}
+
 class SettingsService {
   static const String _historyEnabledKey = 'history_enabled';
   static const String _maxHistoryCountKey = 'max_history_count';
   static const String _autoCleanDaysKey = 'auto_clean_days';
   static const String _thumbnailsEnabledKey = 'thumbnails_enabled';
   static const String _firstLaunchKey = 'first_launch';
+  static const String _playbackQualityModeKey = 'playback_quality_mode';
 
   // 默认设置值
   static const bool _defaultHistoryEnabled = true;
   static const int _defaultMaxHistoryCount = 50;
   static const int _defaultAutoCleanDays = 30;
   static const bool _defaultThumbnailsEnabled = true;
-
-  // 平台设置
-  static bool _isFFmpegAvailable = true;
+  static const PlaybackQualityMode _defaultPlaybackQualityMode = PlaybackQualityMode.auto;
 
   // 历史记录设置
   static Future<bool> isHistoryEnabled() async {
@@ -57,6 +63,21 @@ class SettingsService {
     await prefs.setBool(_thumbnailsEnabledKey, enabled);
   }
 
+  // 播放质量模式设置
+  static Future<PlaybackQualityMode> getPlaybackQualityMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final modeString = prefs.getString(_playbackQualityModeKey);
+    return PlaybackQualityMode.values.firstWhere(
+      (e) => e.name == modeString,
+      orElse: () => _defaultPlaybackQualityMode,
+    );
+  }
+
+  static Future<void> setPlaybackQualityMode(PlaybackQualityMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_playbackQualityModeKey, mode.name);
+  }
+
   // 应用设置
   static Future<bool> isFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
@@ -75,6 +96,7 @@ class SettingsService {
     await prefs.remove(_maxHistoryCountKey);
     await prefs.remove(_autoCleanDaysKey);
     await prefs.remove(_thumbnailsEnabledKey);
+    await prefs.remove(_playbackQualityModeKey);
   }
 
   // 获取所有设置
@@ -88,6 +110,8 @@ class SettingsService {
       'autoCleanDays': prefs.getInt(_autoCleanDaysKey) ?? _defaultAutoCleanDays,
       'thumbnailsEnabled':
           prefs.getBool(_thumbnailsEnabledKey) ?? _defaultThumbnailsEnabled,
+      'playbackQualityMode':
+          (prefs.getString(_playbackQualityModeKey) ?? _defaultPlaybackQualityMode.name),
     };
   }
 
@@ -115,6 +139,15 @@ class SettingsService {
             await setThumbnailsEnabled(entry.value);
           }
           break;
+        case 'playbackQualityMode':
+          if (entry.value is String) {
+            final mode = PlaybackQualityMode.values.firstWhere(
+              (e) => e.name == entry.value,
+              orElse: () => _defaultPlaybackQualityMode,
+            );
+            await setPlaybackQualityMode(mode);
+          }
+          break;
       }
     }
   }
@@ -138,8 +171,20 @@ class SettingsService {
     if (days == 30) return '1 个月';
     if (days == 90) return '3 个月';
     if (days == 180) return '6 个月';
-    if (days == 365) return '1 年';
     return '$days 天';
+  }
+
+  static String formatPlaybackQualityMode(PlaybackQualityMode mode) {
+    switch (mode) {
+      case PlaybackQualityMode.auto:
+        return '自动模式';
+      case PlaybackQualityMode.highQuality:
+        return '高质量模式';
+      case PlaybackQualityMode.lowPower:
+        return '低功耗模式';
+      case PlaybackQualityMode.compatibility:
+        return '兼容模式';
+    }
   }
 
   // 获取设置描述
@@ -153,6 +198,8 @@ class SettingsService {
         return '超过 ${formatAutoCleanDays(value)} 自动清理';
       case 'thumbnailsEnabled':
         return value == true ? '生成视频缩略图' : '不生成视频缩略图';
+      case 'playbackQualityMode':
+        return '播放质量: ${formatPlaybackQualityMode(PlaybackQualityMode.values.firstWhere((e) => e.name == value))}';
       default:
         return '';
     }
