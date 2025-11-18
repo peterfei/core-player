@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/hardware_acceleration_service.dart';
+import '../services/settings_service.dart';
 import '../models/hardware_acceleration_config.dart';
 import '../models/buffer_config.dart';
-import '../models/video_info.dart';
 import '../widgets/feedback_dialog.dart';
 import 'format_support_screen.dart';
 
@@ -43,6 +43,9 @@ class _VideoPlaybackSettingsScreenState
 
   Future<void> _loadSettings() async {
     try {
+      // 加载播放质量模式
+      _qualityMode = await SettingsService.getPlaybackQualityMode();
+
       // 加载硬件加速信息
       await HardwareAccelerationService.instance.initialize();
       final config =
@@ -114,12 +117,13 @@ class _VideoPlaybackSettingsScreenState
         const SizedBox(height: 12),
         ...PlaybackQualityMode.values.map((mode) {
           return RadioListTile<PlaybackQualityMode>(
-            title: Text(_getQualityModeTitle(mode)),
+            title: Text(SettingsService.formatPlaybackQualityMode(mode)),
             subtitle: Text(_getQualityModeDescription(mode)),
             value: mode,
             groupValue: _qualityMode,
-            onChanged: (value) {
+            onChanged: (value) async {
               if (value != null) {
+                await SettingsService.setPlaybackQualityMode(value);
                 setState(() {
                   _qualityMode = value;
                 });
@@ -349,30 +353,13 @@ class _VideoPlaybackSettingsScreenState
     );
   }
 
-  String _getQualityModeTitle(PlaybackQualityMode mode) {
-    switch (mode) {
-      case PlaybackQualityMode.auto:
-        return '自动模式';
-      case PlaybackQualityMode.high:
-        return '高质量';
-      case PlaybackQualityMode.balanced:
-        return '平衡模式';
-      case PlaybackQualityMode.powerSaving:
-        return '省电模式';
-      case PlaybackQualityMode.compatibility:
-        return '兼容模式';
-    }
-  }
-
   String _getQualityModeDescription(PlaybackQualityMode mode) {
     switch (mode) {
       case PlaybackQualityMode.auto:
         return '根据硬件和网络条件自动选择最佳质量';
-      case PlaybackQualityMode.high:
+      case PlaybackQualityMode.highQuality:
         return '优先使用最高画质，需要较好的硬件支持';
-      case PlaybackQualityMode.balanced:
-        return '平衡画质和性能，适合大多数设备';
-      case PlaybackQualityMode.powerSaving:
+      case PlaybackQualityMode.lowPower:
         return '降低画质以节省电量，适合移动设备';
       case PlaybackQualityMode.compatibility:
         return '强制软件解码，确保最大兼容性';
@@ -405,20 +392,14 @@ class _VideoPlaybackSettingsScreenState
     }
   }
 
-  void _resetToDefaults() {
-    setState(() {
-      _qualityMode = PlaybackQualityMode.auto;
-      _hardwareAccelerationEnabled = _hwAccelConfig?.enabled ?? true;
-      _bufferStrategy = BufferStrategy.adaptive;
-      _backgroundPreload = true;
-      _bufferSize = 50.0;
-      _enablePerformanceOverlay = false;
-      _autoSwitchQuality = true;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已重置为默认设置')),
-    );
+  void _resetToDefaults() async {
+    await SettingsService.resetToDefaults();
+    _loadSettings(); // Reload settings after reset
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已重置为默认设置')),
+      );
+    }
   }
 
   void _openHelp() {
@@ -437,7 +418,7 @@ class _VideoPlaybackSettingsScreenState
         preFilledIssue: '播放设置反馈\n\n'
             '请分享您对播放设置功能的建议或问题：\n\n'
             '当前设置:\n'
-            '• 播放质量: ${_getQualityModeTitle(_qualityMode)}\n'
+            '• 播放质量: ${SettingsService.formatPlaybackQualityMode(_qualityMode)}\n'
             '• 硬件加速: ${_hardwareAccelerationEnabled ? "已启用" : "已禁用"}\n'
             '• 缓冲策略: ${_getBufferStrategyTitle(_bufferStrategy)}\n'
             '• 后台预加载: ${_backgroundPreload ? "已启用" : "已禁用"}\n'
@@ -446,13 +427,4 @@ class _VideoPlaybackSettingsScreenState
       ),
     );
   }
-}
-
-/// 播放质量模式
-enum PlaybackQualityMode {
-  auto,
-  high,
-  balanced,
-  powerSaving,
-  compatibility,
 }
