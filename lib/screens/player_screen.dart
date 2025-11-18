@@ -12,6 +12,7 @@ import '../models/network_stats.dart';
 import '../models/cache_entry.dart';
 import '../services/history_service.dart';
 import '../services/simple_thumbnail_service.dart';
+import '../services/macos_bookmark_service.dart';
 import '../services/network_stream_service.dart';
 import '../services/bandwidth_monitor_service.dart';
 import '../services/video_cache_service.dart';
@@ -91,6 +92,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   late String _videoPath;
   String? _videoName;
 
+  // macOS沙盒和缩略图相关
+  String? _securityBookmark;
+  String? _thumbnailCachePath;
+  bool _thumbnailGenerated = false;
+
   // 网络流媒体相关
   final NetworkStreamService _networkService = NetworkStreamService();
   final BandwidthMonitorService _bandwidthMonitor = BandwidthMonitorService();
@@ -138,6 +144,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+
+    // 初始化macOS书签服务
+    MacOSBookmarkService.initialize();
 
     // 初始化缓冲配置
     _initializeBufferConfig();
@@ -857,12 +866,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (existingHistory != null) {
       // 如果是从历史记录播放，更新最后播放时间但不询问
       if (widget.fromHistory) {
-        final updatedHistory = existingHistory.copyWith(
-          lastPlayedAt: DateTime.now(),
+        // 使用增强版历史记录更新，包含书签和缩略图信息
+        await HistoryService.addOrUpdateHistory(
+          videoPath: existingHistory.videoPath,
+          videoName: existingHistory.videoName,
           currentPosition: widget.seekTo ?? 0,
           totalDuration: _totalDuration.inSeconds,
+          securityBookmark: _securityBookmark ?? existingHistory.securityBookmark,
+          thumbnailCachePath: _thumbnailCachePath ?? existingHistory.thumbnailCachePath,
+          sourceType: existingHistory.sourceType,
+          watchCount: existingHistory.watchCount + 1,
         );
-        await HistoryService.saveHistory(updatedHistory);
       } else if (!existingHistory.isCompleted) {
         // 如果有未看完的记录，询问用户是否从上次位置继续
         _showResumeDialog(existingHistory);
@@ -870,25 +884,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
         return;
       } else {
         // 已看完的视频，重置到开头
-        final resetHistory = existingHistory.copyWith(
-          lastPlayedAt: DateTime.now(),
+        await HistoryService.addOrUpdateHistory(
+          videoPath: existingHistory.videoPath,
+          videoName: existingHistory.videoName,
           currentPosition: 0,
           totalDuration: _totalDuration.inSeconds,
+          securityBookmark: _securityBookmark ?? existingHistory.securityBookmark,
+          thumbnailCachePath: _thumbnailCachePath ?? existingHistory.thumbnailCachePath,
+          sourceType: existingHistory.sourceType,
+          watchCount: existingHistory.watchCount + 1,
         );
-        await HistoryService.saveHistory(resetHistory);
       }
     } else {
-      // 创建新的历史记录
-      final newHistory = await HistoryService.createHistory(
+      // 创建新的历史记录（使用增强版方法）
+      await HistoryService.addOrUpdateHistory(
         videoPath: _videoPath!,
         videoName: _videoName!,
         currentPosition: widget.seekTo ?? 0,
         totalDuration: _totalDuration.inSeconds,
+        securityBookmark: _securityBookmark,
+        thumbnailCachePath: _thumbnailCachePath,
         sourceType: _isNetworkVideo ? 'network' : 'local',
         streamUrl: _isNetworkVideo ? _videoPath : null,
         streamProtocol: _isNetworkVideo ? _getStreamProtocol(_videoPath!) : null,
+        watchCount: 1,
       );
-      await HistoryService.saveHistory(newHistory);
     }
 
     
@@ -945,17 +965,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
-  // 保存播放进度
+  // 保存播放进度（增强版）
   void _saveProgress() async {
     if (_videoPath == null || _videoName == null || _currentPosition.inSeconds <= 0) {
       return;
     }
 
-    await HistoryService.updateProgress(
-      videoPath: _videoPath!,
-      currentPosition: _currentPosition.inSeconds,
-      totalDuration: _totalDuration.inSeconds,
-    );
+    try {
+      await HistoryService.addOrUpdateHistory(
+        videoPath: _videoPath!,
+        videoName: _videoName!,
+        currentPosition: _currentPosition.inSeconds,
+        totalDuration: _totalDuration.inSeconds,
+        securityBookmark: _securityBookmark,
+        thumbnailCachePath: _thumbnailCachePath,
+        sourceType: _isNetworkVideo ? 'network' : 'local',
+        streamUrl: _isNetworkVideo ? widget.webVideoUrl : null,
+        streamProtocol: _isNetworkVideo ? _getStreamProtocol(_videoPath!) : null,
+      );
+    } catch (e) {
+      print('❌ 定期保存播放进度失败: $e');
+    }
   }
 
   // 切换全屏模式
@@ -1202,6 +1232,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       }
 
+      // 对于macOS本地视频，创建安全书签
+      if (MacOSBookmarkService.isSupported && !_isNetworkVideo && widget.videoFile != null) {
+        print('🔐 创建macOS安全书签: ${widget.videoFile!.path}');
+        _securityBookmark = await MacOSBookmarkService.createBookmark(widget.videoFile!.path);
+        if (_securityBookmark != null) {
+          print('✅ 安全书签创建成功');
+        } else {
+          print('❌ 安全书签创建失败');
+        }
+      }
+
       // 打开视频并开始播放（包含字幕支持配置）
       final media = Media(
         playbackUrl,
@@ -1209,7 +1250,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           'User-Agent': 'Mozilla/5.0',
         },
       );
-      
+
       await player.open(media, play: true);
       
       // 视频打开后，如果有字幕文件，尝试加载
@@ -1249,6 +1290,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
             });
           }
         });
+      }
+
+      // 后台生成缩略图（仅本地视频）
+      if (!_isNetworkVideo && !_thumbnailGenerated) {
+        _generateThumbnailInBackground();
       }
     } catch (e) {
       print('❌ Error loading video: $e');
@@ -1831,9 +1877,62 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
+    // 停止所有macOS文件访问权限
+    if (MacOSBookmarkService.isSupported && !_isNetworkVideo) {
+      MacOSBookmarkService.stopAccessingSecurityScopedResource(_videoPath);
+    }
+
     // Make sure to dispose the player and controller.
     player.dispose();
     super.dispose();
+  }
+
+  /// 后台生成缩略图
+  Future<void> _generateThumbnailInBackground() async {
+    try {
+      if (_thumbnailGenerated) return; // 避免重复生成
+
+      print('🎬 开始后台生成缩略图...');
+
+      // 延迟3秒生成，避免影响视频播放
+      await Future.delayed(const Duration(seconds: 3));
+
+      if (!mounted || _videoPath.isEmpty) return;
+
+      // 生成历史记录ID（使用当前路径的哈希）
+      final historyId = _videoPath.hashCode.abs().toString();
+
+      // 使用新的缩略图生成方法
+      _thumbnailCachePath = await SimpleThumbnailService.generateAndCacheThumbnail(
+        videoPath: _videoPath,
+        historyId: historyId,
+        width: 320,
+        height: 180,
+        seekSeconds: 1.0,
+        securityBookmark: _securityBookmark,
+      );
+
+      if (_thumbnailCachePath != null) {
+        _thumbnailGenerated = true;
+        print('✅ 缩略图生成成功: $_thumbnailCachePath');
+
+        // 更新历史记录中的缩略图路径
+        await HistoryService.addOrUpdateHistory(
+          videoPath: _videoPath,
+          videoName: _videoName ?? '未知视频',
+          currentPosition: _currentPosition.inSeconds,
+          totalDuration: _totalDuration.inSeconds,
+          securityBookmark: _securityBookmark,
+          thumbnailCachePath: _thumbnailCachePath,
+          sourceType: _isNetworkVideo ? 'network' : 'local',
+          watchCount: 1,
+        );
+      } else {
+        print('❌ 缩略图生成失败');
+      }
+    } catch (e) {
+      print('❌ 后台生成缩略图异常: $e');
+    }
   }
 
   /// Build SubtitleViewConfiguration with current subtitle settings

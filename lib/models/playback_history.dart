@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:intl/intl.dart';
 
 class PlaybackHistory {
@@ -19,6 +20,11 @@ class PlaybackHistory {
   final String? streamProtocol; // 流协议类型 (http/hls/dash)
   final bool isLiveStream;    // 是否直播流
 
+  // macOS沙盒缩略图相关字段
+  final String? thumbnailCachePath; // 缓存的缩略图路径（应用沙盒内）
+  final String? securityBookmark;   // macOS安全书签数据（Base64编码）
+  final DateTime? thumbnailGeneratedAt; // 缩略图生成时间
+
   const PlaybackHistory({
     required this.id,
     required this.videoPath,
@@ -26,7 +32,7 @@ class PlaybackHistory {
     required this.lastPlayedAt,
     required this.currentPosition,
     required this.totalDuration,
-    this.thumbnailPath,
+    this.thumbnailPath, // 保持向后兼容
     this.watchCount = 1,
     required this.createdAt,
     this.fileSize,
@@ -34,6 +40,9 @@ class PlaybackHistory {
     this.streamUrl,
     this.streamProtocol,
     this.isLiveStream = false,
+    this.thumbnailCachePath,
+    this.securityBookmark,
+    this.thumbnailGeneratedAt,
   });
 
   /// 从JSON创建对象
@@ -45,7 +54,7 @@ class PlaybackHistory {
       lastPlayedAt: DateTime.parse(json['lastPlayedAt'] as String),
       currentPosition: json['currentPosition'] as int,
       totalDuration: json['totalDuration'] as int,
-      thumbnailPath: json['thumbnailPath'] as String?,
+      thumbnailPath: json['thumbnailPath'] as String?, // 保持向后兼容
       watchCount: json['watchCount'] as int? ?? 1,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
@@ -55,6 +64,11 @@ class PlaybackHistory {
       streamUrl: json['streamUrl'] as String?,
       streamProtocol: json['streamProtocol'] as String?,
       isLiveStream: json['isLiveStream'] as bool? ?? false,
+      thumbnailCachePath: json['thumbnailCachePath'] as String?,
+      securityBookmark: json['securityBookmark'] as String?,
+      thumbnailGeneratedAt: json['thumbnailGeneratedAt'] != null
+          ? DateTime.parse(json['thumbnailGeneratedAt'] as String)
+          : null,
     );
   }
 
@@ -67,7 +81,7 @@ class PlaybackHistory {
       'lastPlayedAt': lastPlayedAt.toIso8601String(),
       'currentPosition': currentPosition,
       'totalDuration': totalDuration,
-      'thumbnailPath': thumbnailPath,
+      'thumbnailPath': thumbnailPath, // 保持向后兼容
       'watchCount': watchCount,
       'createdAt': createdAt.toIso8601String(),
       'fileSize': fileSize,
@@ -75,6 +89,9 @@ class PlaybackHistory {
       'streamUrl': streamUrl,
       'streamProtocol': streamProtocol,
       'isLiveStream': isLiveStream,
+      'thumbnailCachePath': thumbnailCachePath,
+      'securityBookmark': securityBookmark,
+      'thumbnailGeneratedAt': thumbnailGeneratedAt?.toIso8601String(),
     };
   }
 
@@ -105,6 +122,9 @@ class PlaybackHistory {
     String? streamUrl,
     String? streamProtocol,
     bool? isLiveStream,
+    String? thumbnailCachePath,
+    String? securityBookmark,
+    DateTime? thumbnailGeneratedAt,
   }) {
     return PlaybackHistory(
       id: id ?? this.id,
@@ -121,6 +141,9 @@ class PlaybackHistory {
       streamUrl: streamUrl ?? this.streamUrl,
       streamProtocol: streamProtocol ?? this.streamProtocol,
       isLiveStream: isLiveStream ?? this.isLiveStream,
+      thumbnailCachePath: thumbnailCachePath ?? this.thumbnailCachePath,
+      securityBookmark: securityBookmark ?? this.securityBookmark,
+      thumbnailGeneratedAt: thumbnailGeneratedAt ?? this.thumbnailGeneratedAt,
     );
   }
 
@@ -246,6 +269,79 @@ class PlaybackHistory {
       default:
         return isNetworkVideo ? '网络' : '本地';
     }
+  }
+
+  /// 是否有缓存的缩略图
+  bool get hasCachedThumbnail {
+    // 优先使用新的缓存路径
+    if (thumbnailCachePath != null && File(thumbnailCachePath!).existsSync()) {
+      return true;
+    }
+
+    // 向后兼容：检查旧的缩略图路径
+    if (thumbnailPath != null && File(thumbnailPath!).existsSync()) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// 获取有效的缩略图路径
+  String? get effectiveThumbnailPath {
+    // 优先使用新的缓存路径
+    if (thumbnailCachePath != null && File(thumbnailCachePath!).existsSync()) {
+      return thumbnailCachePath;
+    }
+
+    // 向后兼容：使用旧的缩略图路径
+    if (thumbnailPath != null && File(thumbnailPath!).existsSync()) {
+      return thumbnailPath;
+    }
+
+    return null;
+  }
+
+  /// 检查是否有安全书签（仅macOS相关）
+  bool get hasSecurityBookmark {
+    return Platform.isMacOS && securityBookmark != null && securityBookmark!.isNotEmpty;
+  }
+
+  /// 是否需要更新书签（用于macOS）
+  bool get needsBookmarkUpdate {
+    if (!Platform.isMacOS || !isLocalVideo) return false;
+    return securityBookmark == null || securityBookmark!.isEmpty;
+  }
+
+  /// 检查缩略图是否过期（超过30天）
+  bool get isThumbnailStale {
+    if (thumbnailGeneratedAt == null) return true;
+    final age = DateTime.now().difference(thumbnailGeneratedAt!);
+    return age.inDays > 30;
+  }
+
+  /// 检查视频文件是否存在（对于本地视频）
+  Future<bool> get videoFileExists async {
+    if (isNetworkVideo) return true; // 网络视频总是存在
+
+    try {
+      return await File(videoPath).exists();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 获取视频文件实际大小（可能更新缓存值）
+  Future<int?> get actualFileSize async {
+    if (fileSize != null) return fileSize;
+
+    try {
+      if (await File(videoPath).exists()) {
+        return await File(videoPath).length();
+      }
+    } catch (e) {
+      // 忽略错误
+    }
+    return null;
   }
 
   /// 格式化时长（秒 -> HH:mm:ss）
