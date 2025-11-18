@@ -14,6 +14,7 @@ class SettingsService {
   static const String _thumbnailsEnabledKey = 'thumbnails_enabled';
   static const String _firstLaunchKey = 'first_launch';
   static const String _playbackQualityModeKey = 'playback_quality_mode';
+  static const String _performanceAlertsEnabledKey = 'performance_alerts_enabled';
 
   // 默认设置值
   static const bool _defaultHistoryEnabled = true;
@@ -21,6 +22,7 @@ class SettingsService {
   static const int _defaultAutoCleanDays = 30;
   static const bool _defaultThumbnailsEnabled = true;
   static const PlaybackQualityMode _defaultPlaybackQualityMode = PlaybackQualityMode.auto;
+  static const bool _defaultPerformanceAlertsEnabled = false; // 默认关闭
 
   // 历史记录设置
   static Future<bool> isHistoryEnabled() async {
@@ -78,6 +80,17 @@ class SettingsService {
     await prefs.setString(_playbackQualityModeKey, mode.name);
   }
 
+  // 性能提示设置
+  static Future<bool> isPerformanceAlertsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_performanceAlertsEnabledKey) ?? _defaultPerformanceAlertsEnabled;
+  }
+
+  static Future<void> setPerformanceAlertsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_performanceAlertsEnabledKey, enabled);
+  }
+
   // 应用设置
   static Future<bool> isFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
@@ -97,6 +110,7 @@ class SettingsService {
     await prefs.remove(_autoCleanDaysKey);
     await prefs.remove(_thumbnailsEnabledKey);
     await prefs.remove(_playbackQualityModeKey);
+    await prefs.remove(_performanceAlertsEnabledKey);
   }
 
   // 获取所有设置
@@ -112,6 +126,8 @@ class SettingsService {
           prefs.getBool(_thumbnailsEnabledKey) ?? _defaultThumbnailsEnabled,
       'playbackQualityMode':
           (prefs.getString(_playbackQualityModeKey) ?? _defaultPlaybackQualityMode.name),
+      'performanceAlertsEnabled':
+          prefs.getBool(_performanceAlertsEnabledKey) ?? _defaultPerformanceAlertsEnabled,
     };
   }
 
@@ -146,6 +162,11 @@ class SettingsService {
               orElse: () => _defaultPlaybackQualityMode,
             );
             await setPlaybackQualityMode(mode);
+          }
+          break;
+        case 'performanceAlertsEnabled':
+          if (entry.value is bool) {
+            await setPerformanceAlertsEnabled(entry.value);
           }
           break;
       }

@@ -91,10 +91,41 @@ class VideoCacheService {
     final entry = _cacheBox.get(cacheKey);
 
     if (entry != null &&
-        entry.isComplete &&
-        await File(entry.localPath).exists()) {
-      entry.updateAccess();
-      return entry.localPath;
+        entry.isComplete) {
+      // 实时验证缓存文件是否存在
+      final file = File(entry.localPath);
+      if (await file.exists()) {
+        entry.updateAccess();
+        // 使用 Hive 的 put 方法确保索引实时更新
+        await _cacheBox.put(cacheKey, entry);
+        return entry.localPath;
+      } else {
+        // 缓存文件不存在，清理索引
+        print('🗑️ Cache file missing, cleaning index: ${entry.localPath}');
+        await _cacheBox.delete(cacheKey);
+      }
+    }
+
+    return null;
+  }
+
+  /// 同步的缓存检测方法（用于播放前快速检查）
+  String? getCachePathSync(String url) {
+    if (!_initialized) return null;
+
+    try {
+      final cacheKey = _generateCacheKey(url);
+      final entry = _cacheBox.get(cacheKey);
+
+      if (entry != null && entry.isComplete) {
+        // 快速同步检查文件是否存在（不等待）
+        final file = File(entry.localPath);
+        if (file.existsSync()) {
+          return entry.localPath;
+        }
+      }
+    } catch (e) {
+      print('Error in getCachePathSync: $e');
     }
 
     return null;
@@ -204,7 +235,23 @@ class VideoCacheService {
         duration: duration,
       );
 
+      // 强制刷新索引到磁盘
       await _cacheBox.put(cacheKey, completedEntry);
+
+      // 确保数据立即刷新到磁盘
+      await _cacheBox.flush();
+
+      print('✅ Cache marked as complete: $cacheKey -> ${entry.localPath}');
+
+      // 验证文件存在性
+      final file = File(entry.localPath);
+      if (await file.exists()) {
+        print('✅ Cache file verified: ${entry.localPath} (${await file.length()} bytes)');
+      } else {
+        print('⚠️ Cache file not found after marking complete: ${entry.localPath}');
+      }
+    } else {
+      print('❌ Cache entry not found for: $cacheKey');
     }
   }
 

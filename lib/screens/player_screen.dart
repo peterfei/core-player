@@ -25,6 +25,8 @@ import '../services/subtitle_service.dart';
 import '../services/video_analyzer_service.dart';
 import '../services/hardware_acceleration_service.dart';
 import '../services/performance_monitor_service.dart';
+import '../services/network_thumbnail_service.dart';
+import '../services/settings_service.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 import '../models/subtitle_config.dart';
 import '../models/video_info.dart';
@@ -86,6 +88,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // Subtitles are rendered directly on the video by MPV's libass
   late Player player;
   VideoController? controller;
+
+  // 全局释放状态控制（静态变量，所有实例共享）
+  static bool _isPlayerScreenDisposing = false;
 
   // 超高清视频支持相关服务
   VideoInfo? _currentVideoInfo;
@@ -393,11 +398,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   // 显示性能警告提示
-  void _showPerformanceWarningIfNeeded(PerformanceMetrics metrics) {
-    // 避免频繁显示提示
-    if (metrics.fps < metrics.targetFps * 0.5) {
-      _showPerformanceSnackBar('视频播放卡顿，建议降低分辨率或启用硬件加速');
-    } else if (metrics.cpuUsage > 90) {
+  void _showPerformanceWarningIfNeeded(PerformanceMetrics metrics) async {
+    // 检查用户是否启用了性能提示
+    final alertsEnabled = await SettingsService.isPerformanceAlertsEnabled();
+    if (!alertsEnabled) {
+      return; // 用户关闭了性能提示
+    }
+
+    // 严格的性能检测阈值（减少误报）
+    final severeStutter = metrics.fps < metrics.targetFps * 0.3;
+    final highCpuUsage = metrics.cpuUsage > 95;
+    final highDropRate = metrics.droppedFramePercentage > 10;
+
+    // 只有在严重问题时才显示提示
+    if (severeStutter && highDropRate) {
+      _showPerformanceSnackBar('视频播放严重卡顿，建议降低分辨率或启用硬件加速');
+    } else if (highCpuUsage) {
       _showPerformanceSnackBar('CPU占用过高，建议关闭其他应用或启用硬件加速');
     }
   }
@@ -646,6 +662,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String _networkStatus = '正在连接...';
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
+  // 缩略图生成生命周期控制
+  Timer? _thumbnailTimer;
+  bool _thumbnailGenerationScheduled = false;
+
   // 高级缓冲相关
   BufferConfig _bufferConfig = const BufferConfig();
   BufferHealth _bufferHealth = BufferHealth.critical;
@@ -736,6 +756,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 监听播放状态变化
     _playingSubscription = player.stream.playing.listen((playing) {
       if (mounted) {
+        print('🎮 Playing state changed: playing=$playing');
         setState(() {
           _isPlaying = playing;
           if (_isNetworkVideo) {
@@ -743,9 +764,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
             _updateBufferingState(playing);
           }
         });
+
+        // 视频开始播放时，为网络视频生成缩略图
+        if (playing && _isNetworkVideo && widget.webVideoUrl != null) {
+          print('🎬 Video started playing, scheduling thumbnail generation...');
+          _scheduleThumbnailGeneration();
+        }
       }
     });
 
+  
     // 监听播放位置变化
     _positionSubscription = player.stream.position.listen((position) {
       if (mounted) {
@@ -787,6 +815,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
         });
         // 获取总时长后开始记录播放历史
         _initializeHistory();
+
+        // 如果是网络视频且时长已加载，即使还未开始播放也尝试生成缩略图
+        if (_isNetworkVideo && widget.webVideoUrl != null && !_thumbnailGenerationScheduled) {
+          print('🕒️ Video duration loaded: ${duration.inSeconds}s, scheduling thumbnail generation...');
+          _scheduleThumbnailGeneration();
+        }
 
         // 延迟加载字幕轨道
         Future.delayed(const Duration(milliseconds: 1000), () async {
@@ -1941,6 +1975,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       }
 
+      
       // 确保字幕已启用（某些播放器版本可能需要显式启用）
       debugPrint('Video opened, waiting for subtitle tracks to load...');
 
@@ -2029,31 +2064,43 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// 获取播放URL（优先使用缓存）
   Future<String> _getPlaybackUrl(String originalUrl) async {
-    print('Getting playback URL for: $originalUrl');
+    print('🎬 Determining playback URL for: $originalUrl');
     final cacheService = VideoCacheService.instance;
+    final stopwatch = Stopwatch()..start();
 
     try {
+      // 确保缓存服务已初始化
       await cacheService.initialize();
 
-      // 检查是否有完整缓存
-      final cachePath = await cacheService.getCachePath(originalUrl);
+      // 第一步：同步快速检查缓存（< 50ms）
+      final cachePath = cacheService.getCachePathSync(originalUrl);
       if (cachePath != null) {
-        // 使用本地缓存文件
-        print('✅ Using cached file: $cachePath');
+        stopwatch.stop();
+        print('✅ Cache hit (sync) in ${stopwatch.elapsedMilliseconds}ms: $cachePath');
         return cachePath;
-      } else {
-        print('❌ No cached file found');
       }
 
-      // 启动后台下载缓存（不阻塞播放）
+      // 第二步：异步详细检查缓存（< 100ms）
+      final asyncCachePath = await cacheService.getCachePath(originalUrl);
+      if (asyncCachePath != null) {
+        stopwatch.stop();
+        print('✅ Cache hit (async) in ${stopwatch.elapsedMilliseconds}ms: $asyncCachePath');
+        return asyncCachePath;
+      }
+
+      stopwatch.stop();
+      print('❌ Cache miss in ${stopwatch.elapsedMilliseconds}ms');
+
+      // 第三步：启动后台下载缓存（不阻塞播放）
       _startBackgroundDownload(originalUrl);
 
-      // 直接使用原始URL播放（兼容性更好）
-      print('✅ Using original URL for playback: $originalUrl');
+      // 第四步：使用原始URL播放
+      print('🌐 Using original URL for playback: $originalUrl');
       return originalUrl;
     } catch (e) {
-      print('❌ Error getting playback URL: $e');
-      // 出错时使用原始URL
+      stopwatch.stop();
+      print('❌ Error getting playback URL in ${stopwatch.elapsedMilliseconds}ms: $e');
+      // 出错时使用原始URL作为降级方案
       print('⚠️ Falling back to original URL: $originalUrl');
       return originalUrl;
     }
@@ -3247,6 +3294,125 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
+  /// 取消缩略图生成任务
+  void _cancelThumbnailGeneration() {
+    _thumbnailTimer?.cancel();
+    _thumbnailTimer = null;
+    _thumbnailGenerationScheduled = false;
+    print('🛑 Thumbnail generation cancelled');
+  }
+
+  /// 调度缩略图生成（多策略版，不依赖播放状态）
+  void _scheduleThumbnailGeneration() {
+    if (_thumbnailGenerationScheduled) {
+      print('⚠️ 缩略图生成已经调度，跳过重复请求');
+      return;
+    }
+
+    _thumbnailGenerationScheduled = true;
+
+    // 智能延迟策略：区分缓存视频和纯网络视频
+    print('🎬 调度缩略图生成（智能延迟策略）...');
+
+    int delaySeconds = _calculateOptimalDelay();
+
+    print('⏱️ 使用延迟策略：${delaySeconds}s，网络视频=$_isNetworkVideo');
+
+    _thumbnailTimer = Timer(Duration(seconds: delaySeconds), () async {
+      // 第1层检查：全局 PlayerScreen 释放状态（最早期的检查）
+      if (_isPlayerScreenDisposing) {
+        print('⚠️ PlayerScreen正在释放，立即取消缩略图生成');
+        _thumbnailGenerationScheduled = false;
+        return;
+      }
+
+      // 第2层检查：当前实例状态
+      if (!mounted || !_thumbnailGenerationScheduled) {
+        print('⚠️ 播放器已销毁或生成已取消，停止缩略图生成');
+        _thumbnailGenerationScheduled = false;
+        return;
+      }
+
+      // 第3层检查：服务级别的全局释放状态
+      if (NetworkThumbnailService.isForceDisposing()) {
+        print('⚠️ 缩略图服务正在强制释放，停止缩略图生成');
+        _thumbnailGenerationScheduled = false;
+        return;
+      }
+
+      try {
+        print('🎬 开始智能缩略图生成（${delaySeconds}s延迟）...');
+
+        // 第4层检查：播放器状态
+        if (_isPlayerDisposed()) {
+          print('⚠️ 播放器已被释放，无法生成缩略图');
+          _thumbnailGenerationScheduled = false;
+          return;
+        }
+
+        // 获取视频状态信息用于调试
+        final duration = player.state.duration;
+        final isPlaying = player.state.playing;
+        final isBuffering = player.state.buffering;
+
+        print('📊 当前播放器状态：时长=${duration.inSeconds}s, playing=$isPlaying, buffering=$isBuffering');
+
+        final thumbnailPath = await NetworkThumbnailService.generateFromPlayer(
+          player: player,
+          videoUrl: widget.webVideoUrl!,
+        );
+
+        if (thumbnailPath != null) {
+          print('✅ 缩略图生成成功: $thumbnailPath');
+          _thumbnailGenerated = true;
+        } else {
+          print('❌ 缩略图生成失败');
+        }
+      } catch (e) {
+        print('❌ 智能缩略图生成出错: $e');
+      } finally {
+        _thumbnailGenerationScheduled = false;
+      }
+    });
+  }
+
+  /// 计算最优延迟时间
+  int _calculateOptimalDelay() {
+    // 默认延迟
+    int delaySeconds = 3;
+
+    if (_isNetworkVideo) {
+      // 检查是否是缓存视频
+      final hasCache = VideoCacheService.instance.getCachePathSync(widget.webVideoUrl ?? '') != null;
+
+      if (hasCache) {
+        // 缓存视频延迟较短，因为数据已经本地
+        delaySeconds = 2;
+        print('🎯 检测到缓存视频，使用较短延迟：${delaySeconds}s');
+      } else {
+        // 纯网络视频需要更多时间缓冲
+        delaySeconds = 6;
+        print('🌐 纯网络视频，使用较长延迟：${delaySeconds}s');
+      }
+    } else {
+      // 本地视频延迟最短
+      delaySeconds = 1;
+      print('📁 本地视频，使用最短延迟：${delaySeconds}s');
+    }
+
+    return delaySeconds;
+  }
+
+  /// 检查播放器是否已被释放
+  bool _isPlayerDisposed() {
+    try {
+      final _ = player.state.playing;
+      return false;
+    } catch (e) {
+      return true;
+    }
+  }
+
   /// 截图功能
   void _takeScreenshot() async {
     try {
@@ -3268,52 +3434,97 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     print('🧹 开始清理播放器资源...');
 
-    // 停止超高清视频支持服务
-    _stopPerformanceMonitoring();
-    _hwAccelSubscription?.cancel();
-    print('🧹 硬件加速事件监听器已取消');
+    // 第1步：立即设置全局释放状态（最高优先级，防止新操作开始）
+    _isPlayerScreenDisposing = true;
 
-    _controlsTimer?.cancel();
-    _historyTimer?.cancel();
-    _connectivitySubscription?.cancel();
-    _networkStatsSubscription?.cancel();
-    _bufferProgressTimer?.cancel();
-    _globalBufferMonitor?.cancel();
-    _downloadProgressSubscription?.cancel();
+    // 第2步：立即取消 Timer（防止新的回调触发）
+    _cancelThumbnailGeneration();
 
-    // 取消播放器监听器
-    _playingSubscription?.cancel();
-    _positionSubscription?.cancel();
-    _durationSubscription?.cancel();
-    _volumeSubscription?.cancel();
-    _bufferingSubscription?.cancel();
-    _bufferSubscription?.cancel();
-    _subtitleContentSubscription?.cancel();
+    // 第3步：强制取消所有进行中的缩略图操作
+    NetworkThumbnailService.forceCancelAllOperations();
 
-    // 停止带宽监控
-    if (_isNetworkVideo) {
-      _bandwidthMonitor.stopMonitoring();
+    // 第4步：立即暂停播放器（但不释放，给异步操作缓冲时间）
+    try {
+      if (player.state.playing) {
+        player.pause();
+        print('⏸️ 播放器已暂停，给异步操作缓冲时间');
+      }
+    } catch (e) {
+      print('⚠️ 暂停播放器时出错: $e');
     }
 
-    // 保存最终播放进度
-    _saveProgress();
+    // 第5步：延迟清理，给异步操作足够时间响应强制取消
+    Future.delayed(Duration(milliseconds: 100), () async {
+      try {
+        print('🧹 延迟清理：开始其他资源清理...');
 
-    // 恢复正常的系统UI模式
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+        // 等待确保所有缩略图操作都已完成或被取消
+        await Future.delayed(Duration(milliseconds: 50));
 
-    // 停止所有macOS文件访问权限
-    if (MacOSBookmarkService.isSupported && !_isNetworkVideo) {
-      MacOSBookmarkService.stopAccessingSecurityScopedResource(_videoPath);
-    }
+        // 停止超高清视频支持服务
+        _stopPerformanceMonitoring();
+        _hwAccelSubscription?.cancel();
+        print('🧹 硬件加速事件监听器已取消');
 
-    // Make sure to dispose the player and controller.
-    player.dispose();
+        _controlsTimer?.cancel();
+        _historyTimer?.cancel();
+        _connectivitySubscription?.cancel();
+        _networkStatsSubscription?.cancel();
+        _bufferProgressTimer?.cancel();
+        _globalBufferMonitor?.cancel();
+        _downloadProgressSubscription?.cancel();
+
+        // 取消播放器监听器
+        _playingSubscription?.cancel();
+        _positionSubscription?.cancel();
+        _durationSubscription?.cancel();
+        _volumeSubscription?.cancel();
+        _bufferingSubscription?.cancel();
+        _bufferSubscription?.cancel();
+        _subtitleContentSubscription?.cancel();
+
+        // 停止带宽监控
+        if (_isNetworkVideo) {
+          _bandwidthMonitor.stopMonitoring();
+        }
+
+        // 保存最终播放进度
+        _saveProgress();
+
+        // 恢复正常的系统UI模式
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+
+        // 停止所有macOS文件访问权限
+        if (MacOSBookmarkService.isSupported && !_isNetworkVideo) {
+          MacOSBookmarkService.stopAccessingSecurityScopedResource(_videoPath);
+        }
+
+        print('🧹 其他资源清理完成，开始释放播放器...');
+
+        // 最后安全地释放播放器
+        try {
+          player.dispose();
+          print('✅ 播放器已安全释放');
+        } catch (e) {
+          print('❌ 释放播放器时出错: $e');
+        }
+
+        // 重置全局状态（如果这是最后一个实例）
+        if (mounted == false) {
+          _isPlayerScreenDisposing = false;
+          print('✅ PlayerScreen 释放状态已重置');
+        }
+      } catch (e) {
+        print('❌ 延迟清理过程中出错: $e');
+      }
+    });
+
     super.dispose();
   }
 
