@@ -25,6 +25,8 @@ import '../services/subtitle_service.dart';
 import '../services/video_analyzer_service.dart';
 import '../services/hardware_acceleration_service.dart';
 import '../services/performance_monitor_service.dart';
+import '../services/thumbnail_generator_service.dart';
+import '../services/settings_service.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 import '../models/subtitle_config.dart';
 import '../models/video_info.dart';
@@ -104,6 +106,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       // 初始化播放器和硬件加速
       await _initializePlayer();
+
+      // 初始化缩略图生成服务
+      await ThumbnailGeneratorService.instance.initialize();
 
       // 设置播放器监听器
       _setupPlayerListeners();
@@ -393,11 +398,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   // 显示性能警告提示
-  void _showPerformanceWarningIfNeeded(PerformanceMetrics metrics) {
-    // 避免频繁显示提示
-    if (metrics.fps < metrics.targetFps * 0.5) {
-      _showPerformanceSnackBar('视频播放卡顿，建议降低分辨率或启用硬件加速');
-    } else if (metrics.cpuUsage > 90) {
+  void _showPerformanceWarningIfNeeded(PerformanceMetrics metrics) async {
+    // 检查用户是否启用了性能提示
+    final alertsEnabled = await SettingsService.isPerformanceAlertsEnabled();
+    if (!alertsEnabled) {
+      return; // 用户关闭了性能提示
+    }
+
+    // 严格的性能检测阈值（减少误报）
+    final severeStutter = metrics.fps < metrics.targetFps * 0.3;
+    final highCpuUsage = metrics.cpuUsage > 95;
+    final highDropRate = metrics.droppedFramePercentage > 10;
+
+    // 只有在严重问题时才显示提示
+    if (severeStutter && highDropRate) {
+      _showPerformanceSnackBar('视频播放严重卡顿，建议降低分辨率或启用硬件加速');
+    } else if (highCpuUsage) {
       _showPerformanceSnackBar('CPU占用过高，建议关闭其他应用或启用硬件加速');
     }
   }
@@ -743,6 +759,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
             _updateBufferingState(playing);
           }
         });
+
+        // 视频开始播放时，为网络视频生成缩略图
+        if (playing && _isNetworkVideo && widget.webVideoUrl != null) {
+          _scheduleThumbnailGeneration();
+        }
       }
     });
 
@@ -2029,31 +2050,43 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// 获取播放URL（优先使用缓存）
   Future<String> _getPlaybackUrl(String originalUrl) async {
-    print('Getting playback URL for: $originalUrl');
+    print('🎬 Determining playback URL for: $originalUrl');
     final cacheService = VideoCacheService.instance;
+    final stopwatch = Stopwatch()..start();
 
     try {
+      // 确保缓存服务已初始化
       await cacheService.initialize();
 
-      // 检查是否有完整缓存
-      final cachePath = await cacheService.getCachePath(originalUrl);
+      // 第一步：同步快速检查缓存（< 50ms）
+      final cachePath = cacheService.getCachePathSync(originalUrl);
       if (cachePath != null) {
-        // 使用本地缓存文件
-        print('✅ Using cached file: $cachePath');
+        stopwatch.stop();
+        print('✅ Cache hit (sync) in ${stopwatch.elapsedMilliseconds}ms: $cachePath');
         return cachePath;
-      } else {
-        print('❌ No cached file found');
       }
 
-      // 启动后台下载缓存（不阻塞播放）
+      // 第二步：异步详细检查缓存（< 100ms）
+      final asyncCachePath = await cacheService.getCachePath(originalUrl);
+      if (asyncCachePath != null) {
+        stopwatch.stop();
+        print('✅ Cache hit (async) in ${stopwatch.elapsedMilliseconds}ms: $asyncCachePath');
+        return asyncCachePath;
+      }
+
+      stopwatch.stop();
+      print('❌ Cache miss in ${stopwatch.elapsedMilliseconds}ms');
+
+      // 第三步：启动后台下载缓存（不阻塞播放）
       _startBackgroundDownload(originalUrl);
 
-      // 直接使用原始URL播放（兼容性更好）
-      print('✅ Using original URL for playback: $originalUrl');
+      // 第四步：使用原始URL播放
+      print('🌐 Using original URL for playback: $originalUrl');
       return originalUrl;
     } catch (e) {
-      print('❌ Error getting playback URL: $e');
-      // 出错时使用原始URL
+      stopwatch.stop();
+      print('❌ Error getting playback URL in ${stopwatch.elapsedMilliseconds}ms: $e');
+      // 出错时使用原始URL作为降级方案
       print('⚠️ Falling back to original URL: $originalUrl');
       return originalUrl;
     }
@@ -3245,6 +3278,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('硬件加速禁用功能开发中...')),
     );
+  }
+
+  /// 调度缩略图生成（播放开始后3秒）
+  void _scheduleThumbnailGeneration() {
+    Future.delayed(Duration(seconds: 3), () async {
+      if (!mounted || !player.state.playing) return;
+
+      try {
+        print('🎬 Generating thumbnail for network video...');
+        final thumbnailPath = await ThumbnailGeneratorService.instance
+            .generateNetworkThumbnail(player, widget.webVideoUrl!);
+
+        if (thumbnailPath != null) {
+          print('✅ Thumbnail generated successfully: $thumbnailPath');
+        } else {
+          print('❌ Failed to generate thumbnail');
+        }
+      } catch (e) {
+        print('❌ Error generating thumbnail: $e');
+      }
+    });
   }
 
   /// 截图功能

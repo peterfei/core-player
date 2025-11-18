@@ -602,6 +602,34 @@ class HistoryService {
     }
   }
 
+  /// 根据视频路径更新缩略图（支持网络视频和本地视频）
+  static Future<void> updateThumbnail(String videoPath, String thumbnailPath) async {
+    try {
+      final histories = await getHistories();
+      final index = histories.indexWhere((h) => h.videoPath == videoPath);
+
+      if (index != -1) {
+        final history = histories[index];
+        final updatedHistory = history.copyWith(
+          thumbnailCachePath: thumbnailPath,
+          thumbnailGeneratedAt: DateTime.now(),
+        );
+
+        histories[index] = updatedHistory;
+
+        final prefs = await SharedPreferences.getInstance();
+        final historiesJson = histories.map((h) => h.toJson()).toList();
+        await prefs.setString(_storageKey, jsonEncode(historiesJson));
+
+        print('✅ 根据视频路径更新缩略图成功: ${history.videoName} -> $thumbnailPath');
+      } else {
+        print('⚠️ 未找到匹配的历史记录: $videoPath');
+      }
+    } catch (e) {
+      print('❌ 根据视频路径更新缩略图失败: $e');
+    }
+  }
+
   /// 更新历史记录的书签数据
   static Future<void> updateBookmark(
       String historyId, String bookmarkData) async {
