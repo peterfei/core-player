@@ -83,7 +83,7 @@ class _MyAppState extends State<MyApp> {
       await MediaServerService.initialize();
       
       // 初始化媒体库服务
-      await MediaLibraryService.initialize();
+      await MediaLibraryService.init();
 
       // 启动代理服务器
       await LocalProxyServer.instance.start();

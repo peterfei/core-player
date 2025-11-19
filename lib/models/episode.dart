@@ -28,8 +28,17 @@ class Episode {
   /// 上次播放位置（秒，可选）
   final int? playbackPosition;
   
-  /// 缩略图路径（可选）
+  /// 缩略图路径（可选，通常是视频截图或 still.jpg）
   final String? thumbnailPath;
+  
+  /// 简介
+  final String? overview;
+  
+  /// 评分
+  final double? rating;
+  
+  /// 首播日期
+  final DateTime? airDate;
 
   Episode({
     required this.id,
@@ -42,6 +51,9 @@ class Episode {
     required this.addedAt,
     this.playbackPosition,
     this.thumbnailPath,
+    this.overview,
+    this.rating,
+    this.airDate,
   });
 
   /// 计算播放进度（0.0 - 1.0）
@@ -70,6 +82,9 @@ class Episode {
     DateTime? addedAt,
     int? playbackPosition,
     String? thumbnailPath,
+    String? overview,
+    double? rating,
+    DateTime? airDate,
   }) {
     return Episode(
       id: id ?? this.id,
@@ -82,6 +97,9 @@ class Episode {
       addedAt: addedAt ?? this.addedAt,
       playbackPosition: playbackPosition ?? this.playbackPosition,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      overview: overview ?? this.overview,
+      rating: rating ?? this.rating,
+      airDate: airDate ?? this.airDate,
     );
   }
 

@@ -6,6 +6,7 @@ import '../services/series_service.dart';
 import '../services/media_library_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import '../widgets/episode_card.dart';
+import '../widgets/smart_image.dart';
 import 'player_screen.dart';
 
 class SeriesDetailPage extends StatefulWidget {
@@ -125,6 +126,35 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
             backgroundColor: AppColors.background,
             elevation: 0,
             pinned: true,
+            expandedHeight: widget.series.backdropPath != null ? 200.0 : null,
+            flexibleSpace: widget.series.backdropPath != null
+                ? FlexibleSpaceBar(
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        SmartImage(
+                          path: widget.series.backdropPath,
+                          fit: BoxFit.cover,
+                        ),
+                        // 渐变遮罩，确保标题可见
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.3),
+                                Colors.transparent,
+                                AppColors.background,
+                              ],
+                              stops: const [0.0, 0.5, 1.0],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : null,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
               onPressed: () => Navigator.pop(context),
@@ -191,17 +221,14 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                         ),
                       ],
                     ),
-                    child: widget.series.thumbnailPath != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(AppRadius.medium),
-                            child: Image.network(
-                              widget.series.thumbnailPath!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  _buildPlaceholder(),
-                            ),
-                          )
-                        : _buildPlaceholder(),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.medium),
+                      child: SmartImage(
+                        path: widget.series.thumbnailPath,
+                        fit: BoxFit.cover,
+                        placeholder: _buildPlaceholder(),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.large),
                   
@@ -217,6 +244,17 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.medium),
+                        if (widget.series.overview != null) ...[
+                          Text(
+                            widget.series.overview!,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: AppSpacing.medium),
+                        ],
                         Text(
                           '路径: ${widget.series.folderPath}',
                           style: AppTextStyles.bodySmall.copyWith(

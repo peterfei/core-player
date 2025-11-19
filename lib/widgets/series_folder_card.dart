@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/series.dart';
 import '../theme/design_tokens/design_tokens.dart';
+import 'smart_image.dart';
 
 /// 剧集文件夹卡片组件
 /// 用于在列表或网格中展示剧集
@@ -100,20 +101,17 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                         topRight: Radius.circular(AppRadius.medium),
                       ),
                     ),
-                    child: widget.series.thumbnailPath != null
-                        ? ClipRRect(
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(AppRadius.medium),
-                              topRight: Radius.circular(AppRadius.medium),
-                            ),
-                            child: Image.network(
-                              widget.series.thumbnailPath!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  _buildPlaceholder(),
-                            ),
-                          )
-                        : _buildPlaceholder(),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(AppRadius.medium),
+                        topRight: Radius.circular(AppRadius.medium),
+                      ),
+                      child: SmartImage(
+                        path: widget.series.thumbnailPath,
+                        fit: BoxFit.cover,
+                        placeholder: _buildPlaceholder(),
+                      ),
+                    ),
                   ),
                 ),
 
