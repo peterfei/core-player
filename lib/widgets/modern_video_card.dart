@@ -351,7 +351,7 @@ class _ModernVideoCardState extends State<ModernVideoCard>
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.center,
-            end: Alignment.outer,
+            end: Alignment.bottomCenter,
             colors: [
               Colors.transparent,
               Colors.black.withOpacity(0.3),

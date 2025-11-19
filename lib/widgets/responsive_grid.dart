@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/design_tokens/design_tokens.dart';
+import 'modern_video_card.dart';
 
 /// 响应式网格组件
 /// 基于openspec/changes/modernize-ui-design规格
@@ -127,6 +128,7 @@ class AdaptiveVideoGrid extends StatelessWidget {
   final bool shrinkWrap;
   final EdgeInsets? padding;
   final double? maxWidth;
+  final ScrollPhysics? physics;
 
   const AdaptiveVideoGrid({
     Key? key,
@@ -136,6 +138,7 @@ class AdaptiveVideoGrid extends StatelessWidget {
     this.shrinkWrap = false,
     this.padding,
     this.maxWidth,
+    this.physics,
   }) : super(key: key);
 
   @override
@@ -145,6 +148,7 @@ class AdaptiveVideoGrid extends StatelessWidget {
       shrinkWrap: shrinkWrap,
       padding: padding,
       maxWidth: maxWidth,
+      physics: physics,
       childAspectRatio: 16 / 9,
       children: videos.map((video) {
         return ModernVideoCard(
@@ -337,7 +341,6 @@ class GroupedResponsiveGrid extends StatelessWidget {
       videos: displayVideos,
       onTap: onTap,
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
     );
   }
 
