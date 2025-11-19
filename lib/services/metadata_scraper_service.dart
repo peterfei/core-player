@@ -8,6 +8,8 @@ import '../models/series.dart';
 import '../models/episode.dart';
 import 'tmdb_service.dart';
 import 'metadata_store_service.dart';
+import 'media_library_service.dart';
+import 'series_service.dart';
 
 /// 刮削结果
 class ScrapingResult {
@@ -269,6 +271,17 @@ class MetadataScraperService {
       await MetadataStoreService.saveSeriesMetadata(series.folderPath, metadata);
       debugPrint('   ✅ 元数据已保存到存储');
 
+      // 8. 刮削集数信息和封面
+      debugPrint('');
+      debugPrint('🎬 步骤8: 刮削集数信息');
+      final scrapedEpisodesCount = await _scrapeEpisodesForSeries(
+        series,
+        tmdbId,
+        details['number_of_seasons'] as int?,
+        onProgress: onProgress,
+      );
+      debugPrint('   ✅ 已刮削 $scrapedEpisodesCount 集的元数据');
+
       debugPrint('');
       debugPrint('✅ ═══════════════════════════════════════════════════════');
       debugPrint('✅ 刮削成功: ${series.name}');
@@ -297,6 +310,139 @@ class MetadataScraperService {
         success: false,
         errorMessage: e.toString(),
       );
+    }
+  }
+
+  /// 为剧集刮削所有集数的信息
+  /// 
+  /// [series] 剧集
+  /// [tmdbId] TMDB ID
+  /// [numberOfSeasons] 总季数
+  /// [onProgress] 进度回调
+  /// 返回成功刮削的集数数量
+  static Future<int> _scrapeEpisodesForSeries(
+    Series series,
+    int tmdbId,
+    int? numberOfSeasons, {
+    Function(String)? onProgress,
+  }) async {
+    if (numberOfSeasons == null || numberOfSeasons == 0) {
+      return 0;
+    }
+
+    int scrapedCount = 0;
+
+    try {
+      // 获取该剧集的所有集数
+      final allVideos = await _getVideosForSeries(series);
+      
+      debugPrint('   找到 ${allVideos.length} 个视频文件');
+
+      // 逐季刮削
+      for (int season = 1; season <= numberOfSeasons; season++) {
+        onProgress?.call('刮削第 $season 季集数信息...');
+        debugPrint('   正在刮削第 $season 季...');
+
+        // 获取本季详情
+        final seasonDetails = await TMDBService.getSeasonDetails(tmdbId, season);
+        if (seasonDetails == null) {
+          debugPrint('   ⚠️ 无法获取第 $season 季详情');
+          continue;
+        }
+
+        final episodes = seasonDetails['episodes'] as List?;
+        if (episodes == null || episodes.isEmpty) {
+          debugPrint('   ⚠️ 第 $season 季没有集数信息');
+          continue;
+        }
+
+        // 按季数过滤本地视频
+        final seasonEpisodes = allVideos.where((ep) {
+          // 这里简化处理，假设 episodeNumber 是全局编号或者通过文件名解析
+          // 实际应用中可能需要更复杂的逻辑来匹配季和集
+          return ep.episodeNumber != null && ep.episodeNumber! <= episodes.length;
+        }).toList();
+
+        debugPrint('   本地找到 ${seasonEpisodes.length} 个文件');
+
+        // 逐集刮削
+        for (final episodeData in episodes) {
+          final episodeNumber = episodeData['episode_number'] as int;
+
+          // 查找对应的本地Episode
+          final matches = seasonEpisodes.where((ep) => ep.episodeNumber == episodeNumber);
+          final localEpisode = matches.isNotEmpty ? matches.first : null;
+
+          if (localEpisode == null) {
+            // 如果找不到对应集数的本地文件，尝试按顺序匹配（如果集数很少且没有明确编号）
+            // 但这可能会导致错误匹配，所以暂时只处理明确匹配的情况
+            // 或者如果 seasonEpisodes 的数量正好对应，可以尝试按索引
+             if (seasonEpisodes.length >= episodeNumber && seasonEpisodes[episodeNumber - 1].episodeNumber == null) {
+               // 只有当本地文件没有解析出集数编号时，才尝试按索引匹配
+               // 这是一个回退策略
+             } else {
+               continue; // 本地没有这一集
+             }
+          }
+
+          final episode = localEpisode ?? seasonEpisodes[episodeNumber - 1];
+
+          // 下载集数封面
+          String? stillPath;
+          final stillUrl = TMDBService.getImageUrl(episodeData['still_path']);
+          if (stillUrl != null) {
+            final imagesDir = await _getImagesDirectory();
+            final seriesImagesDir = Directory(p.join(imagesDir.path, tmdbId.toString()));
+            if (!await seriesImagesDir.exists()) {
+              await seriesImagesDir.create(recursive: true);
+            }
+
+            stillPath = await downloadImage(
+              stillUrl,
+              p.join(seriesImagesDir.path, 'S${season}E${episodeNumber}_still.jpg'),
+            );
+          }
+
+          // 构建并保存集数元数据
+          final episodeMetadata = {
+            'tmdbId': episodeData['id'],
+            'name': episodeData['name'],
+            'overview': episodeData['overview'],
+            'stillPath': stillPath,
+            'rating': (episodeData['vote_average'] as num?)?.toDouble(),
+            'airDate': episodeData['air_date'],
+            'episodeNumber': episodeNumber,
+            'seasonNumber': season,
+            'scrapedAt': DateTime.now().toIso8601String(),
+          };
+
+          await MetadataStoreService.saveEpisodeMetadata(episode.id, episodeMetadata);
+          scrapedCount++;
+        }
+
+        // 添加延迟以避免API限流
+        if (season < numberOfSeasons) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      }
+    } catch (e) {
+      debugPrint('   ❌ 刮削集数失败: $e');
+    }
+
+    return scrapedCount;
+  }
+
+  /// 获取剧集的所有视频文件（Episode对象）
+  static Future<List<Episode>> _getVideosForSeries(Series series) async {
+    try {
+      // 从 MediaLibraryService 获取所有视频
+      final allVideos = MediaLibraryService.getAllVideos();
+      
+      // 使用 SeriesService 获取属于该剧集的集数
+      return SeriesService.getEpisodesForSeries(series, allVideos);
+    } catch (e) {
+      debugPrint('获取剧集视频失败: $e');
+      return [];
     }
   }
 

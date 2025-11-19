@@ -477,8 +477,21 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
                             final episode = _filteredEpisodes[index];
+                            // 从MetadataStoreService加载集数元数据
+                            final episodeMetadata = MetadataStoreService.getEpisodeMetadata(episode.id);
+                            
+                            // 如果有元数据，使用刮削的stillPath更新Episode
+                            Episode displayEpisode = episode;
+                            if (episodeMetadata != null && episodeMetadata['stillPath'] != null) {
+                              displayEpisode = episode.copyWith(
+                                stillPath: episodeMetadata['stillPath'] as String,
+                                overview: episodeMetadata['overview'] as String?,
+                                rating: episodeMetadata['rating'] as double?,
+                              );
+                            }
+                            
                             return EpisodeCard(
-                              episode: episode,
+                              episode: displayEpisode,
                               onTap: () => _playEpisode(episode),
                             );
                           },
