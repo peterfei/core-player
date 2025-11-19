@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:yinghe_player/screens/home_screen.dart';
 import 'package:yinghe_player/services/video_cache_service.dart';
 import 'package:yinghe_player/services/local_proxy_server.dart';
@@ -9,9 +10,26 @@ import 'package:yinghe_player/services/system_codec_detector_service.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 
-void main() {
+void main() async {
   // Initialize media_kit
   MediaKit.ensureInitialized();
+
+  // Initialize window_manager
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(1280, 720),
+    center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+  );
+  
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 
   // 捕获 Flutter 框架错误(包括键盘事件错误)
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -82,7 +100,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (!_initialized) {
       return MaterialApp(
-        title: '影核播放器',
+        title: 'CorePlayer',
         theme: AppTheme.darkTheme,
         home: const Scaffold(
           backgroundColor: AppColors.background,
@@ -106,7 +124,7 @@ class _MyAppState extends State<MyApp> {
     }
 
     return MaterialApp(
-      title: '影核播放器',
+      title: 'CorePlayer',
       theme: AppTheme.darkTheme,
       home: _error != null
           ? Scaffold(

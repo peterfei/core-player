@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import '../animations/animations.dart';
@@ -100,6 +101,22 @@ class _ModernVideoCardState extends State<ModernVideoCard> {
 
   Widget _buildBackground() {
     if (widget.thumbnailUrl != null) {
+      // 检查是否是本地文件路径
+      final isLocalFile = !widget.thumbnailUrl!.startsWith('http') && 
+                          !widget.thumbnailUrl!.startsWith('https');
+      
+      if (isLocalFile) {
+        return Image.file(
+          File(widget.thumbnailUrl!),
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildPlaceholder();
+          },
+        );
+      }
+
       return Image.network(
         widget.thumbnailUrl!,
         width: double.infinity,

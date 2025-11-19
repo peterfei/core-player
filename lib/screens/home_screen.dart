@@ -15,6 +15,7 @@ import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 import 'package:yinghe_player/screens/animation_demo.dart';
 
 import 'package:yinghe_player/services/cache_test_service.dart';
+import 'package:yinghe_player/models/playback_history.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,60 +30,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final GlobalKey<HistoryListWidgetRefreshableState> _historyListKey =
       GlobalKey<HistoryListWidgetRefreshableState>();
 
-  // 示例视频数据
-  late List<VideoCardData> _sampleVideos;
+  List<PlaybackHistory> _histories = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _initializeSampleData();
+    _loadData();
   }
 
-  void _initializeSampleData() {
-    _sampleVideos = [
-      VideoCardData(
-        title: '示例视频 1 - 本地高清视频',
-        subtitle: '2024年制作的技术演示视频',
-        progress: 0.75,
-        type: '本地',
-        duration: const Duration(minutes: 15, seconds: 30),
-      ),
-      VideoCardData(
-        title: '示例视频 2 - 网络流媒体',
-        subtitle: '高质量网络视频流测试',
-        progress: 0.30,
-        type: '网络',
-        duration: const Duration(minutes: 8, seconds: 45),
-      ),
-      VideoCardData(
-        title: '示例视频 3 - 4K超高清',
-        subtitle: '4K分辨率视频演示',
-        progress: 1.0,
-        type: '4K',
-        duration: const Duration(minutes: 12, seconds: 20),
-      ),
-      VideoCardData(
-        title: '示例视频 4 - HDR高动态范围',
-        subtitle: 'HDR视频技术展示',
-        progress: 0.0,
-        type: 'HDR',
-        duration: const Duration(minutes: 6, seconds: 15),
-      ),
-      VideoCardData(
-        title: '示例视频 5 - 本地录制',
-        subtitle: '设备录制的高质量视频',
-        progress: 0.60,
-        type: '本地',
-        duration: const Duration(minutes: 10, seconds: 50),
-      ),
-      VideoCardData(
-        title: '示例视频 6 - 网络直播录制',
-        subtitle: '直播内容录制剪辑',
-        progress: 0.20,
-        type: '网络',
-        duration: const Duration(minutes: 25, seconds: 18),
-      ),
-    ];
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final histories = await HistoryService.getHistories();
+      if (mounted) {
+        setState(() {
+          _histories = histories;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading history: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _handleSidebarItemSelected(int index) {
@@ -110,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           .then((_) {
         // 播放完成后刷新历史列表
         _historyListKey.currentState?.refreshHistories();
+        _loadData(); // 刷新主页数据
       });
     }
   }
@@ -135,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ).then((_) {
             // 播放完成后刷新历史列表
             _historyListKey.currentState?.refreshHistories();
+            _loadData(); // 刷新主页数据
           });
         }
       } else if (kIsWeb && result.files.single.bytes != null) {
@@ -160,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ).then((_) {
             // 播放完成后刷新历史列表
             _historyListKey.currentState?.refreshHistories();
+            _loadData(); // 刷新主页数据
           });
         }
       }
@@ -175,6 +154,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ).then((_) {
       // 返回时刷新历史列表
       _historyListKey.currentState?.refreshHistories();
+      _loadData(); // 刷新主页数据
     });
   }
 
@@ -301,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
         // 全部视频部分
         SliverToBoxAdapter(
-          child: _buildSection('全部视频', _sampleVideos),
+          child: _buildSection('全部视频', _getAllVideos()),
         ),
       ],
     );
@@ -441,13 +421,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   List<VideoCardData> _getContinueWatchingVideos() {
-    // 返回有播放进度的视频
-    return _sampleVideos.where((video) => video.progress > 0 && video.progress < 1).toList();
+    // 返回有播放进度的视频，且未播放完成
+    final continueWatching = _histories.where((h) => 
+      h.currentPosition > 0 && 
+      h.currentPosition < h.totalDuration &&
+      !h.isCompleted
+    ).toList();
+    
+    return continueWatching.map(_mapHistoryToVideoCard).toList();
   }
 
   List<VideoCardData> _getRecentVideos() {
     // 返回最近添加的视频（这里简单返回前几个）
-    return _sampleVideos.take(4).toList();
+    // 假设 _histories 已经是按时间排序的
+    return _histories.take(4).map(_mapHistoryToVideoCard).toList();
+  }
+  
+  List<VideoCardData> _getAllVideos() {
+    return _histories.map(_mapHistoryToVideoCard).toList();
+  }
+
+  VideoCardData _mapHistoryToVideoCard(PlaybackHistory history) {
+    // 计算进度
+    double progress = 0.0;
+    if (history.totalDuration > 0) {
+      progress = history.currentPosition / history.totalDuration;
+    }
+    
+    // 确定类型
+    String type = history.isNetworkVideo ? '网络' : '本地';
+    
+    return VideoCardData(
+      title: history.videoName,
+      subtitle: history.isNetworkVideo ? '网络视频' : '本地视频',
+      progress: progress,
+      type: type,
+      duration: Duration(milliseconds: history.totalDuration),
+      thumbnailUrl: history.thumbnailPath ?? history.thumbnailCachePath,
+      url: history.isNetworkVideo ? history.videoPath : null,
+      localPath: !history.isNetworkVideo ? history.videoPath : null,
+    );
   }
 
   void _playVideo(VideoCardData video) {
@@ -463,6 +476,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ).then((_) {
           _historyListKey.currentState?.refreshHistories();
+          _loadData(); // 刷新主页数据
         });
       }
     } else if (video.url != null) {
@@ -475,6 +489,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ).then((_) {
           _historyListKey.currentState?.refreshHistories();
+          _loadData(); // 刷新主页数据
         });
       }
     }

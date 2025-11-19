@@ -9,6 +9,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:window_manager/window_manager.dart';
 import '../models/playback_history.dart';
 import '../models/buffer_config.dart';
 import '../models/network_stats.dart';
@@ -1615,26 +1616,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   // 切换全屏模式
-  void _toggleFullscreen() {
+  void _toggleFullscreen() async {
     setState(() {
       _isFullscreen = !_isFullscreen;
     });
-    if (_isFullscreen) {
-      // 进入全屏模式
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      await windowManager.setFullScreen(_isFullscreen);
     } else {
-      // 退出全屏模式
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+      if (_isFullscreen) {
+        // 进入全屏模式
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        // 退出全屏模式
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      }
     }
     _startControlsTimer();
   }
