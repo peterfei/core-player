@@ -1,12 +1,14 @@
 // Design Tokens 统一入口文件
 // 导出所有设计token，方便其他模块使用
 
+import 'package:flutter/material.dart';
 import 'colors.dart';
 import 'typography.dart';
 import 'spacing.dart';
 import 'borders.dart';
 import 'shadows.dart';
 import 'gradients.dart';
+import 'animations.dart';
 
 export 'colors.dart';
 export 'typography.dart';
@@ -14,13 +16,14 @@ export 'spacing.dart';
 export 'borders.dart';
 export 'shadows.dart' hide ComponentType;
 export 'gradients.dart';
+export 'animations.dart';
 
 /// Design Token 版本信息
 class DesignTokenInfo {
   static const String version = '1.0.0';
   static const String specVersion = 'openspec/modernize-ui-design';
   static final DateTime created = DateTime(2024, 11, 19);
-  static const String author = 'VidHub UI Team';
+  static const String author = 'CorePlayer UI Team';
 
   /// 获取所有token信息
   static Map<String, dynamic> getInfo() {
@@ -36,6 +39,7 @@ class DesignTokenInfo {
         'borders': 'AppRadius',
         'shadows': 'AppShadows',
         'gradients': 'AppGradients',
+        'animations': 'AppAnimationTokens',
       },
     };
   }
@@ -60,6 +64,9 @@ class DesignTokenInfo {
 
       // 验证渐变系统
       _validateGradients();
+
+      // 验证动画系统
+      _validateAnimations();
 
       return true;
     } catch (e) {
@@ -135,6 +142,19 @@ class DesignTokenInfo {
       if (AppGradients.videoCardBottom.colors.length != 2) throw 'videoCardBottom wrong';
       if (AppGradients.primaryButton.colors.length != 2) throw 'primaryButton wrong';
       if (AppGradients.shimmerLoading.colors.length != 3) throw 'shimmerLoading wrong';
+    } catch (e) {
+      // 静默处理，避免编译时错误
+    }
+  }
+
+  static void _validateAnimations() {
+    // 验证动画系统
+    try {
+      if (AppDurations.hoverDuration.inMilliseconds != 250) throw 'hover duration wrong';
+      if (AppDurations.pageTransitionDuration.inMilliseconds != 300) throw 'page transition duration wrong';
+      if (AppCurves.easeOut != Curves.easeOut) throw 'easeOut curve wrong';
+      if (AnimationRanges.scaleHoverMax != 1.05) throw 'scale hover wrong';
+      if (AnimationRanges.opacityHidden != 0.0) throw 'opacity hidden wrong';
     } catch (e) {
       // 静默处理，避免编译时错误
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/design_tokens/design_tokens.dart';
+import '../animations/animations.dart';
 
 /// 现代化视频卡片组件
 /// 基于openspec/changes/modernize-ui-design规格
@@ -35,133 +36,63 @@ class ModernVideoCard extends StatefulWidget {
   State<ModernVideoCard> createState() => _ModernVideoCardState();
 }
 
-class _ModernVideoCardState extends State<ModernVideoCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _shadowAnimation;
-  bool _isHovered = false;
-  bool _isPressed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 250),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.05,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
-
-    _shadowAnimation = Tween<double>(
-      begin: 1.0,
-      end: 2.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _handleHover(bool isHovered) {
-    if (_isHovered != isHovered) {
-      setState(() {
-        _isHovered = isHovered;
-      });
-
-      if (isHovered) {
-        _animationController.forward();
-      } else {
-        _animationController.reverse();
-      }
-    }
-  }
-
-  void _handlePress(bool isPressed) {
-    setState(() {
-      _isPressed = isPressed;
-    });
-  }
+class _ModernVideoCardState extends State<ModernVideoCard> {
+  // 动画现在由新的动画系统处理，不再需要手动管理
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => _handleHover(true),
-      onExit: (_) => _handleHover(false),
-      child: GestureDetector(
-        onTapDown: (_) => _handlePress(true),
-        onTapUp: (_) => _handlePress(false),
-        onTapCancel: () => _handlePress(false),
+    return HoverAnimatedWidget(
+      config: const HoverAnimationConfig(
+        type: HoverAnimationType.combined,
+        scaleEnd: MicroInteractions.cardHoverScale,
+        elevationEnd: MicroInteractions.cardHoverElevation,
+        brightnessEnd: 1.05,
+      ),
+      child: TapAnimatedWidget(
+        config: const TapAnimationConfig(
+          type: TapAnimationType.scale,
+          scaleEnd: MicroInteractions.cardPressScale,
+        ),
         onTap: widget.onTap,
-        child: AnimatedBuilder(
-          animation: _animationController,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _isPressed ? 0.98 : _scaleAnimation.value,
-              child: Container(
-                width: widget.width,
-                height: widget.height,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.large),
-                  boxShadow: _isHovered
-                      ? AppShadows.cardHover.map((shadow) {
-                          return BoxShadow(
-                            color: shadow.color,
-                            blurRadius: shadow.blurRadius * _shadowAnimation.value,
-                            offset: shadow.offset,
-                            spreadRadius: shadow.spreadRadius,
-                          );
-                        }).toList()
-                      : AppShadows.cardDefault,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.large),
-                  child: SizedBox(
-                    width: widget.width,
-                    height: widget.height,
-                    child: Stack(
-                      children: [
-                        // 背景容器
-                        _buildBackground(),
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        child: Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            boxShadow: AppShadows.cardDefault,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            child: SizedBox(
+              width: widget.width,
+              height: widget.height,
+              child: Stack(
+                children: [
+                  // 背景容器
+                  _buildBackground(),
 
-                        // 渐变叠加层
-                        _buildGradientOverlay(),
+                  // 渐变叠加层
+                  _buildGradientOverlay(),
 
-                        // 进度条
-                        if (widget.progress > 0) _buildProgressBar(),
+                  // 进度条
+                  if (widget.progress > 0) _buildProgressBar(),
 
-                        // 顶部徽章
-                        if (widget.videoType != null) _buildTopBadges(),
+                  // 顶部徽章
+                  if (widget.videoType != null) _buildTopBadges(),
 
-                        // 播放时长
-                        if (widget.duration != null) _buildDuration(),
+                  // 播放时长
+                  if (widget.duration != null) _buildDuration(),
 
-                        // 底部标题区域
-                        _buildTitleArea(),
+                  // 底部标题区域
+                  _buildTitleArea(),
 
-                        // 悬停时显示的播放按钮
-                        if (_isHovered && widget.showPlayButton) _buildPlayButton(),
-
-                        // 点击反馈层
-                        _buildClickFeedback(),
-                      ],
-                    ),
-                  ),
-                ),
+                  // 悬停时显示的播放按钮
+                  if (widget.showPlayButton) _buildPlayButton(),
+                ],
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
@@ -380,19 +311,6 @@ class _ModernVideoCardState extends State<ModernVideoCard>
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildClickFeedback() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.large),
-        onTap: widget.onTap,
-        splashFactory: InkRipple.splashFactory,
-        splashColor: AppColors.primary.withOpacity(0.3),
-        highlightColor: AppColors.primary.withOpacity(0.1),
       ),
     );
   }

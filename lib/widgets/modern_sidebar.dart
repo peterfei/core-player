@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/design_tokens/design_tokens.dart';
+import '../animations/animations.dart';
 
 /// 现代化侧边栏组件
 /// 基于openspec/changes/modernize-ui-design规格
@@ -140,7 +141,7 @@ class _ModernSidebarState extends State<ModernSidebar> {
         ),
         const SizedBox(width: AppSpacing.small),
         Text(
-          'VidHub',
+          'CorePlayer',
           style: AppTextStyles.headlineSmall.copyWith(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
@@ -170,21 +171,21 @@ class _ModernSidebarState extends State<ModernSidebar> {
   }
 
   Widget _buildSidebarItem(SidebarItem item, int index, bool isSelected) {
-    return Material(
-      color: isSelected ? AppColors.surfaceVariant : Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.medium),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        onTap: () => widget.onItemSelected(index),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.isCollapsed ? 0 : AppSpacing.medium,
-            vertical: AppSpacing.small,
-          ),
-          child: widget.isCollapsed
-              ? _buildCollapsedItem(item, isSelected)
-              : _buildExpandedItem(item, isSelected),
+    return TapListItem(
+      onTap: () => widget.onItemSelected(index),
+      highlightColor: AppColors.surfaceVariant,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.isCollapsed ? 0 : AppSpacing.medium,
+          vertical: AppSpacing.small,
         ),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.surfaceVariant : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+        ),
+        child: widget.isCollapsed
+            ? _buildCollapsedItem(item, isSelected)
+            : _buildExpandedItem(item, isSelected),
       ),
     );
   }

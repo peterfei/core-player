@@ -12,6 +12,7 @@ import 'package:yinghe_player/widgets/modern_video_card.dart';
 import 'package:yinghe_player/services/history_service.dart';
 import 'package:yinghe_player/services/cache_test_service.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
+import 'package:yinghe_player/screens/animation_demo.dart';
 
 import 'package:yinghe_player/services/cache_test_service.dart';
 
@@ -175,6 +176,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // 返回时刷新历史列表
       _historyListKey.currentState?.refreshHistories();
     });
+  }
+
+  void _navigateToAnimationDemo() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AnimationDemo(),
+      ),
+    );
   }
 
   void _runCacheTests() async {
@@ -416,6 +426,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           tooltip: '选择本地视频',
           backgroundColor: AppColors.primary,
           child: const Icon(Icons.add),
+        ),
+        const SizedBox(height: AppSpacing.standard),
+        // 动画演示按钮
+        FloatingActionButton(
+          heroTag: 'animation_demo',
+          onPressed: _navigateToAnimationDemo,
+          tooltip: '动画演示',
+          backgroundColor: AppColors.surfaceVariant,
+          child: const Icon(Icons.animation),
         ),
       ],
     );
