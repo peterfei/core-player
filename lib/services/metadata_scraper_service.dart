@@ -310,7 +310,7 @@ class MetadataScraperService {
     List<Series> seriesList, {
     Function(int current, int total, String status)? onProgress,
     bool forceUpdate = false,
-    int delayBetweenRequests = 300, // TMDB 限制每秒最多 4 个请求，300ms = 约每秒 3.3 个请求
+    int delayBetweenRequests = 500, // TMDB 限制每秒最多 4 个请求，500ms = 每秒2个请求（更保守）
   }) async {
     final results = <ScrapingResult>[];
     

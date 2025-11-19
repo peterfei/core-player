@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/episode.dart';
 import '../theme/design_tokens/design_tokens.dart';
@@ -160,11 +161,11 @@ class _EpisodeCardState extends State<EpisodeCard> {
         color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(AppRadius.small),
       ),
-      child: widget.episode.thumbnailPath != null
+      child: widget.episode.stillPath != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.small),
-              child: Image.network(
-                widget.episode.thumbnailPath!,
+              child: Image.file(
+                File(widget.episode.stillPath!),
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) =>
                     _buildPlaceholder(),

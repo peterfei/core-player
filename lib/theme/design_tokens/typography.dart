@@ -191,7 +191,7 @@ class AppTextStyles {
 
   /// 侧边栏分组标题样式
   static const TextStyle sidebarSectionTitle = TextStyle(
-    fontSize: 11,
+    fontSize: 11, // 从9增加到11，更易阅读
     fontWeight: FontWeight.w600,
     height: 1.4,
     letterSpacing: 0.5,

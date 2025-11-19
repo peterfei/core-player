@@ -25,13 +25,14 @@ class MediaServerConfigAdapter extends TypeAdapter<MediaServerConfig> {
       token: fields[5] as String,
       domain: fields[6] as String?,
       port: fields[7] as int?,
+      sharedFolders: (fields[8] as List?)?.cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, MediaServerConfig obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class MediaServerConfigAdapter extends TypeAdapter<MediaServerConfig> {
       ..writeByte(6)
       ..write(obj.domain)
       ..writeByte(7)
-      ..write(obj.port);
+      ..write(obj.port)
+      ..writeByte(8)
+      ..write(obj.sharedFolders);
   }
 
   @override

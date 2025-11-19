@@ -8,6 +8,7 @@ import 'cache_management_screen.dart';
 import 'format_support_screen.dart';
 import 'video_playback_settings_screen.dart';
 import 'metadata_settings_screen.dart';
+import 'metadata_management_page.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -69,6 +70,36 @@ class SettingsScreen extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (context) => const MetadataSettingsScreen(),
                 ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.manage_search),
+            title: const Text('元数据管理'),
+            subtitle: const Text('查看和管理已刮削的元数据'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MetadataManagementPage(),
+                ),
+              );
+            },
+          ),
+          FutureBuilder<bool>(
+            future: SettingsService.getAutoScrapeEnabled(),
+            builder: (context, snapshot) {
+              final autoScrapeEnabled = snapshot.data ?? true;
+              return SwitchListTile(
+                secondary: const Icon(Icons.auto_fix_high),
+                title: const Text('自动刮削元数据'),
+                subtitle: const Text('扫描视频后自动从 TMDB 获取元数据'),
+                value: autoScrapeEnabled,
+                onChanged: (value) async {
+                  await SettingsService.setAutoScrapeEnabled(value);
+                  // Force rebuild
+                  (context as Element).markNeedsBuild();
+                },
               );
             },
           ),

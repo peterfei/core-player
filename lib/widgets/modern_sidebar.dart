@@ -260,15 +260,9 @@ class _ModernSidebarState extends State<ModernSidebar> {
     return Column(
       children: [
         _buildCollapsedBottomItem(
-          Icons.settings_outlined,
-          '设置',
-          widget.items.length - 1,
-        ),
-        const SizedBox(height: AppSpacing.small),
-        _buildCollapsedBottomItem(
           Icons.info_outline,
           '关于',
-          widget.items.length,
+          -1, // 使用 -1 表示"关于"项（非导航项）
         ),
       ],
     );
@@ -280,24 +274,10 @@ class _ModernSidebarState extends State<ModernSidebar> {
         _buildSectionTitle('系统'),
         const SizedBox(height: AppSpacing.small),
         _buildExpandedBottomItem(
-          Icons.settings_outlined,
-          Icons.settings,
-          '设置',
-          widget.items.length - 1,
-        ),
-        const SizedBox(height: AppSpacing.small),
-        _buildExpandedBottomItem(
           Icons.info_outline,
           Icons.info,
           '关于',
-          widget.items.length,
-        ),
-        const SizedBox(height: AppSpacing.large),
-        _buildExpandedBottomItem(
-          Icons.logout_outlined,
-          Icons.logout,
-          '退出',
-          -1,
+          -1, // 使用 -1 表示"关于"项
         ),
       ],
     );

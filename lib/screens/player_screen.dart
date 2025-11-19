@@ -28,6 +28,7 @@ import '../services/hardware_acceleration_service.dart';
 import '../services/performance_monitor_service.dart';
 import '../services/network_thumbnail_service.dart';
 import '../services/settings_service.dart';
+import '../theme/design_tokens/design_tokens.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 import '../models/subtitle_config.dart';
 import '../models/video_info.dart';
@@ -3046,9 +3047,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle( // 移除 const，因为 AppColors.textPrimary 不是常量
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: AppColors.textPrimary, // 从 Colors.black87 改为 AppColors.textPrimary 以适配深色主题
             ),
           ),
           Flexible(
@@ -3189,7 +3190,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
       case 'toggle_performance_overlay':
         setState(() {
           _showPerformanceOverlay = !_showPerformanceOverlay;
+          debugPrint('🎯 性能覆盖层已${_showPerformanceOverlay ? "开启" : "关闭"}');
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_showPerformanceOverlay ? '性能覆盖层已开启' : '性能覆盖层已关闭'),
+            duration: const Duration(seconds: 1),
+          ),
+        );
         break;
       case 'toggle_controls':
         setState(() {

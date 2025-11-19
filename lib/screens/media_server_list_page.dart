@@ -6,7 +6,10 @@ import '../services/file_source_factory.dart';
 import '../services/media_scanner_service.dart';
 import '../services/media_library_service.dart';
 import '../services/file_source/file_source.dart';
+import '../services/auto_scraper_service.dart';
+import '../services/settings_service.dart';
 import 'add_server_page.dart';
+import 'shared_folder_management_page.dart';
 
 class MediaServerListPage extends StatefulWidget {
   const MediaServerListPage({super.key});
@@ -131,6 +134,12 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
       sharesToScan = ['/'];
     }
 
+    // 更新服务器配置，保存或合并共享文件夹列表
+    final existingFolders = config.sharedFolders ?? [];
+    final allFolders = {...existingFolders, ...sharesToScan}.toList();
+    final updatedConfig = config.copyWith(sharedFolders: allFolders);
+    await MediaServerService.updateServer(updatedConfig);
+
     // 显示扫描进度对话框
     if (!mounted) return;
     showDialog(
@@ -179,16 +188,97 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
       await MediaLibraryService.addVideos(scannedVideos);
 
       if (mounted) {
-        Navigator.of(context).pop(); // 关闭进度对话框
+        Navigator.of(context).pop(); // 关闭扫描进度对话框
         
-        // 显示成功消息
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('扫描完成，添加了 ${allFiles.length} 个视频，点击"媒体库"查看'),
-            backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        // 检查是否启用自动刮削
+        final autoScrapeEnabled = await SettingsService.getAutoScrapeEnabled();
+        
+        if (autoScrapeEnabled && scannedVideos.isNotEmpty) {
+          // 显示自动刮削进度对话框
+          if (!mounted) return;
+          
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => StatefulBuilder(
+              builder: (context, setDialogState) {
+                String currentStatus = '准备刮削...';
+                int currentIndex = 0;
+                int total = 1;
+                
+                // 开始自动刮削
+                AutoScraperService.autoScrapeVideos(
+                  scannedVideos,
+                  onProgress: (current, totalCount, status) {
+                    setDialogState(() {
+                      currentIndex = current;
+                      total = totalCount;
+                      currentStatus = status;
+                    });
+                  },
+                ).then((result) {
+                  if (mounted) {
+                    Navigator.of(context).pop(); // 关闭刮削进度对话框
+                    
+                    // 重新加载服务器列表以显示更新的共享文件夹
+                    _loadServers();
+                    
+                    // 显示完成消息
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '扫描完成，添加了 ${allFiles.length} 个视频\n'
+                          '自动刮削: ${result.toString()}',
+                        ),
+                        backgroundColor: AppColors.success,
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
+                  }
+                });
+                
+                return AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  title: Text(
+                    '自动刮削中',
+                    style: AppTextStyles.headlineSmall.copyWith(color: AppColors.textPrimary),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LinearProgressIndicator(
+                        value: total > 0 ? currentIndex / total : 0,
+                      ),
+                      const SizedBox(height: AppSpacing.medium),
+                      Text(
+                        '进度: $currentIndex / $total',
+                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: AppSpacing.small),
+                      Text(
+                        currentStatus,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        } else {
+          // 不自动刮削，直接显示成功消息并刷新列表
+          _loadServers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('扫描完成，添加了 ${allFiles.length} 个视频，点击"媒体库"查看'),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -201,6 +291,18 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
         );
       }
     }
+  }
+
+  Future<void> _manageSharedFolders(MediaServerConfig config) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SharedFolderManagementPage(server: config),
+      ),
+    );
+    
+    // 返回后刷新服务器列表
+    _loadServers();
   }
 
   Future<void> _deleteServer(MediaServerConfig config) async {
@@ -360,6 +462,8 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
   }
 
   Widget _buildServerCard(MediaServerConfig server) {
+    final sharedFolders = server.sharedFolders ?? [];
+    
     return Card(
       color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: AppSpacing.medium),
@@ -415,6 +519,55 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
                 ),
               ],
             ),
+            
+            // 显示共享文件夹列表
+            if (sharedFolders.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.medium),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpacing.small),
+              Text(
+                '已添加的共享文件夹 (${sharedFolders.length})',
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.small),
+              ...sharedFolders.take(3).map((folder) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.folder_outlined,
+                      size: 16,
+                      color: AppColors.textTertiary,
+                    ),
+                    const SizedBox(width: AppSpacing.small),
+                    Expanded(
+                      child: Text(
+                        folder,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+              if (sharedFolders.length > 3)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '  +${sharedFolders.length - 3} 个更多...',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textTertiary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+            ],
+            
             const SizedBox(height: AppSpacing.medium),
             Row(
               children: [
@@ -429,6 +582,20 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
                     ),
                   ),
                 ),
+                if (sharedFolders.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.small),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _manageSharedFolders(server),
+                      icon: const Icon(Icons.folder_special_outlined, size: 18),
+                      label: const Text('管理共享'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.secondary,
+                        side: BorderSide(color: AppColors.secondary),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],

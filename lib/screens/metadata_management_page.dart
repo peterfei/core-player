@@ -257,6 +257,143 @@ class _MetadataManagementPageState extends State<MetadataManagementPage> {
     setState(() => _isScraping = false);
   }
 
+  Future<void> _deleteMetadata(Series series) async {
+    // 显示确认对话框
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除元数据'),
+        content: Text('确定要删除"${series.name}"的元数据吗？\n这不会删除视频文件。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await MetadataStoreService.deleteSeriesMetadata(series.folderPath);
+        
+        // 重新加载数据
+        await _loadData();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('元数据已删除')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('删除失败: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _viewMetadataDetails(Series series) async {
+    final metadata = _metadata[series.id];
+    if (metadata == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('该剧集没有元数据')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          metadata['name'] ?? series.name,
+          style: const TextStyle(fontSize: 18),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (metadata['posterPath'] != null && File(metadata['posterPath']).existsSync())
+                Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(metadata['posterPath']),
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              _buildDetailRow('原始名称', metadata['originalName']),
+              _buildDetailRow('TMDB ID', metadata['tmdbId']?.toString()),
+              _buildDetailRow('评分', metadata['rating']?.toStringAsFixed(1)),
+              _buildDetailRow('首播日期', metadata['releaseDate']),
+              _buildDetailRow('状态', metadata['status']),
+              _buildDetailRow('季数', metadata['numberOfSeasons']?.toString()),
+              _buildDetailRow('集数', metadata['numberOfEpisodes']?.toString()),
+              const SizedBox(height: 8),
+              const Text(
+                '简介',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                metadata['overview'] ?? '无简介',
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String? value) {
+    if (value == null || value == 'null') return const SizedBox.shrink();
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProgressDialog(String message) {
     return AlertDialog(
       content: Row(
@@ -385,7 +522,26 @@ class _MetadataManagementPageState extends State<MetadataManagementPage> {
             ],
           ],
         ),
-        trailing: _buildActionButton(series, isScraped),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isScraped) ...[
+              IconButton(
+                icon: const Icon(Icons.info_outline, size: 20),
+                color: Colors.blue,
+                tooltip: '查看详情',
+                onPressed: () => _viewMetadataDetails(series),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                color: Colors.red,
+                tooltip: '删除元数据',
+                onPressed: () => _deleteMetadata(series),
+              ),
+            ],
+            _buildActionButton(series, isScraped),
+          ],
+        ),
         isThreeLine: metadata != null,
       ),
     );

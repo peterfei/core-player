@@ -42,6 +42,9 @@ class Episode {
   
   /// TMDB ID (可选)
   final int? tmdbId;
+  
+  /// TMDB 集数封面路径（still image，可选）
+  final String? stillPath;
 
   Episode({
     required this.id,
@@ -58,6 +61,7 @@ class Episode {
     this.rating,
     this.airDate,
     this.tmdbId,
+    this.stillPath,
   });
 
   /// 计算播放进度（0.0 - 1.0）
@@ -90,6 +94,7 @@ class Episode {
     double? rating,
     DateTime? airDate,
     int? tmdbId,
+    String? stillPath,
   }) {
     return Episode(
       id: id ?? this.id,
@@ -106,6 +111,7 @@ class Episode {
       rating: rating ?? this.rating,
       airDate: airDate ?? this.airDate,
       tmdbId: tmdbId ?? this.tmdbId,
+      stillPath: stillPath ?? this.stillPath,
     );
   }
 
