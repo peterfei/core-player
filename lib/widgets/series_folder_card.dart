@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/series.dart';
+import '../services/metadata_store_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import 'smart_image.dart';
 
@@ -24,6 +25,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
   bool _isHovered = false;
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+  Map<String, dynamic>? _metadata;
 
   @override
   void initState() {
@@ -38,7 +40,25 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
         curve: Curves.easeOut,
       ),
     );
+    _loadMetadata();
   }
+
+  void _loadMetadata() {
+    final metadata = MetadataStoreService.getSeriesMetadata(widget.series.folderPath);
+    debugPrint('🃏 SeriesFolderCard: ${widget.series.name}');
+    debugPrint('   路径: ${widget.series.folderPath}');
+    debugPrint('   元数据: ${metadata != null ? "已加载" : "无"}');
+    if (metadata != null && metadata['posterPath'] != null) {
+      debugPrint('   海报路径: ${metadata['posterPath']}');
+    }
+    
+    if (mounted) {
+      setState(() {
+        _metadata = metadata;
+      });
+    }
+  }
+
 
   @override
   void dispose() {
@@ -107,7 +127,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                         topRight: Radius.circular(AppRadius.medium),
                       ),
                       child: SmartImage(
-                        path: widget.series.thumbnailPath,
+                        path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
                         fit: BoxFit.cover,
                         placeholder: _buildPlaceholder(),
                       ),
@@ -122,18 +142,21 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                     padding: const EdgeInsets.all(AppSpacing.medium),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         // 剧集名称
-                        Text(
-                          widget.series.name,
-                          style: AppTextStyles.titleMedium.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.bold,
+                        Flexible(
+                          child: Text(
+                            widget.series.name,
+                            style: AppTextStyles.titleMedium.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: AppSpacing.small),
+                        const SizedBox(height: AppSpacing.micro),
 
                         // 集数统计
                         Row(
@@ -161,6 +184,8 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                           style: AppTextStyles.labelSmall.copyWith(
                             color: AppColors.textTertiary,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),

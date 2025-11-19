@@ -5,6 +5,7 @@ import '../services/media_library_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import '../widgets/series_folder_card.dart';
 import 'series_detail_page.dart';
+import 'metadata_management_page.dart';
 
 class SeriesListPage extends StatefulWidget {
   const SeriesListPage({Key? key}) : super(key: key);
@@ -160,6 +161,21 @@ class _SeriesListPageState extends State<SeriesListPage> {
                     },
                   ),
                 ),
+              ),
+              const SizedBox(width: AppSpacing.small),
+              
+              // 元数据管理按钮
+              IconButton(
+                icon: const Icon(Icons.settings, color: AppColors.textSecondary),
+                tooltip: '元数据管理',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MetadataManagementPage(),
+                    ),
+                  ).then((_) => _loadSeries()); // 返回后刷新
+                },
               ),
             ],
           ),

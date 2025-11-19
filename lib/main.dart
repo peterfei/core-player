@@ -6,11 +6,15 @@ import 'package:yinghe_player/services/video_cache_service.dart';
 import 'package:yinghe_player/services/local_proxy_server.dart';
 import 'package:yinghe_player/services/media_server_service.dart';
 import 'package:yinghe_player/services/media_library_service.dart';
+import 'package:yinghe_player/services/metadata_store_service.dart';
+import 'package:yinghe_player/services/tmdb_service.dart';
+import 'package:yinghe_player/services/settings_service.dart';
 
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
+
 
 void main() async {
   // Initialize media_kit
@@ -84,6 +88,14 @@ class _MyAppState extends State<MyApp> {
       
       // 初始化媒体库服务
       await MediaLibraryService.init();
+      await MetadataStoreService.init();
+      
+      // 初始化 TMDB 服务
+      final tmdbApiKey = await SettingsService.getTMDBApiKey();
+      final tmdbAccessToken = await SettingsService.getTMDBAccessToken();
+      if ((tmdbApiKey != null && tmdbApiKey.isNotEmpty) || (tmdbAccessToken != null && tmdbAccessToken.isNotEmpty)) {
+        TMDBService.init(tmdbApiKey ?? '', accessToken: tmdbAccessToken);
+      }
 
       // 启动代理服务器
       await LocalProxyServer.instance.start();

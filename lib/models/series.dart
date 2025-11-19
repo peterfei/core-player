@@ -33,6 +33,9 @@ class Series {
   
   /// 最后播放时间（可选）
   final DateTime? lastPlayedAt;
+  
+  /// TMDB ID (可选)
+  final int? tmdbId;
 
   Series({
     required this.id,
@@ -46,6 +49,7 @@ class Series {
     this.rating,
     this.releaseDate,
     this.lastPlayedAt,
+    this.tmdbId,
   });
 
   /// 从文件夹路径创建剧集对象
@@ -76,6 +80,7 @@ class Series {
     double? rating,
     DateTime? releaseDate,
     DateTime? lastPlayedAt,
+    int? tmdbId,
   }) {
     return Series(
       id: id ?? this.id,
@@ -89,6 +94,7 @@ class Series {
       rating: rating ?? this.rating,
       releaseDate: releaseDate ?? this.releaseDate,
       lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      tmdbId: tmdbId ?? this.tmdbId,
     );
   }
 

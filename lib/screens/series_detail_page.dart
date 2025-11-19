@@ -4,10 +4,13 @@ import '../models/series.dart';
 import '../models/episode.dart';
 import '../services/series_service.dart';
 import '../services/media_library_service.dart';
+import '../services/metadata_store_service.dart';
+import '../services/metadata_scraper_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import '../widgets/episode_card.dart';
 import '../widgets/smart_image.dart';
 import 'player_screen.dart';
+
 
 class SeriesDetailPage extends StatefulWidget {
   final Series series;
@@ -27,12 +30,47 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
   bool _isLoading = true;
   String _searchQuery = '';
   String _sortBy = 'number_asc'; // 'number_asc', 'number_desc', 'name_asc', 'name_desc'
+  Map<String, dynamic>? _metadata;
+  bool _isScraping = false;
+
 
   @override
   void initState() {
     super.initState();
     _loadEpisodes();
+    _loadMetadata();
   }
+
+  Future<void> _loadMetadata() async {
+    debugPrint('');
+    debugPrint('📄 ═══════════════════════════════════════════════════════');
+    debugPrint('📄 剧集详情页: 加载元数据');
+    debugPrint('📄 剧集: ${widget.series.name}');
+    debugPrint('📄 路径: ${widget.series.folderPath}');
+    debugPrint('📄 ═══════════════════════════════════════════════════════');
+    
+    final metadata = MetadataStoreService.getSeriesMetadata(widget.series.folderPath);
+    
+    if (metadata != null) {
+      debugPrint('✅ 元数据已加载:');
+      debugPrint('   TMDB ID: ${metadata['tmdbId']}');
+      debugPrint('   名称: ${metadata['name']}');
+      debugPrint('   评分: ${metadata['rating']}');
+      debugPrint('   海报: ${metadata['posterPath'] != null ? "有" : "无"}');
+      debugPrint('   背景图: ${metadata['backdropPath'] != null ? "有" : "无"}');
+    } else {
+      debugPrint('⚠️  未找到元数据');
+    }
+    debugPrint('📄 ═══════════════════════════════════════════════════════');
+    debugPrint('');
+    
+    if (mounted) {
+      setState(() {
+        _metadata = metadata;
+      });
+    }
+  }
+
 
   Future<void> _loadEpisodes() async {
     setState(() {
@@ -115,6 +153,56 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
     );
   }
 
+  Future<void> _scrapeSeries() async {
+    setState(() => _isScraping = true);
+
+    // 显示进度对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            Text('正在刮削 ${widget.series.name}...'),
+          ],
+        ),
+      ),
+    );
+
+    final result = await MetadataScraperService.scrapeSeries(
+      widget.series,
+      forceUpdate: true,
+    );
+
+    if (!mounted) return;
+
+    // 关闭进度对话框
+    Navigator.of(context).pop();
+
+    // 显示结果
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.success
+              ? '✅ 刮削成功'
+              : '❌ 刮削失败: ${result.errorMessage ?? "未知错误"}',
+        ),
+        backgroundColor: result.success ? Colors.green : Colors.red,
+      ),
+    );
+
+    // 重新加载元数据
+    if (result.success) {
+      await _loadMetadata();
+    }
+
+    setState(() => _isScraping = false);
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,14 +214,14 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
             backgroundColor: AppColors.background,
             elevation: 0,
             pinned: true,
-            expandedHeight: widget.series.backdropPath != null ? 200.0 : null,
-            flexibleSpace: widget.series.backdropPath != null
+            expandedHeight: (_metadata?['backdropPath'] ?? widget.series.backdropPath) != null ? 200.0 : null,
+            flexibleSpace: (_metadata?['backdropPath'] ?? widget.series.backdropPath) != null
                 ? FlexibleSpaceBar(
                     background: Stack(
                       fit: StackFit.expand,
                       children: [
                         SmartImage(
-                          path: widget.series.backdropPath,
+                          path: _metadata?['backdropPath'] ?? widget.series.backdropPath,
                           fit: BoxFit.cover,
                         ),
                         // 渐变遮罩，确保标题可见
@@ -166,6 +254,16 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
               ),
             ),
             actions: [
+              // 刮削按钮
+              if (!_isScraping)
+                IconButton(
+                  icon: Icon(
+                    _metadata != null ? Icons.refresh : Icons.download,
+                    color: AppColors.textPrimary,
+                  ),
+                  tooltip: _metadata != null ? '重新刮削' : '刮削元数据',
+                  onPressed: _scrapeSeries,
+                ),
               // 排序按钮
               PopupMenuButton<String>(
                 icon: const Icon(Icons.sort, color: AppColors.textPrimary),
@@ -224,7 +322,7 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadius.medium),
                       child: SmartImage(
-                        path: widget.series.thumbnailPath,
+                        path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
                         fit: BoxFit.cover,
                         placeholder: _buildPlaceholder(),
                       ),
@@ -237,16 +335,42 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '共 ${_episodes.length} 集',
-                          style: AppTextStyles.titleMedium.copyWith(
-                            color: AppColors.textSecondary,
+                        // 标题（使用刮削的名称或原名称）
+                        if (_metadata?['name'] != null && _metadata!['name'] != widget.series.name)
+                          Text(
+                            _metadata!['name'],
+                            style: AppTextStyles.titleLarge.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                        // 评分和集数
+                        Row(
+                          children: [
+                            if (_metadata?['rating'] != null) ...[
+                              const Icon(Icons.star, color: Colors.amber, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                _metadata!['rating'].toStringAsFixed(1),
+                                style: AppTextStyles.titleMedium.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Text(
+                              '共 ${_episodes.length} 集',
+                              style: AppTextStyles.titleMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: AppSpacing.medium),
-                        if (widget.series.overview != null) ...[
+                        if (_metadata?['overview'] != null || widget.series.overview != null) ...[
                           Text(
-                            widget.series.overview!,
+                            _metadata?['overview'] ?? widget.series.overview!,
                             style: AppTextStyles.bodyMedium.copyWith(
                               color: AppColors.textSecondary,
                             ),
@@ -254,6 +378,16 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: AppSpacing.medium),
+                        ],
+                        // 发布日期
+                        if (_metadata?['releaseDate'] != null) ...[
+                          Text(
+                            '首播: ${_metadata!['releaseDate']}',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.small),
                         ],
                         Text(
                           '路径: ${widget.series.folderPath}',

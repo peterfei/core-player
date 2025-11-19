@@ -7,6 +7,7 @@ import '../models/cache_entry.dart';
 import 'cache_management_screen.dart';
 import 'format_support_screen.dart';
 import 'video_playback_settings_screen.dart';
+import 'metadata_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -58,6 +59,19 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.movie_filter),
+            title: const Text('元数据设置'),
+            subtitle: const Text('配置 TMDB API Key 以获取在线元数据'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MetadataSettingsScreen(),
+                ),
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.folder),
             title: const Text('缓存管理'),

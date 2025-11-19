@@ -39,6 +39,9 @@ class Episode {
   
   /// 首播日期
   final DateTime? airDate;
+  
+  /// TMDB ID (可选)
+  final int? tmdbId;
 
   Episode({
     required this.id,
@@ -54,6 +57,7 @@ class Episode {
     this.overview,
     this.rating,
     this.airDate,
+    this.tmdbId,
   });
 
   /// 计算播放进度（0.0 - 1.0）
@@ -85,6 +89,7 @@ class Episode {
     String? overview,
     double? rating,
     DateTime? airDate,
+    int? tmdbId,
   }) {
     return Episode(
       id: id ?? this.id,
@@ -100,6 +105,7 @@ class Episode {
       overview: overview ?? this.overview,
       rating: rating ?? this.rating,
       airDate: airDate ?? this.airDate,
+      tmdbId: tmdbId ?? this.tmdbId,
     );
   }
 
