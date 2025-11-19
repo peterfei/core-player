@@ -15,6 +15,10 @@ import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 import 'package:yinghe_player/screens/animation_demo.dart';
 import 'package:yinghe_player/screens/media_server_list_page.dart';
 import 'package:yinghe_player/services/media_library_service.dart';
+import 'package:yinghe_player/services/series_service.dart';
+import 'package:yinghe_player/models/series.dart';
+import 'package:yinghe_player/widgets/series_folder_card.dart';
+import 'package:yinghe_player/screens/series_detail_page.dart';
 
 import 'package:yinghe_player/services/cache_test_service.dart';
 import 'package:yinghe_player/models/playback_history.dart';
@@ -35,8 +39,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<PlaybackHistory> _histories = [];
   List<VideoCardData> _historyVideos = [];
   List<VideoCardData> _libraryVideos = [];
-
+  List<Series> _seriesList = []; // 剧集列表
+  
   bool _isLoading = true;
+  bool _isSeriesView = true; // 默认为剧集视图
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -52,11 +59,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final histories = await HistoryService.getHistories();
       final scanned = MediaLibraryService.getAllVideos();
       
+      // 加载剧集数据
+      final series = SeriesService.groupVideosBySeries(scanned);
+      
       if (mounted) {
         setState(() {
           _histories = histories;
           _historyVideos = histories.map(_mapHistoryToVideoCard).toList();
           _libraryVideos = scanned.map(_mapScannedToVideoCard).toList();
+          _seriesList = series;
           _isLoading = false;
         });
       }
@@ -263,6 +274,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildMediaLibraryPage() {
+    // 过滤剧集列表（如果需要搜索）
+    List<Series> displaySeries = _seriesList;
+    if (_searchQuery.isNotEmpty) {
+      displaySeries = SeriesService.searchSeries(_seriesList, _searchQuery);
+    }
+
     return CustomScrollView(
       slivers: [
         // 顶部标题区域
@@ -294,15 +311,173 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         SliverToBoxAdapter(
           child: _buildSection('最近添加', _getRecentVideos()),
         ),
-        if (_libraryVideos.isNotEmpty)
-          SliverToBoxAdapter(
-            child: _buildSection('媒体库', _libraryVideos),
-          ),
-        // 全部视频部分
+
+        // 媒体库视图切换和搜索栏
         SliverToBoxAdapter(
-          child: _buildSection('全部视频', _getAllVideos()),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.large),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    // 视图切换按钮
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(AppRadius.medium),
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        children: [
+                          _buildViewToggleButton(
+                            icon: Icons.folder,
+                            label: '剧集',
+                            isSelected: _isSeriesView,
+                            onTap: () => setState(() => _isSeriesView = true),
+                          ),
+                          _buildViewToggleButton(
+                            icon: Icons.grid_view,
+                            label: '全部',
+                            isSelected: !_isSeriesView,
+                            onTap: () => setState(() => _isSeriesView = false),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.medium),
+                    
+                    // 搜索框
+                    Expanded(
+                      child: TextField(
+                        style: TextStyle(color: AppColors.textPrimary),
+                        decoration: InputDecoration(
+                          hintText: _isSeriesView ? '搜索剧集...' : '搜索视频...',
+                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                          prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.medium),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.medium,
+                            vertical: AppSpacing.small,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // 剧集视图或全部视频视图
+        if (_isSeriesView)
+          _buildSeriesGrid(displaySeries)
+        else
+          SliverToBoxAdapter(
+            child: _buildSection('全部视频', _getAllVideos()),
+          ),
+          
+        // 底部留白
+        const SliverToBoxAdapter(
+          child: SizedBox(height: AppSpacing.xxLarge),
         ),
       ],
+    );
+  }
+
+  Widget _buildViewToggleButton({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.small),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.medium,
+          vertical: AppSpacing.small,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.small),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : AppColors.textSecondary,
+            ),
+            const SizedBox(width: AppSpacing.small),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeriesGrid(List<Series> series) {
+    if (series.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xxLarge),
+            child: Text(
+              '没有找到剧集',
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 200,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: AppSpacing.large,
+          mainAxisSpacing: AppSpacing.large,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = series[index];
+            return SeriesFolderCard(
+              series: item,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SeriesDetailPage(series: item),
+                  ),
+                );
+              },
+            );
+          },
+          childCount: series.length,
+        ),
+      ),
     );
   }
 
@@ -467,6 +642,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
   
   List<VideoCardData> _getAllVideos() {
+    // 返回媒体库中的所有视频
+    // 如果媒体库为空（未扫描），则显示历史记录作为后备，或者可以合并两者
+    if (_libraryVideos.isNotEmpty) {
+      return _libraryVideos;
+    }
     return _histories.map(_mapHistoryToVideoCard).toList();
   }
 
@@ -533,8 +713,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
+
 /// 显示某个分类所有视频的页面
-class _AllVideosPage extends StatelessWidget {
+class _AllVideosPage extends StatefulWidget {
   final String title;
   final List<VideoCardData> videos;
   final Function(VideoCardData) onVideoTap;
@@ -544,6 +725,69 @@ class _AllVideosPage extends StatelessWidget {
     required this.videos,
     required this.onVideoTap,
   });
+
+  @override
+  State<_AllVideosPage> createState() => _AllVideosPageState();
+}
+
+class _AllVideosPageState extends State<_AllVideosPage> {
+  String _searchQuery = '';
+  String _sortBy = 'name_asc'; // 'name_asc', 'name_desc'
+  bool _groupByFolder = true; // 默认启用按文件夹分组
+  int _currentPage = 0;
+  static const int _itemsPerPage = 20;
+  
+  List<VideoCardData> get _filteredVideos {
+    var videos = widget.videos;
+    
+    // 搜索过滤
+    if (_searchQuery.isNotEmpty) {
+      videos = videos.where((v) => 
+        v.title.toLowerCase().contains(_searchQuery.toLowerCase())
+      ).toList();
+    }
+    
+    // 排序
+    if (_sortBy == 'name_asc') {
+      videos.sort((a, b) => a.title.compareTo(b.title));
+    } else if (_sortBy == 'name_desc') {
+      videos.sort((a, b) => b.title.compareTo(a.title));
+    }
+    
+    return videos;
+  }
+  
+  List<VideoCardData> get _pagedVideos {
+    final start = _currentPage * _itemsPerPage;
+    final end = (start + _itemsPerPage).clamp(0, _filteredVideos.length);
+    return _filteredVideos.sublist(start, end);
+  }
+  
+  int get _totalPages => (_filteredVideos.length / _itemsPerPage).ceil();
+  
+  Map<String, List<VideoCardData>> get _groupedVideos {
+    final groups = <String, List<VideoCardData>>{};
+    
+    for (var video in _filteredVideos) {
+      String groupName = '未分类';
+      
+      // 从路径中提取文件夹名
+      if (video.localPath != null && video.localPath!.isNotEmpty) {
+        final path = video.localPath!;
+        final parts = path.split('/');
+        if (parts.length > 2) {
+          groupName = parts[parts.length - 2]; // 倒数第二部分是文件夹名
+        }
+      }
+      
+      if (!groups.containsKey(groupName)) {
+        groups[groupName] = [];
+      }
+      groups[groupName]!.add(video);
+    }
+    
+    return groups;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -557,31 +801,279 @@ class _AllVideosPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          title,
+          widget.title,
           style: AppTextStyles.headlineMedium.copyWith(
             color: AppColors.textPrimary,
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.medium),
-            child: Center(
-              child: Text(
-                '${videos.length} 个视频',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
+      ),
+      body: Column(
+        children: [
+          // 搜索和筛选栏
+          _buildSearchBar(),
+          _buildFilterBar(),
+          
+          // 视频列表
+          Expanded(
+            child: _groupByFolder 
+              ? _buildGroupedList()
+              : _buildFlatList(),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.large),
+      child: TextField(
+        style: TextStyle(color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          hintText: '搜索视频...',
+          hintStyle: TextStyle(color: AppColors.textSecondary),
+          prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+          filled: true,
+          fillColor: AppColors.surface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+            borderSide: BorderSide.none,
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+            ? IconButton(
+                icon: Icon(Icons.clear, color: AppColors.textSecondary),
+                onPressed: () {
+                  setState(() {
+                    _searchQuery = '';
+                  });
+                },
+              )
+            : null,
+        ),
+        onChanged: (value) {
+          setState(() {
+            _searchQuery = value;
+          });
+        },
+      ),
+    );
+  }
+  
+  Widget _buildFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
+      child: Row(
+        children: [
+          // 分组切换
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _groupByFolder = !_groupByFolder;
+              });
+            },
+            icon: Icon(
+              _groupByFolder ? Icons.folder : Icons.grid_view,
+              size: 18,
+              color: AppColors.primary,
+            ),
+            label: Text(
+              _groupByFolder ? '按文件夹' : '全部',
+              style: TextStyle(color: AppColors.primary),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.small),
+          
+          // 排序选择
+          DropdownButton<String>(
+            value: _sortBy,
+            dropdownColor: AppColors.surface,
+            style: TextStyle(color: AppColors.textPrimary),
+            underline: const SizedBox(),
+            items: const [
+              DropdownMenuItem(value: 'name_asc', child: Text('A-Z')),
+              DropdownMenuItem(value: 'name_desc', child: Text('Z-A')),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _sortBy = value;
+                });
+              }
+            },
+          ),
+          
+          const Spacer(),
+          
+          // 视频数量
+          Text(
+            '${_filteredVideos.length} 个视频',
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.large),
-        child: AdaptiveVideoGrid(
-          videos: videos,
-          onTap: onVideoTap,
+    );
+  }
+  
+  Widget _buildGroupedList() {
+    final groups = _groupedVideos;
+    if (groups.isEmpty) {
+      return Center(
+        child: Text(
+          '没有找到视频',
+          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textSecondary),
         ),
+      );
+    }
+    
+    final sortedKeys = groups.keys.toList()..sort();
+    
+    return ListView.builder(
+      itemCount: sortedKeys.length,
+      itemBuilder: (context, index) {
+        final groupName = sortedKeys[index];
+        final videos = groups[groupName];
+        
+        if (videos == null || videos.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        
+        return _buildGroupSection(groupName, videos);
+      },
+    );
+  }
+  
+  Widget _buildGroupSection(String groupName, List<VideoCardData> videos) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 分组标题
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.large),
+          child: Row(
+            children: [
+              Icon(Icons.folder, color: AppColors.primary, size: 20),
+              const SizedBox(width: AppSpacing.small),
+              Expanded(
+                child: Text(
+                  groupName,
+                  style: AppTextStyles.headlineSmall.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.small),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.small,
+                  vertical: AppSpacing.micro,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(AppRadius.small),
+                ),
+                child: Text(
+                  '${videos.length}',
+                  style: AppTextStyles.labelSmall.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // 视频网格 - 添加 shrinkWrap 避免无限高度
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
+          child: AdaptiveVideoGrid(
+            videos: videos,
+            onTap: widget.onVideoTap,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+          ),
+        ),
+        
+        const SizedBox(height: AppSpacing.large),
+      ],
+    );
+  }
+  
+  Widget _buildFlatList() {
+    return Column(
+      children: [
+        // 视频网格
+        Expanded(
+          child: _pagedVideos.isEmpty
+            ? Center(
+                child: Text(
+                  '没有找到视频',
+                  style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textSecondary),
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(AppSpacing.large),
+                child: AdaptiveVideoGrid(
+                  videos: _pagedVideos,
+                  onTap: widget.onVideoTap,
+                ),
+              ),
+        ),
+        
+        // 分页控件
+        if (_totalPages > 1) _buildPagination(),
+      ],
+    );
+  }
+  
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.large),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // 上一页
+          IconButton(
+            onPressed: _currentPage > 0
+                ? () => setState(() => _currentPage--)
+                : null,
+            icon: const Icon(Icons.chevron_left),
+            color: AppColors.primary,
+            disabledColor: AppColors.textSecondary.withOpacity(0.3),
+          ),
+          
+          const SizedBox(width: AppSpacing.medium),
+          
+          // 页码信息
+          Text(
+            '${_currentPage + 1} / $_totalPages',
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          
+          Text(
+            '  (${_pagedVideos.length} / ${_filteredVideos.length})',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          
+          const SizedBox(width: AppSpacing.medium),
+          
+          // 下一页
+          IconButton(
+            onPressed: _currentPage < _totalPages - 1
+                ? () => setState(() => _currentPage++)
+                : null,
+            icon: const Icon(Icons.chevron_right),
+            color: AppColors.primary,
+            disabledColor: AppColors.textSecondary.withOpacity(0.3),
+          ),
+        ],
       ),
     );
   }
