@@ -148,6 +148,7 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
         builder: (context) => PlayerScreen.local(
           videoFile: File(episode.path),
           webVideoName: episode.name,
+          episode: episode,
         ),
       ),
     );

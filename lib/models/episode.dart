@@ -46,6 +46,9 @@ class Episode {
   /// TMDB 集数封面路径（still image，可选）
   final String? stillPath;
 
+  /// 媒体源 ID (可选，用于识别 SMB 等外部源)
+  final String? sourceId;
+
   Episode({
     required this.id,
     required this.seriesId,
@@ -62,6 +65,7 @@ class Episode {
     this.airDate,
     this.tmdbId,
     this.stillPath,
+    this.sourceId,
   });
 
   /// 计算播放进度（0.0 - 1.0）
@@ -95,6 +99,7 @@ class Episode {
     DateTime? airDate,
     int? tmdbId,
     String? stillPath,
+    String? sourceId,
   }) {
     return Episode(
       id: id ?? this.id,
@@ -112,6 +117,7 @@ class Episode {
       airDate: airDate ?? this.airDate,
       tmdbId: tmdbId ?? this.tmdbId,
       stillPath: stillPath ?? this.stillPath,
+      sourceId: sourceId ?? this.sourceId,
     );
   }
 

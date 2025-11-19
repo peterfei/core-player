@@ -15,7 +15,7 @@ class ScannedVideo extends HiveObject {
   final String name;
 
   @HiveField(2)
-  final String sourceId;
+  final String? sourceId;  // 改为可选，兼容旧数据
 
   @HiveField(3)
   final int size;
@@ -26,7 +26,7 @@ class ScannedVideo extends HiveObject {
   ScannedVideo({
     required this.path,
     required this.name,
-    required this.sourceId,
+    this.sourceId,  // 改为可选参数
     required this.size,
     this.addedAt,
   });

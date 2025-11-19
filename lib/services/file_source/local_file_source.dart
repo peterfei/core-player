@@ -60,4 +60,10 @@ class LocalFileSource implements FileSource {
   Future<bool> isDirectory(String path) async {
     return FileSystemEntity.isDirectory(path);
   }
+
+  @override
+  Stream<List<int>> openRead(String path, [int? start, int? end]) {
+    final file = File(path);
+    return file.openRead(start, end);
+  }
 }

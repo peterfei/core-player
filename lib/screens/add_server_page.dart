@@ -314,85 +314,79 @@ class _AddServerPageState extends State<AddServerPage> {
         final autoScrapeEnabled = await SettingsService.getAutoScrapeEnabled();
         
         if (autoScrapeEnabled && scannedVideos.isNotEmpty) {
-          // 显示自动刮削进度对话框
+          // 立即显示开始通知
           if (!mounted) return;
           
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => StatefulBuilder(
-              builder: (context, setDialogState) {
-                String currentStatus = '准备刮削...';
-                int currentIndex = 0;
-                int total = 1;
-                
-                // 开始自动刮削
-                AutoScraperService.autoScrapeVideos(
-                  scannedVideos,
-                  onProgress: (current, totalCount, status) {
-                    setDialogState(() {
-                      currentIndex = current;
-                      total = totalCount;
-                      currentStatus = status;
-                    });
-                  },
-                ).then((result) {
-                  if (mounted) {
-                    Navigator.of(context).pop(); // 关闭刮削进度对话框
-                    Navigator.of(context).pop(); // 返回上一页
-                    
-                    // 显示完成消息
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          '扫描完成，添加了 ${allFiles.length} 个视频\n'
-                          '自动刮削: ${result.toString()}',
-                        ),
-                        backgroundColor: AppColors.success,
-                        duration: const Duration(seconds: 5),
-                      ),
-                    );
-                  }
-                });
-                
-                return AlertDialog(
-                  backgroundColor: AppColors.surface,
-                  title: Text(
-                    '自动刮削中',
-                    style: AppTextStyles.headlineSmall.copyWith(color: AppColors.textPrimary),
-                  ),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      LinearProgressIndicator(
-                        value: total > 0 ? currentIndex / total : 0,
-                      ),
-                      const SizedBox(height: AppSpacing.medium),
-                      Text(
-                        '进度: $currentIndex / $total',
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: AppSpacing.small),
-                      Text(
-                        currentStatus,
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          );
-        } else {
-          // 不自动刮削，直接返回
-          Navigator.of(context).pop(); // 返回上一页
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('扫描完成，添加了 ${allFiles.length} 个视频'),
+              content: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '后台刮削已开始，共 ${scannedVideos.length} 个剧集',
+                      style: AppTextStyles.bodyMedium.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.primary,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          
+          // 立即返回上一页，不等待刮削完成
+          Navigator.of(context).pop();
+          
+          // 后台执行刮削
+          AutoScraperService.autoScrapeVideos(
+            scannedVideos,
+            onProgress: (current, total, status) {
+              print('🤖 刮削进度: $current/$total - $status');
+            },
+          ).then((result) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '自动刮削完成: $result',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white),
+                  ),
+                  backgroundColor: AppColors.success,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          }).catchError((error) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('自动刮削失败: $error'),
+                  backgroundColor: AppColors.error,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          });
+        } else {
+          // 没有启用自动刮削，直接返回
+          Navigator.of(context).pop();
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '扫描完成，添加了 ${allFiles.length} 个视频',
+              ),
               backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 3),
             ),
           );
         }

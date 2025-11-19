@@ -43,6 +43,7 @@ import '../widgets/feedback_dialog.dart';
 import '../widgets/notification_banner.dart';
 import 'subtitle_settings_screen.dart';
 import 'subtitle_download_screen.dart';
+import '../models/episode.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
@@ -50,6 +51,7 @@ class PlayerScreen extends StatefulWidget {
   final String? webVideoName;
   final int? seekTo;
   final bool fromHistory;
+  final Episode? episode;
 
   const PlayerScreen({
     super.key,
@@ -58,6 +60,7 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
+    this.episode,
   });
 
   // 用于网络视频的便捷构造函数
@@ -67,6 +70,7 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
+    this.episode,
   })  : videoFile = null,
         webVideoUrl = videoPath;
 
@@ -77,6 +81,7 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
+    this.episode,
   })  : videoFile = videoFile,
         webVideoUrl = null;
 
@@ -1913,10 +1918,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
 
       // 确定播放URL（考虑缓存）
+      // 确定播放URL（考虑缓存）
       String playbackUrl;
       if (widget.webVideoUrl != null) {
         // 网络视频：检查缓存
         playbackUrl = await _getPlaybackUrl(widget.webVideoUrl!);
+      } else if (widget.episode?.sourceId != null) {
+        // SMB/NAS 视频:通过本地代理播放
+        final proxyServer = LocalProxyServer.instance;
+        if (!proxyServer.isRunning) {
+          await proxyServer.start();
+        }
+        playbackUrl = proxyServer.getProxyUrl(
+          widget.videoFile!.path, 
+          sourceId: widget.episode!.sourceId
+        );
       } else {
         // 本地视频：使用文件路径
         playbackUrl = widget.videoFile!.path;

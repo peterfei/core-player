@@ -59,6 +59,7 @@ class SeriesService {
         size: video.size,
         episodeNumber: parseEpisodeNumber(video.name),
         addedAt: video.addedAt ?? DateTime.now(),
+        sourceId: video.sourceId,
       );
     }).toList();
     

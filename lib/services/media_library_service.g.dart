@@ -19,7 +19,7 @@ class ScannedVideoAdapter extends TypeAdapter<ScannedVideo> {
     return ScannedVideo(
       path: fields[0] as String,
       name: fields[1] as String,
-      sourceId: fields[2] as String,
+      sourceId: fields[2] as String?,
       size: fields[3] as int,
       addedAt: fields[4] as DateTime?,
     );

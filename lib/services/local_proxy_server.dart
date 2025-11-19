@@ -4,8 +4,11 @@ import 'dart:typed_data';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
+import 'package:path/path.dart' as p;
 import 'video_cache_service.dart';
 import 'cache_download_service.dart';
+import 'media_server_service.dart';
+import 'file_source_factory.dart';
 
 class LocalProxyServer {
   static LocalProxyServer? _instance;
@@ -74,11 +77,19 @@ class LocalProxyServer {
   bool get isRunning => _isRunning;
   int get port => _port;
 
-  String getProxyUrl(String originalUrl) {
-    // 生成代理URL
+  String getProxyUrl(String originalUrl, {String? sourceId}) {
+    if (_server == null) return originalUrl;
+    
     final encodedUrl = Uri.encodeComponent(originalUrl);
-    final proxyUrl = 'http://localhost:$_port/video/$encodedUrl';
-
+    final baseUrl = 'http://localhost:$_port/video/$encodedUrl';
+    
+    String proxyUrl;
+    if (sourceId != null) {
+      proxyUrl = '$baseUrl?sourceId=$sourceId';
+    } else {
+      proxyUrl = baseUrl;
+    }
+    
     _urlToProxyUrl[originalUrl] = proxyUrl;
     return proxyUrl;
   }
@@ -127,9 +138,15 @@ class LocalProxyServer {
     try {
       final encodedUrl = request.requestedUri.pathSegments.last;
       final originalUrl = Uri.decodeComponent(encodedUrl);
+      final sourceId = request.url.queryParameters['sourceId'];
 
       if (originalUrl.isEmpty) {
         return Response.badRequest(body: 'Invalid video URL');
+      }
+
+      // 如果有 sourceId，说明是来自特定源（如SMB）的请求
+      if (sourceId != null) {
+        return await _handleFileSourceRequest(request, originalUrl, sourceId);
       }
 
       final cacheService = VideoCacheService.instance;
@@ -172,6 +189,92 @@ class LocalProxyServer {
     } catch (e) {
       print('Error handling video request: $e');
       return Response.internalServerError(body: 'Internal server error');
+    }
+  }
+
+  Future<Response> _handleFileSourceRequest(
+      Request request, String path, String sourceId) async {
+    try {
+      // 查找对应的服务器配置
+      final servers = MediaServerService.getServers();
+      final config = servers.firstWhere(
+        (s) => s.id == sourceId,
+        orElse: () => throw Exception('Source not found: $sourceId'),
+      );
+
+      // 创建 FileSource
+      final source = FileSourceFactory.createFromConfig(config);
+      if (source == null) {
+        throw Exception('Failed to create file source');
+      }
+
+      // 获取文件大小（如果可能）
+      // 注意：这里可能需要优化，避免每次请求都列出文件
+      // 暂时通过 listFiles 获取文件信息
+      // 更好的做法是 FileSource 提供 getFileStat 方法
+      int fileSize = 0;
+      try {
+        // 尝试获取文件信息
+        // 注意：path 可能是完整路径，listFiles 可能需要父目录
+        // 这里假设 listFiles 可以处理文件路径或者我们需要解析父目录
+        // 简单起见，我们尝试直接获取（如果 FileSource 支持）
+        // 或者我们暂时不提供 content-length（这可能会影响 seek）
+        
+        // 尝试列出父目录来找到文件信息
+        final parentPath = p.dirname(path);
+        final files = await source.listFiles(parentPath);
+        final fileItem = files.firstWhere(
+          (f) => f.path == path || f.name == p.basename(path),
+          orElse: () => throw Exception('File not found: $path'),
+        );
+        fileSize = fileItem.size;
+      } catch (e) {
+        print('Warning: Failed to get file size: $e');
+        // 如果无法获取大小，流式传输可能受限
+      }
+
+      final rangeHeader = request.headers['range'];
+      int start = 0;
+      int? end;
+
+      if (rangeHeader != null) {
+        final ranges = _parseRangeHeader(rangeHeader, fileSize > 0 ? fileSize : 0);
+        if (ranges.isNotEmpty) {
+          start = ranges.first['start']!;
+          end = ranges.first['end'];
+        }
+      }
+      
+      // 如果没有获取到文件大小，且请求了范围，我们可能无法正确处理 end
+      // 但 openRead 应该能处理 end 为 null 的情况
+
+      final stream = source.openRead(path, start, end);
+
+      final headers = {
+        'content-type': 'video/mp4',
+        'accept-ranges': 'bytes',
+        'cache-control': 'no-cache',
+      };
+
+      if (fileSize > 0) {
+        headers['content-length'] = ((end ?? fileSize - 1) - start + 1).toString();
+        if (rangeHeader != null) {
+          headers['content-range'] = 'bytes $start-${end ?? fileSize - 1}/$fileSize';
+          return Response(
+            206,
+            body: stream,
+            headers: headers,
+          );
+        }
+      }
+
+      return Response.ok(
+        stream,
+        headers: headers,
+      );
+    } catch (e) {
+      print('Error handling file source request: $e');
+      return Response.internalServerError(body: 'File source error: $e');
     }
   }
 

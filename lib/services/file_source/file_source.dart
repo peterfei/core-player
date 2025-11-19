@@ -8,6 +8,11 @@ abstract class FileSource {
   Future<void> disconnect();
   Future<List<FileItem>> listFiles(String path);
   Future<bool> isDirectory(String path);
+  
+  /// 打开文件读取流
+  /// [start] 起始字节位置（包含）
+  /// [end] 结束字节位置（包含）
+  Stream<List<int>> openRead(String path, [int? start, int? end]);
 }
 
 class FileItem {
