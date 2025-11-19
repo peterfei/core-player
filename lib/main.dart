@@ -4,6 +4,8 @@ import 'package:window_manager/window_manager.dart';
 import 'package:yinghe_player/screens/home_screen.dart';
 import 'package:yinghe_player/services/video_cache_service.dart';
 import 'package:yinghe_player/services/local_proxy_server.dart';
+import 'package:yinghe_player/services/media_server_service.dart';
+import 'package:yinghe_player/services/media_library_service.dart';
 
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
@@ -76,6 +78,12 @@ class _MyAppState extends State<MyApp> {
 
       // 异步初始化缓存服务
       await VideoCacheService.instance.initialize();
+
+      // 初始化影视服务器服务
+      await MediaServerService.initialize();
+      
+      // 初始化媒体库服务
+      await MediaLibraryService.initialize();
 
       // 启动代理服务器
       await LocalProxyServer.instance.start();

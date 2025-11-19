@@ -32,6 +32,11 @@ class ModernSidebar extends StatefulWidget {
         label: '收藏',
       ),
       SidebarItem(
+        icon: Icons.dns_outlined,
+        selectedIcon: Icons.dns,
+        label: '影视服务器',
+      ),
+      SidebarItem(
         icon: Icons.settings_outlined,
         selectedIcon: Icons.settings,
         label: '设置',

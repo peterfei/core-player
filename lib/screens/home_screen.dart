@@ -13,6 +13,8 @@ import 'package:yinghe_player/services/history_service.dart';
 import 'package:yinghe_player/services/cache_test_service.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 import 'package:yinghe_player/screens/animation_demo.dart';
+import 'package:yinghe_player/screens/media_server_list_page.dart';
+import 'package:yinghe_player/services/media_library_service.dart';
 
 import 'package:yinghe_player/services/cache_test_service.dart';
 import 'package:yinghe_player/models/playback_history.dart';
@@ -31,6 +33,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       GlobalKey<HistoryListWidgetRefreshableState>();
 
   List<PlaybackHistory> _histories = [];
+  List<VideoCardData> _historyVideos = [];
+  List<VideoCardData> _libraryVideos = [];
+
   bool _isLoading = true;
 
   @override
@@ -45,9 +50,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
     try {
       final histories = await HistoryService.getHistories();
+      final scanned = MediaLibraryService.getAllVideos();
+      
       if (mounted) {
         setState(() {
           _histories = histories;
+          _historyVideos = histories.map(_mapHistoryToVideoCard).toList();
+          _libraryVideos = scanned.map(_mapScannedToVideoCard).toList();
           _isLoading = false;
         });
       }
@@ -65,6 +74,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() {
       _selectedSidebarIndex = index;
     });
+    
+    // 切换到媒体库标签时刷新数据
+    if (index == 0) {
+      _loadData();
+    }
   }
 
   void _toggleSidebar() {
@@ -240,6 +254,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case 2:
         return _buildFavoritesPage();
       case 3:
+        return const MediaServerListPage();
+      case 4:
         return const SettingsScreen();
       default:
         return _buildMediaLibraryPage();
@@ -278,7 +294,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         SliverToBoxAdapter(
           child: _buildSection('最近添加', _getRecentVideos()),
         ),
-
+        if (_libraryVideos.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _buildSection('媒体库', _libraryVideos),
+          ),
         // 全部视频部分
         SliverToBoxAdapter(
           child: _buildSection('全部视频', _getAllVideos()),
@@ -326,7 +345,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               if (videos.length > 6)
                 TextButton(
                   onPressed: () {
-                    // 查看全部功能
+                    // 查看全部功能 - 导航到显示所有视频的页面
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => _AllVideosPage(
+                          title: title,
+                          videos: videos,
+                          onVideoTap: _playVideo,
+                        ),
+                      ),
+                    );
                   },
                   child: Text(
                     '查看全部',
@@ -444,22 +473,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   VideoCardData _mapHistoryToVideoCard(PlaybackHistory history) {
     // 计算进度
     double progress = 0.0;
-    if (history.totalDuration > 0) {
-      progress = history.currentPosition / history.totalDuration;
-    }
-    
-    // 确定类型
-    String type = history.isNetworkVideo ? '网络' : '本地';
-    
     return VideoCardData(
       title: history.videoName,
-      subtitle: history.isNetworkVideo ? '网络视频' : '本地视频',
-      progress: progress,
-      type: type,
-      duration: Duration(milliseconds: history.totalDuration),
-      thumbnailUrl: history.thumbnailPath ?? history.thumbnailCachePath,
-      url: history.isNetworkVideo ? history.videoPath : null,
-      localPath: !history.isNetworkVideo ? history.videoPath : null,
+      subtitle: '上次观看: ${_formatDate(history.lastPlayedAt)}',
+      progress: history.currentPosition / (history.totalDuration == 0 ? 1 : history.totalDuration),
+      type: history.sourceType == 'network' ? '网络' : '本地',
+      duration: Duration(seconds: history.totalDuration),
+      thumbnailUrl: history.effectiveThumbnailPath != null ? 'file://${history.effectiveThumbnailPath}' : null,
+      localPath: history.videoPath,
+    );
+  }
+
+  VideoCardData _mapScannedToVideoCard(ScannedVideo video) {
+    return VideoCardData(
+      title: video.name,
+      subtitle: '添加于: ${_formatDate(video.addedAt ?? DateTime.now())}',
+      progress: 0.0,
+      type: 'SMB', // Assuming SMB for now
+      duration: null,
+      thumbnailUrl: null, // No thumbnail yet
+      localPath: video.path, // This is the remote path
     );
   }
 
@@ -493,5 +526,63 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
       }
     }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+}
+
+/// 显示某个分类所有视频的页面
+class _AllVideosPage extends StatelessWidget {
+  final String title;
+  final List<VideoCardData> videos;
+  final Function(VideoCardData) onVideoTap;
+
+  const _AllVideosPage({
+    required this.title,
+    required this.videos,
+    required this.onVideoTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          title,
+          style: AppTextStyles.headlineMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.medium),
+            child: Center(
+              child: Text(
+                '${videos.length} 个视频',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(AppSpacing.large),
+        child: AdaptiveVideoGrid(
+          videos: videos,
+          onTap: onVideoTap,
+        ),
+      ),
+    );
   }
 }

@@ -161,13 +161,13 @@ class DesignTokenValidation {
 
     try {
       // 验证基础圆角值
-      final validations = [
-        'small' => AppRadius.small == 4.0,
-        'medium' => AppRadius.medium == 8.0,
-        'large' => AppRadius.large == 12.0,
-        'xLarge' => AppRadius.xLarge == 16.0,
-        'circular' => AppRadius.circular == 100.0,
-      ];
+      final validations = {
+        'small': AppRadius.small == 4.0,
+        'medium': AppRadius.medium == 8.0,
+        'large': AppRadius.large == 12.0,
+        'xLarge': AppRadius.xLarge == 16.0,
+        'circular': AppRadius.circular == 100.0,
+      };
 
       validations.forEach((key, value) {
         if (value) {
@@ -178,10 +178,10 @@ class DesignTokenValidation {
       });
 
       // 验证BorderRadius对象
-      final borderValidations = [
-        'smallBorder' => AppRadius.smallBorder.radius.circular == 4.0,
-        'largeBorder' => AppRadius.largeBorder.radius.circular == 12.0,
-      ];
+      final borderValidations = {
+        'smallBorder': AppRadius.smallBorder.radius.circular == 4.0,
+        'largeBorder': AppRadius.largeBorder.radius.circular == 12.0,
+      };
 
       borderValidations.forEach((key, value) {
         if (value) {
@@ -204,12 +204,12 @@ class DesignTokenValidation {
 
     try {
       // 验证基础阴影存在
-      final shadowValidations = [
-        'cardDefault' => AppShadows.cardDefault.isNotEmpty,
-        'cardHover' => AppShadows.cardHover.isNotEmpty,
-        'dialog' => AppShadows.dialog.isNotEmpty,
-        'buttonDefault' => AppShadows.buttonDefault.isNotEmpty,
-      ];
+      final shadowValidations = {
+        'cardDefault': AppShadows.cardDefault.isNotEmpty,
+        'cardHover': AppShadows.cardHover.isNotEmpty,
+        'dialog': AppShadows.dialog.isNotEmpty,
+        'buttonDefault': AppShadows.buttonDefault.isNotEmpty,
+      };
 
       shadowValidations.forEach((key, value) {
         if (value) {
@@ -241,12 +241,12 @@ class DesignTokenValidation {
 
     try {
       // 验证基础渐变存在
-      final gradientValidations = [
-        'videoCardBottom' => AppGradients.videoCardBottom.colors.length == 2,
-        'primaryButton' => AppGradients.primaryButton.colors.length == 2,
-        'shimmerLoading' => AppGradients.shimmerLoading.colors.length == 3,
-        'shimmerLoading-stops' => AppGradients.shimmerLoading.stops?.length == 3,
-      ];
+      final gradientValidations = {
+        'videoCardBottom': AppGradients.videoCardBottom.colors.length == 2,
+        'primaryButton': AppGradients.primaryButton.colors.length == 2,
+        'shimmerLoading': AppGradients.shimmerLoading.colors.length == 3,
+        'shimmerLoading-stops': AppGradients.shimmerLoading.stops?.length == 3,
+      };
 
       gradientValidations.forEach((key, value) {
         if (value) {
@@ -268,12 +268,12 @@ class DesignTokenValidation {
     final result = CategoryValidationResult('对比度');
 
     try {
-      final contrastValidations = [
-        'background-textPrimary' => AppColors.hasGoodContrast(AppColors.textPrimary, AppColors.background),
-        'surface-textPrimary' => AppColors.hasGoodContrast(AppColors.textPrimary, AppColors.surface),
-        'primary-background' => AppColors.hasGoodContrast(AppColors.primary, AppColors.background),
-        'secondary-background' => AppColors.hasGoodContrast(AppColors.secondary, AppColors.background),
-      ];
+      final contrastValidations = {
+        'background-textPrimary': AppColors.hasGoodContrast(AppColors.textPrimary, AppColors.background),
+        'surface-textPrimary': AppColors.hasGoodContrast(AppColors.textPrimary, AppColors.surface),
+        'primary-background': AppColors.hasGoodContrast(AppColors.primary, AppColors.background),
+        'secondary-background': AppColors.hasGoodContrast(AppColors.secondary, AppColors.background),
+      };
 
       contrastValidations.forEach((key, value) {
         if (value) {
