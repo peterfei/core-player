@@ -1,4 +1,6 @@
 PODS:
+  - battery_plus (0.0.1):
+    - FlutterMacOS
   - connectivity_plus (0.0.1):
     - FlutterMacOS
     - ReachabilitySwift
@@ -33,6 +35,7 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - battery_plus (from `Flutter/ephemeral/.symlinks/plugins/battery_plus/macos`)
   - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -53,6 +56,8 @@ SPEC REPOS:
     - ReachabilitySwift
 
 EXTERNAL SOURCES:
+  battery_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/battery_plus/macos
   connectivity_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
   file_picker:
@@ -83,6 +88,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/window_manager/macos
 
 SPEC CHECKSUMS:
+  battery_plus: 0ed4cf1e771b535a89ac7323e0855ec734cf745f
   connectivity_plus: 18d3c32514c886e046de60e9c13895109866c747
   file_picker: e716a70a9fe5fd9e09ebc922d7541464289443af
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1

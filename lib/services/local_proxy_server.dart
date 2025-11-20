@@ -10,6 +10,7 @@ import 'cache_download_service.dart';
 import 'media_server_service.dart';
 import 'file_source_factory.dart';
 import 'file_source/file_source.dart';
+import 'traffic_monitor_service.dart';
 
 // 视频请求缓存
 class _VideoRequest {
@@ -513,7 +514,13 @@ class LocalProxyServer {
         print('     Content-Range: bytes $start-$actualEnd/$fileSize');
         print('     Content-Length: $contentLength');
         
-        return Response(206, body: stream, headers: headers);
+        // 监控流量
+        final monitoredStream = stream.map((chunk) {
+          TrafficMonitorService.instance.reportBytes(chunk.length);
+          return chunk;
+        });
+
+        return Response(206, body: monitoredStream, headers: headers);
       } else {
         // 返回200 OK
         if (fileSize > 0) {
@@ -525,7 +532,13 @@ class LocalProxyServer {
           print('     Content-Length: $fileSize');
         }
         
-        return Response.ok(stream, headers: headers);
+        // 监控流量
+        final monitoredStream = stream.map((chunk) {
+          TrafficMonitorService.instance.reportBytes(chunk.length);
+          return chunk;
+        });
+
+        return Response.ok(monitoredStream, headers: headers);
       }
     } catch (e, stackTrace) {
       print('❌ LocalProxyServer: FileSource请求失败');
@@ -553,6 +566,7 @@ class LocalProxyServer {
       // 在后台启动下载
       downloadService.downloadAndCache(originalUrl).listen(
         (chunk) {
+          TrafficMonitorService.instance.reportBytes(chunk.length); // 监控下载流量
           streamController.add(chunk);
         },
         onError: (error) {
@@ -608,9 +622,15 @@ class LocalProxyServer {
         }
       });
 
+      // 监控流量
+      final monitoredBody = proxyResponse.map((chunk) {
+        TrafficMonitorService.instance.reportBytes(chunk.length);
+        return chunk;
+      });
+
       return Response(
         proxyResponse.statusCode,
-        body: proxyResponse,
+        body: monitoredBody,
         headers: headers,
       );
     } catch (e) {

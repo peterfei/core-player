@@ -41,6 +41,9 @@ import '../widgets/performance_overlay.dart' as custom;
 import '../widgets/video_error_dialog.dart';
 import '../widgets/feedback_dialog.dart';
 import '../widgets/notification_banner.dart';
+import '../widgets/player/system_info_overlay.dart';
+import '../widgets/player/network_speed_indicator.dart';
+import '../widgets/player/lock_button.dart';
 import 'subtitle_settings_screen.dart';
 import 'subtitle_download_screen.dart';
 import '../models/episode.dart';
@@ -582,6 +585,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // 播放状态
   bool _isPlaying = true;
   bool _isControlsVisible = true;
+  bool _isLocked = false; // 锁屏状态
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
   double _volume = 1.0;
@@ -1422,7 +1426,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _startControlsTimer() {
     _controlsTimer?.cancel();
     _controlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
+      if (mounted && !_isLocked) { // 锁定状态下不自动隐藏
         setState(() {
           _isControlsVisible = false;
         });
@@ -1452,6 +1456,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 切换控制界面显示
   void _toggleControls() {
+    // 锁定状态下不响应控件切换
+    if (_isLocked) return;
+    
     setState(() {
       _isControlsVisible = !_isControlsVisible;
     });
@@ -1651,15 +1658,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleControls,
-        onSecondaryTapUp: (details) {
-          // 右键点击显示上下文菜单
-          _showContextMenu(context, details.globalPosition);
-        },
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
+      body: Stack(
+        children: [
+          // 第一层：包含视频和所有控件的GestureDetector
+          GestureDetector(
+            onTap: _isLocked ? null : _toggleControls,
+            onSecondaryTapUp: _isLocked ? null : (details) {
+              // 右键点击显示上下文菜单
+              _showContextMenu(context, details.globalPosition);
+            },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
             // 视频播放区域
             Center(
               child: Stack(
@@ -1669,6 +1679,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   if (_isInitialized && controller != null)
                     Video(
                       controller: controller!,
+                      controls: NoVideoControls, // 禁用默认控制界面
                       subtitleViewConfiguration:
                           _buildSubtitleViewConfiguration(),
                     )
@@ -1684,8 +1695,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ],
                       ),
                     ),
-                  // 网络视频增强缓冲指示器
-                  if (_isNetworkVideo)
+                  // 网络视频增强缓冲指示器（锁定时隐藏）
+                  if (_isNetworkVideo && !_isLocked)
                     EnhancedBufferingIndicator(
                       isBuffering: _isBuffering,
                       bufferProgress: _bufferProgress,
@@ -1695,8 +1706,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       networkQuality: _currentNetworkStats.quality,
                       message: _networkStatus == '正在连接...' ? '正在连接...' : null,
                     ),
-                  // 缓存状态指示器（左上角）
-                  if (_isNetworkVideo)
+                  // 缓存状态指示器（左上角，锁定时隐藏）
+                  if (_isNetworkVideo && !_isLocked)
                     Positioned(
                       top: 80,
                       left: 16,
@@ -1709,14 +1720,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ],
               ),
             ),
-            // 性能监控覆盖层（全局显示，不受控制栏影响）
-            if (_showPerformanceOverlay)
+            // 性能监控覆盖层（全局显示，不受控制栏影响，锁定时隐藏）
+            if (_showPerformanceOverlay && !_isLocked)
               custom.PerformanceOverlay(
                 showByDefault: true,
                 enableKeyboardToggle: true,
               ),
-            // 性能指示器（当覆盖层隐藏时显示）
-            if (!_showPerformanceOverlay && _currentVideoInfo != null)
+            // 性能指示器（当覆盖层隐藏时显示，锁定时隐藏）
+            if (!_showPerformanceOverlay && _currentVideoInfo != null && !_isLocked)
               Positioned(
                 top: 16,
                 right: 16,
@@ -1724,8 +1735,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   isVisible: true,
                 ),
               ),
-            // 硬件加速通知横幅
-            if (_showHwAccelNotification)
+            // 硬件加速通知横幅（锁定时隐藏）
+            if (_showHwAccelNotification && !_isLocked)
               Positioned(
                 top: _isNetworkVideo ? 140 : 80, // 如果有缓存指示器，显示在下方
                 left: 16,
@@ -1741,9 +1752,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   },
                 ),
               ),
-            // 播放控制界面
-            AnimatedOpacity(
-              opacity: _isControlsVisible ? 1.0 : 0.0,
+            // 系统信息覆盖层（右上角）
+            if (!_isLocked)
+              const Positioned(
+                top: 16,
+                right: 16,
+                child: SystemInfoOverlay(),
+              ),
+            // 网速指示器（左上角）
+            if (!_isLocked)
+              const Positioned(
+                top: 16,
+                left: 16,
+                child: NetworkSpeedIndicator(),
+              ),
+            // 播放控制界面（通过IgnorePointer控制交互，AnimatedOpacity控制可见性）
+            IgnorePointer(
+              ignoring: _isLocked || !_isControlsVisible, // 锁定或不可见时忽略事件
+              child: AnimatedOpacity(
+              opacity: (_isLocked ? 0.0 : (_isControlsVisible ? 1.0 : 0.0)),
               duration: const Duration(milliseconds: 300),
               child: Container(
                 color: Colors.black.withValues(alpha: 0.7),
@@ -1881,8 +1908,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
               ),
             ),
+              ), // IgnorePointer 闭合
           ],
         ),
+      ),
+      // 锁定按钮（外层Stack，在GestureDetector之外）
+      Positioned(
+        left: 16,
+        top: MediaQuery.of(context).size.height / 2 - 24,
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              _isLocked = !_isLocked;
+              if (_isLocked) {
+                _isControlsVisible = false; // 锁定时隐藏控件
+              } else {
+                _isControlsVisible = true; // 解锁时显示控件
+                _startControlsTimer(); // 启动自动隐藏计时器
+              }
+            });
+          },
+          behavior: HitTestBehavior.opaque,
+          child: LockButton(
+            isLocked: _isLocked,
+            onToggle: () {},
+          ),
+        ),
+      ),
+        ],
       ),
     );
   }

@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  battery_plus
   charset_converter
   connectivity_plus
   media_kit_libs_windows_video
