@@ -129,9 +129,44 @@ class SMBFileSource implements FileSource {
       // 获取文件句柄
       final file = await _client!.file(path);
       
-      // 使用 smb_connect 的 openRead 方法
-      // openRead 返回 Future<Stream<Uint8List>>，需要先 await
-      final stream = await _client!.openRead(file);
+      Stream<List<int>> stream;
+      bool nativeSeekUsed = false;
+      
+      if (start != null && start > 0) {
+        try {
+          // 尝试使用位置参数 (start, end)
+          // 根据错误日志: Found: openRead(SmbFile, [int?, int?])
+          // 注意: Dart 的 openRead 通常 end 是 exclusive 的，而 HTTP Range 是 inclusive 的
+          // 所以我们需要 +1
+          final effectiveEnd = end != null ? end + 1 : null;
+          print('🔍 SMB: 尝试使用原生 seek (start: $start, end: $effectiveEnd)...');
+          
+          // 使用 dynamic 调用以匹配发现的签名
+          stream = await (_client! as dynamic).openRead(file, start, effectiveEnd);
+          
+          nativeSeekUsed = true;
+          print('✅ SMB: 原生 seek 调用成功');
+        } catch (e) {
+          print('⚠️ SMB: 原生 seek 失败: $e');
+          print('🔄 SMB: 降级到流式跳过模式 (可能较慢)');
+          stream = await _client!.openRead(file);
+        }
+      } else {
+        // 如果没有 start，或者 start 为 0，尝试直接调用带参数的 openRead (0, end)
+        // 或者回退到无参数调用
+        if (end != null) {
+           try {
+              final effectiveEnd = end + 1;
+              print('🔍 SMB: 尝试使用原生 seek (start: 0, end: $effectiveEnd)...');
+              stream = await (_client! as dynamic).openRead(file, 0, effectiveEnd);
+              nativeSeekUsed = true;
+           } catch (e) {
+              stream = await _client!.openRead(file);
+           }
+        } else {
+           stream = await _client!.openRead(file);
+        }
+      }
       
       if (start == null && end == null) {
         // 没有范围限制，直接流式读取整个文件
@@ -143,22 +178,27 @@ class SMBFileSource implements FileSource {
         // 有范围限制，需要手动处理
         print('📤 SMB: 流式读取范围数据: $start-$end');
         
-        int bytesRead = 0;
+        int bytesRead = nativeSeekUsed ? (start ?? 0) : 0;
         final actualStart = start ?? 0;
         final actualEnd = end;
         
+        // 缓冲区配置
+        const int bufferSize = 64 * 1024; // 64KB buffer
+        List<int> buffer = [];
+        
         await for (final chunk in stream) {
-          final chunkLength = chunk.length as int;
+          final chunkLength = chunk.length;
           
-          // 跳过起始位置之前的数据
-          if (bytesRead + chunkLength <= actualStart) {
+          // 如果使用了原生 seek，不需要跳过数据，除非 offset 不准确
+          // 如果没使用原生 seek，需要跳过起始位置之前的数据
+          if (!nativeSeekUsed && bytesRead + chunkLength <= actualStart) {
             bytesRead += chunkLength;
             continue;
           }
           
           // 处理部分在范围内的数据
           int chunkStart = 0;
-          if (bytesRead < actualStart) {
+          if (!nativeSeekUsed && bytesRead < actualStart) {
             chunkStart = actualStart - bytesRead;
           }
           
@@ -168,7 +208,26 @@ class SMBFileSource implements FileSource {
           }
           
           if (chunkStart < chunkEnd) {
-            yield chunk.sublist(chunkStart, chunkEnd);
+            // 优化：避免不必要的复制
+            if (chunkStart == 0 && chunkEnd == chunkLength) {
+              // 完整 chunk
+              if (buffer.isEmpty && chunkLength >= bufferSize) {
+                // 如果缓冲区为空且当前块足够大，直接发送
+                yield chunk;
+              } else {
+                // 否则添加到缓冲区
+                buffer.addAll(chunk);
+              }
+            } else {
+              // 部分 chunk
+              buffer.addAll(chunk.sublist(chunkStart, chunkEnd));
+            }
+            
+            // 当缓冲区达到阈值时发送
+            if (buffer.length >= bufferSize) {
+              yield buffer;
+              buffer = [];
+            }
           }
           
           bytesRead += chunkLength;
@@ -177,6 +236,11 @@ class SMBFileSource implements FileSource {
           if (actualEnd != null && bytesRead > actualEnd) {
             break;
           }
+        }
+        
+        // 发送剩余的缓冲数据
+        if (buffer.isNotEmpty) {
+          yield buffer;
         }
       }
       

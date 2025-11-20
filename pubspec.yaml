@@ -60,7 +60,11 @@ dependencies:
   window_manager: ^0.5.1
   smb_connect: ^0.0.9
   uuid: ^4.5.2
+  dart_vlc: ^0.4.0
 
+
+dependency_overrides:
+  audio_video_progress_bar: ^2.0.0
 
 dev_dependencies:
   flutter_test:

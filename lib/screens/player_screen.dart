@@ -44,6 +44,8 @@ import '../widgets/notification_banner.dart';
 import 'subtitle_settings_screen.dart';
 import 'subtitle_download_screen.dart';
 import '../models/episode.dart';
+import '../services/media_server_service.dart';
+import '../services/file_source_factory.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
@@ -164,6 +166,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       player = Player(configuration: config);
       controller = VideoController(player);
       print('🔧 播放器实例创建完成');
+      print('   协议白名单: http, https, tcp, tls, crypto');
+      print('   缓冲区大小: 32MB');
 
       print('🎮 播放器初始化完成');
       print('  硬件加速: ${_hwAccelConfig?.enabled == true ? "✅ 已启用" : "❌ 未启用"}');
@@ -173,112 +177,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     } catch (e) {
       print('❌ 播放器初始化失败: $e');
-      // 降级到基础配置
-      player = Player(configuration: const PlayerConfiguration(libass: true));
+      // 降级到基础配置 - 使用完全默认设置
+      print('⚠️ 使用降级配置（完全默认）');
+      player = Player();
       controller = VideoController(player);
     }
   }
 
   // 构建播放器配置
   PlayerConfiguration _buildPlayerConfiguration() {
-    Map<String, dynamic> libmpvSettings = {
-      'libass': true, // 保持原有字幕支持
-    };
+    print('🔧 构建播放器配置...');
+    print('🔧 使用完全默认配置，避免任何自定义设置导致的问题');
 
-    // 应用硬件加速配置
-    if (_hwAccelConfig?.enabled == true && _hwAccelConfig != null) {
-      final hwConfig = _hwAccelConfig!.getMediaKitConfig();
-      libmpvSettings.addAll(hwConfig);
-      print('🚀 应用硬件加速配置: ${hwConfig}');
-    }
-
-    // 超高清视频和大文件优化设置
-    libmpvSettings.addAll({
-      // 优化大文件性能
-      'cache': 'yes',
-      'cache-secs': '300', // 5分钟缓存
-      'cache-size': '500000', // 500MB缓存大小
-      'demuxer-max-bytes': '100000000', // 100MB解复用器缓存
-      'demuxer-max-back-bytes': '50000000', // 50MB向后缓存
-
-      // 优化seek性能 - 针对大文件的关键优化
-      'hr-seek': 'yes', // 高精度seek
-      'hr-seek-framedrop': 'yes', // seek时允许丢帧以快速响应
-      'hr-seek-demuxer-offset': '0.1', // 减少demuxer偏移
-      'load-seeking': 'yes', // 加载seek
-
-      // 超高清视频解码优化
-      'vd-lavc-fast': 'yes', // 快速解码
-      'vd-lavc-skipframe': 'no', // 正常播放时不要跳帧
-      'vd-lavc-dr': 'yes', // 直接渲染（如果支持）
-      'vd-lavc-threads': 'auto', // 自动线程数
-
-      // 大文件I/O优化
-      'stream-buffer-size': '1048576', // 1MB流缓冲区
-      'max-bytes-per-chunk': '4194304', // 4MB每个块
-
-      // 内存优化
-      'demuxer-readahead-secs': '20', // 预读20秒
-      'demuxer-readahead-bytes': '52428800', // 50MB预读
-
-      // 性能监控
-      'stats': 'yes', // 启用统计信息
-
-      // 编解码器优化
-      'hwdec-codecs': 'all', // 尝试所有硬件解码器
-      'ad-lavc-dr': 'yes', // 硬件解码直接渲染
-    });
-
-    // 根据视频信息进一步优化
-    if (_currentVideoInfo != null) {
-      final videoInfo = _currentVideoInfo!;
-      if (videoInfo.isLargeFile) {
-        // 大文件特殊优化
-        libmpvSettings.addAll({
-          'demuxer-readahead-secs': '30', // 增加预读
-          'demuxer-readahead-bytes': '104857600', // 增加预读到100MB
-          'cache-size': '1000000', // 增加缓存到1GB
-        });
-        print('🎬 应用大文件优化设置');
-      }
-
-      if (videoInfo.isHighFramerate) {
-        // 高帧率视频优化
-        libmpvSettings.addAll({
-          'framedrop': 'yes', // 允许丢帧保持同步
-          'display-fps': videoInfo.fps.toString(), // 指定显示帧率
-          'sync-max-video-change': '100', // 最大视频变化百分比
-        });
-        print('🎬 应用高帧率优化设置');
-      }
-
-      if (videoInfo.isUltraHD) {
-        // 超高清视频优化
-        libmpvSettings.addAll({
-          'sws-fast': 'yes', // 快速软件缩放
-          'sws-luma-sharpness': '1.5', // 锐化度
-          'sws-chroma-sharpness': '1.5', // 色度锐化
-          'vf-add': 'lavfi=[fps=fps_source]', // 保持原始帧率
-        });
-        print('🎬 应用超高清优化设置');
-      }
-
-      // 根据编解码器优化
-      if (videoInfo.videoCodec.codec.toLowerCase() == 'hevc') {
-        libmpvSettings.addAll({
-          'vd-lavc-profile': 'main',
-          'vd-lavc-level': '5.1',
-        });
-      } else if (videoInfo.videoCodec.codec.toLowerCase() == 'vp9') {
-        libmpvSettings.addAll({
-          'vd-lavc-threads': '8', // VP9需要更多线程
-        });
-      }
-    }
-
-    print('🔧 最终播放器配置: $libmpvSettings');
+    // 不应用任何自定义配置，使用 media_kit 的默认值
+    // 默认包含: http, https 协议支持
     return const PlayerConfiguration(
-      libass: true,
+      // 使用所有默认值
+      // - osc: false (默认)
+      // - logLevel: MPVLogLevel.error (默认)
+      // - protocolWhitelist: ['udp', 'rtp', 'tcp', 'tls', 'data', 'file', 'http', 'https', 'crypto']
+      // - bufferSize: 32MB (默认)
     );
   }
 
@@ -705,6 +623,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   StreamSubscription? _bufferingSubscription;
   StreamSubscription? _bufferSubscription;
   StreamSubscription? _subtitleContentSubscription;
+  StreamSubscription? _errorSubscription;
+  StreamSubscription? _logSubscription;
   List<subtitle_models.SubtitleTrack> _subtitleTracks = [];
   subtitle_models.SubtitleTrack? _currentSubtitleTrack;
   bool _hasSubtitles = false;
@@ -715,12 +635,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     // 初始化macOS书签服务
     MacOSBookmarkService.initialize();
-
-    // 异步初始化播放器和硬件加速
-    _initializePlayerAndServices();
-
-    // 初始化缓冲配置
-    _initializeBufferConfig();
 
     // 检查是否为网络视频
     _isNetworkVideo = widget.webVideoUrl != null && widget.videoFile == null;
@@ -741,11 +655,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 初始化字幕服务
     _initializeSubtitleService();
 
-    // 打开视频并开始播放
-    _loadVideo();
+    // 异步初始化播放器和服务，然后加载视频
+    _initializeAndLoadVideo();
 
     // 3秒后自动隐藏控制界面
     _startControlsTimer();
+  }
+
+  /// 初始化播放器并加载视频
+  Future<void> _initializeAndLoadVideo() async {
+    // 1. 初始化缓冲配置
+    await _initializeBufferConfig();
+
+    // 2. 初始化播放器和硬件加速
+    await _initializePlayerAndServices();
+
+    // 3. 播放器初始化完成后，加载视频
+    await _loadVideo();
   }
 
   /// 初始化缓冲配置
@@ -892,6 +818,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
         player.stream.subtitle.listen((subtitleLines) {
       // 字幕内容更新时可以在这里处理，例如显示在自定义 UI 中
       // debugPrint('Subtitle: $subtitleLines');
+    });
+
+    // 监听播放器错误事件 - 关键：诊断网络播放问题
+    _errorSubscription = player.stream.error.listen((error) {
+      print('❌ 播放器错误事件: $error');
+      if (mounted) {
+        // 显示错误提示给用户
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('播放错误: $error'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    });
+
+    // 监听 MPV 日志事件 - 捕获所有级别的日志以诊断问题
+    _logSubscription = player.stream.log.listen((log) {
+      // 记录所有 MPV 日志
+      final text = log.text.trim();
+      if (text.isNotEmpty) {
+        print('📝 MPV [${log.level}]: $text');
+      }
+
+      // 高亮关键信息
+      if (text.toLowerCase().contains('http') ||
+          text.toLowerCase().contains('127.0.0.1') ||
+          text.toLowerCase().contains('localhost') ||
+          text.toLowerCase().contains('connect') ||
+          text.toLowerCase().contains('protocol') ||
+          text.toLowerCase().contains('playlist') ||
+          text.toLowerCase().contains('demux') ||
+          text.toLowerCase().contains('stream')) {
+        print('🌐🌐🌐 关键日志 [${log.level}]: $text');
+      }
     });
   }
 
@@ -1545,7 +1507,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _startHistoryTimer();
 
     // 后台生成简单缩略图（仅本地视频）
-    if (_videoPath != null && !_isNetworkVideo) {
+    // SMB 视频无法直接访问文件，跳过此步骤
+    final isSMBVideo = widget.episode?.sourceId != null;
+    if (_videoPath != null && !_isNetworkVideo && !isSMBVideo) {
       Future.delayed(const Duration(seconds: 3), () async {
         await SimpleThumbnailService.generateThumbnail(
           videoPath: _videoPath!,
@@ -1918,23 +1882,98 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
 
       // 确定播放URL（考虑缓存）
-      // 确定播放URL（考虑缓存）
       String playbackUrl;
       if (widget.webVideoUrl != null) {
         // 网络视频：检查缓存
+        print('🌐 网络视频模式');
         playbackUrl = await _getPlaybackUrl(widget.webVideoUrl!);
       } else if (widget.episode?.sourceId != null) {
-        // SMB/NAS 视频:通过本地代理播放
-        final proxyServer = LocalProxyServer.instance;
-        if (!proxyServer.isRunning) {
-          await proxyServer.start();
+        // SMB/NAS 视频：临时文件流式下载方案
+        // 原因：macOS 沙箱完全阻止 MPV 访问本地 HTTP（包括 localhost 和真实 IP）
+        // 解决方案：下载到临时文件，边下载边播放
+        print('📡 SMB视频播放准备（临时文件方案）:');
+        print('   路径: ${widget.episode!.path}');
+        print('   源ID: ${widget.episode!.sourceId}');
+        print('   原因：macOS 沙箱限制，MPV 无法访问本地 HTTP 服务器');
+
+        try {
+          // 获取 SMB 文件源
+          final servers = await MediaServerService.getServers();
+          final config = servers.firstWhere(
+            (s) => s.id == widget.episode!.sourceId,
+            orElse: () => throw Exception('Source not found'),
+          );
+
+          print('   服务器: ${config.name} (${config.type})');
+
+          // 创建临时文件路径
+          final tempDir = Directory.systemTemp;
+          final extension = widget.episode!.path.split('.').last;
+          final tempFileName = 'vidhub_smb_${DateTime.now().millisecondsSinceEpoch}.$extension';
+          final tempFile = File('${tempDir.path}/$tempFileName');
+
+          print('   临时文件: ${tempFile.path}');
+          print('   开始流式下载（边下载边播放）...');
+
+          // 创建 FileSource 并开始流式下载
+          final fileSource = FileSourceFactory.createFromConfig(config);
+          if (fileSource == null) {
+            throw Exception('Unsupported file source type: ${config.type}');
+          }
+          final stream = fileSource.openRead(widget.episode!.path);
+
+          // 创建文件写入流
+          final sink = tempFile.openWrite();
+
+          // 标记下载开始
+          bool downloadStarted = false;
+          int downloadedBytes = 0;
+
+          // 异步复制数据（边下载边播放）
+          stream.listen(
+            (chunk) {
+              sink.add(chunk as List<int>);
+              downloadedBytes += chunk.length;
+
+              if (!downloadStarted && downloadedBytes > 1024 * 1024) {
+                // 下载了至少 1MB，可以开始播放
+                downloadStarted = true;
+                print('   ✅ 已下载 ${(downloadedBytes / 1024 / 1024).toStringAsFixed(2)} MB，开始播放');
+              }
+            },
+            onDone: () async {
+              await sink.close();
+              print('   ✅ 下载完成: ${(downloadedBytes / 1024 / 1024).toStringAsFixed(2)} MB');
+            },
+            onError: (e) async {
+              print('   ❌ 下载错误: $e');
+              await sink.close();
+            },
+          );
+
+          // 等待下载足够的数据后开始播放
+          int waitCount = 0;
+          while (!downloadStarted && waitCount < 30) {
+            await Future.delayed(Duration(milliseconds: 500));
+            waitCount++;
+          }
+
+          if (!downloadStarted) {
+            throw Exception('下载超时，未能缓冲足够数据');
+          }
+
+          playbackUrl = tempFile.path;
+          print('   播放本地临时文件: $playbackUrl');
+
+          // 播放结束后清理临时文件
+          // 注意：这将在 dispose 时处理
+        } catch (e) {
+          print('   ❌ SMB 临时文件准备失败: $e');
+          rethrow;
         }
-        playbackUrl = proxyServer.getProxyUrl(
-          widget.videoFile!.path, 
-          sourceId: widget.episode!.sourceId
-        );
       } else {
         // 本地视频：使用文件路径
+        print('💾 本地视频模式');
         playbackUrl = widget.videoFile!.path;
       }
 
@@ -1942,9 +1981,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       print('🎬 Opening video: $playbackUrl');
 
-      // 检查是否有配套的字幕文件
+      // 检查是否为 SMB/远程视频
+      final isSMBVideo = widget.episode?.sourceId != null;
+
+      // 检查是否有配套的字幕文件（仅本地视频）
       String? subtitlePath;
-      if (!_isNetworkVideo && widget.videoFile != null) {
+      if (!_isNetworkVideo && !isSMBVideo && widget.videoFile != null) {
         subtitlePath =
             await _subtitleService.findMatchingSubtitle(widget.videoFile!.path);
         if (subtitlePath != null) {
@@ -1952,9 +1994,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       }
 
-      // 对于macOS本地视频，创建安全书签
+      // 对于macOS本地视频，创建安全书签（仅本地视频）
       if (MacOSBookmarkService.isSupported &&
           !_isNetworkVideo &&
+          !isSMBVideo &&
           widget.videoFile != null) {
         print('🔐 创建macOS安全书签: ${widget.videoFile!.path}');
         _securityBookmark =
@@ -1975,12 +2018,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
 
       try {
+        print('📺 准备打开播放器...');
+        print('   Media URI: ${media.uri}');
+        print('   Media extras: ${media.extras}');
+
         await player.open(media, play: true);
 
-        // 分析视频信息和格式兼容性
-        await _analyzeVideoInfo();
-      } catch (e) {
+        print('✅ 播放器 open() 调用成功');
+        print('   播放状态: ${player.state.playing}');
+        print('   缓冲状态: ${player.state.buffering}');
+        print('   持续时间: ${player.state.duration}');
+
+        // 分析视频信息和格式兼容性（仅本地视频）
+        // SMB 视频无法直接分析，因为文件不在本地
+        if (!isSMBVideo && !_isNetworkVideo) {
+          await _analyzeVideoInfo();
+        }
+      } catch (e, stackTrace) {
         // 处理播放器打开错误
+        print('❌ 播放器打开失败!');
+        print('   错误: $e');
+        print('   堆栈: $stackTrace');
         _handlePlaybackError(e, _videoPath, media.uri);
       }
 
@@ -3512,6 +3570,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _bufferingSubscription?.cancel();
         _bufferSubscription?.cancel();
         _subtitleContentSubscription?.cancel();
+        _errorSubscription?.cancel();
+        _logSubscription?.cancel();
 
         // 停止带宽监控
         if (_isNetworkVideo) {
@@ -3570,7 +3630,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       if (!mounted || _videoPath.isEmpty) return;
 
+      // 检查是否为 SMB/远程视频
+      final isSMBVideo = widget.episode?.sourceId != null;
+
       print('📸 尝试从正在播放的视频中截图...');
+      print('   视频类型: ${isSMBVideo ? "SMB" : (_isNetworkVideo ? "网络" : "本地")}');
 
       // 使用当前正在播放的player截图
       final screenshot = await player.screenshot();
@@ -3611,23 +3675,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
       } else {
         print('❌ 播放器截图返回空，尝试备用方案...');
 
-        // 备用方案：使用SimpleThumbnailService
-        final historyId = _videoPath.hashCode.abs().toString();
-        _thumbnailCachePath =
-            await SimpleThumbnailService.generateAndCacheThumbnail(
-          videoPath: _videoPath,
-          historyId: historyId,
-          width: 320,
-          height: 180,
-          seekSeconds: 1.0,
-          securityBookmark: _securityBookmark,
-        );
+        // 备用方案：仅对本地视频使用 SimpleThumbnailService
+        // SMB 视频无法直接访问文件系统，只能依赖播放器截图
+        if (!isSMBVideo && !_isNetworkVideo) {
+          final historyId = _videoPath.hashCode.abs().toString();
+          _thumbnailCachePath =
+              await SimpleThumbnailService.generateAndCacheThumbnail(
+            videoPath: _videoPath,
+            historyId: historyId,
+            width: 320,
+            height: 180,
+            seekSeconds: 1.0,
+            securityBookmark: _securityBookmark,
+          );
 
-        if (_thumbnailCachePath != null) {
-          _thumbnailGenerated = true;
-          print('✅ 备用方案缩略图生成成功');
+          if (_thumbnailCachePath != null) {
+            _thumbnailGenerated = true;
+            print('✅ 备用方案缩略图生成成功');
+          } else {
+            print('❌ 所有缩略图生成方案都失败');
+          }
         } else {
-          print('❌ 所有缩略图生成方案都失败');
+          print('⚠️ SMB/网络视频无法使用备用缩略图方案，将在后续播放中重试截图');
         }
       }
     } catch (e) {
