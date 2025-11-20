@@ -111,8 +111,12 @@ class LocalProxyServer {
       print('   📝 创建路由器...');
       final router = Router();
 
-      // 处理所有请求
-      router.all('/<.*>', _handleRequest);
+      // 处理所有请求 (Catch-all)
+      // 注意：shelf_router 的 catch-all 语法是 /<param|.*>
+      // 并且 handler 会接收到这个参数，所以需要适配
+      router.all('/<path|.*>', (Request request, String path) {
+        return _handleRequest(request);
+      });
 
       // 创建自定义日志中间件
       Middleware customLogger() {

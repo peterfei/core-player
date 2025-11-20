@@ -154,17 +154,38 @@ class _PlayerScreenState extends State<PlayerScreen> {
       print('🔧 硬件加速事件监听器已设置');
 
       // 再初始化硬件加速服务
-      await HardwareAccelerationService.instance.initialize();
-      _hwAccelConfig =
-          await HardwareAccelerationService.instance.getRecommendedConfig();
-      print('🔧 硬件加速服务初始化完成');
+    await HardwareAccelerationService.instance.initialize();
+    _hwAccelConfig =
+        await HardwareAccelerationService.instance.getRecommendedConfig();
+    print('🔧 硬件加速服务初始化完成');
 
-      // 创建播放器配置
-      final config = _buildPlayerConfiguration();
+    // Create a Player instance with configuration
+    player = Player(
+      configuration: const PlayerConfiguration(
+        logLevel: MPVLogLevel.warn,
+      ),
+    );
+    
+    // Apply critical MPV configurations for SMB/Network playback
+    if (player.platform is NativePlayer) {
+      final nativePlayer = player.platform as NativePlayer;
+      
+      // 1. Bypass system proxy (fixes Internal Privoxy Error)
+      await nativePlayer.setProperty('http-proxy', '');
+      await nativePlayer.setProperty('stream-lavf-o', 'http_proxy=');
+      
+      // 2. Enable Cache (fixes stuttering)
+      await nativePlayer.setProperty('cache', 'yes');
+      await nativePlayer.setProperty('demuxer-max-bytes', '${256 * 1024 * 1024}'); // 256MB
+      await nativePlayer.setProperty('demuxer-readahead-secs', '60');
+      
+      // 3. Enable Hardware Decoding
+      await nativePlayer.setProperty('hwdec', 'auto');
+      
+      print('🔧 MPV Configured: Proxy bypassed, Cache enabled (256MB), Hwdec auto');
+    }
 
-      // 创建播放器实例
-      player = Player(configuration: config);
-      controller = VideoController(player);
+    controller = VideoController(player);
       print('🔧 播放器实例创建完成');
       print('   协议白名单: http, https, tcp, tls, crypto');
       print('   缓冲区大小: 32MB');
@@ -1888,87 +1909,44 @@ class _PlayerScreenState extends State<PlayerScreen> {
         print('🌐 网络视频模式');
         playbackUrl = await _getPlaybackUrl(widget.webVideoUrl!);
       } else if (widget.episode?.sourceId != null) {
-        // SMB/NAS 视频：临时文件流式下载方案
-        // 原因：macOS 沙箱完全阻止 MPV 访问本地 HTTP（包括 localhost 和真实 IP）
-        // 解决方案：下载到临时文件，边下载边播放
-        print('📡 SMB视频播放准备（临时文件方案）:');
+        // SMB/NAS 视频：使用本地代理服务器方案
+        // 原因：macOS 沙箱限制 MPV 直接访问 SMB，且阻止访问 localhost
+        // 解决方案：启动绑定到真实 IP 的本地 HTTP 代理，将 SMB 流转换为 HTTP 流
+        print('📡 SMB视频播放准备 (LocalProxyServer方案):');
         print('   路径: ${widget.episode!.path}');
         print('   源ID: ${widget.episode!.sourceId}');
-        print('   原因：macOS 沙箱限制，MPV 无法访问本地 HTTP 服务器');
 
         try {
-          // 获取 SMB 文件源
-          final servers = await MediaServerService.getServers();
-          final config = servers.firstWhere(
-            (s) => s.id == widget.episode!.sourceId,
-            orElse: () => throw Exception('Source not found'),
+          setState(() {
+            _isBuffering = true;
+            _networkStatus = '正在连接媒体服务器...';
+          });
+
+          // 1. 确保代理服务器已启动
+          final proxy = LocalProxyServer.instance;
+          if (!proxy.isRunning) {
+            print('   启动本地代理服务器...');
+            await proxy.start();
+          }
+
+          // 2. 获取代理 URL (会自动处理 SMB 连接和流式传输)
+          // 注意：getProxyUrl 会生成一个指向本机真实 IP 的 URL，绕过沙箱限制
+          playbackUrl = proxy.getProxyUrl(
+            widget.episode!.path,
+            sourceId: widget.episode!.sourceId,
           );
 
-          print('   服务器: ${config.name} (${config.type})');
-
-          // 创建临时文件路径
-          final tempDir = Directory.systemTemp;
-          final extension = widget.episode!.path.split('.').last;
-          final tempFileName = 'vidhub_smb_${DateTime.now().millisecondsSinceEpoch}.$extension';
-          final tempFile = File('${tempDir.path}/$tempFileName');
-
-          print('   临时文件: ${tempFile.path}');
-          print('   开始流式下载（边下载边播放）...');
-
-          // 创建 FileSource 并开始流式下载
-          final fileSource = FileSourceFactory.createFromConfig(config);
-          if (fileSource == null) {
-            throw Exception('Unsupported file source type: ${config.type}');
-          }
-          final stream = fileSource.openRead(widget.episode!.path);
-
-          // 创建文件写入流
-          final sink = tempFile.openWrite();
-
-          // 标记下载开始
-          bool downloadStarted = false;
-          int downloadedBytes = 0;
-
-          // 异步复制数据（边下载边播放）
-          stream.listen(
-            (chunk) {
-              sink.add(chunk as List<int>);
-              downloadedBytes += chunk.length;
-
-              if (!downloadStarted && downloadedBytes > 1024 * 1024) {
-                // 下载了至少 1MB，可以开始播放
-                downloadStarted = true;
-                print('   ✅ 已下载 ${(downloadedBytes / 1024 / 1024).toStringAsFixed(2)} MB，开始播放');
-              }
-            },
-            onDone: () async {
-              await sink.close();
-              print('   ✅ 下载完成: ${(downloadedBytes / 1024 / 1024).toStringAsFixed(2)} MB');
-            },
-            onError: (e) async {
-              print('   ❌ 下载错误: $e');
-              await sink.close();
-            },
-          );
-
-          // 等待下载足够的数据后开始播放
-          int waitCount = 0;
-          while (!downloadStarted && waitCount < 30) {
-            await Future.delayed(Duration(milliseconds: 500));
-            waitCount++;
-          }
-
-          if (!downloadStarted) {
-            throw Exception('下载超时，未能缓冲足够数据');
-          }
-
-          playbackUrl = tempFile.path;
-          print('   播放本地临时文件: $playbackUrl');
-
-          // 播放结束后清理临时文件
-          // 注意：这将在 dispose 时处理
+          print('   ✅ 代理 URL 生成成功: $playbackUrl');
+          
+          // 3. 播放代理 URL
+          // MPV 配置已在 _initializePlayer 中设置 (绕过代理、启用缓存等)
+          await player.open(Media(playbackUrl), play: true);
+          
+          // 4. 添加到历史记录 (使用原始路径作为标识)
+          // 注意：这里我们保存原始 SMB 路径，而不是代理 URL
+          await _networkService.addUrlToHistory(widget.episode!.path);
+          
         } catch (e) {
-          print('   ❌ SMB 临时文件准备失败: $e');
           rethrow;
         }
       } else {
@@ -2774,8 +2752,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _networkStatus = '重新连接...';
       });
 
+      // 检查是否为 SMB 视频并获取代理 URL
+      String playbackUrl = videoPath;
+      if (widget.episode?.sourceId != null && videoPath == widget.episode!.path) {
+         // 重新获取代理 URL
+         final proxy = LocalProxyServer.instance;
+         if (!proxy.isRunning) await proxy.start();
+         playbackUrl = proxy.getProxyUrl(videoPath, sourceId: widget.episode!.sourceId);
+         print('🔄 重试播放 SMB 视频，使用代理 URL: $playbackUrl');
+      }
+
       // 尝试重新打开视频
-      final media = Media(videoPath);
+      final media = Media(playbackUrl);
       await player.open(media, play: true);
 
       // 重新分析视频信息

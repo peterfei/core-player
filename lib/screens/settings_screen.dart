@@ -9,7 +9,7 @@ import 'format_support_screen.dart';
 import 'video_playback_settings_screen.dart';
 import 'metadata_settings_screen.dart';
 import 'metadata_management_page.dart';
-import 'vlc_test_screen.dart';
+
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -195,20 +195,6 @@ class SettingsScreen extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const FormatSupportScreen(),
-                ),
-              );
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.play_circle_outline),
-            title: const Text('测试 VLC 播放器'),
-            subtitle: const Text('测试 dart_vlc SMB 播放功能'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const VLCTestScreen(),
                 ),
               );
             },

@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   charset_converter
   connectivity_plus
-  dart_vlc
   media_kit_libs_windows_video
   media_kit_video
   screen_retriever_windows
