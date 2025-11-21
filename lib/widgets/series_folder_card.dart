@@ -45,20 +45,12 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
 
   void _loadMetadata() {
     final metadata = MetadataStoreService.getSeriesMetadata(widget.series.folderPath);
-    debugPrint('🃏 SeriesFolderCard: ${widget.series.name}');
-    debugPrint('   路径: ${widget.series.folderPath}');
-    debugPrint('   元数据: ${metadata != null ? "已加载" : "无"}');
-    if (metadata != null && metadata['posterPath'] != null) {
-      debugPrint('   海报路径: ${metadata['posterPath']}');
-    }
-    
     if (mounted) {
       setState(() {
         _metadata = metadata;
       });
     }
   }
-
 
   @override
   void dispose() {
@@ -107,90 +99,116 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                       ),
                     ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 封面图区域
-                Expanded(
-                  flex: 4, // Reduced from 3 to 4 (relative to info) to adjust ratio, wait, 4:3 is 57:43. 3:2 is 60:40. So 4:3 gives MORE space to info.
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(AppRadius.medium),
-                        topRight: Radius.circular(AppRadius.medium),
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(AppRadius.medium),
-                        topRight: Radius.circular(AppRadius.medium),
-                      ),
-                      child: SmartImage(
-                        path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                        placeholder: _buildPlaceholder(),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.medium),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 1. 全屏封面图
+                  SmartImage(
+                    path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                    placeholder: _buildPlaceholder(),
+                  ),
+
+                  // 2. 渐变遮罩 (底部)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 120, // 遮罩高度
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.8),
+                          ],
+                          stops: const [0.0, 0.9],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // 信息区域
-                Expanded(
-                  flex: 3, // Increased from 2 to 3 to give more space for text
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.medium),
+                  // 3. 悬停遮罩 (全屏变暗)
+                  if (_isHovered)
+                    Container(
+                      color: Colors.black.withOpacity(0.1),
+                    ),
+
+                  // 4. 文字信息 (浮动在底部)
+                  Positioned(
+                    left: AppSpacing.medium,
+                    right: AppSpacing.medium,
+                    bottom: AppSpacing.medium,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // 剧集名称
                         Text(
-                          widget.series.name,
+                          _cleanTitle(widget.series.name),
                           style: AppTextStyles.titleMedium.copyWith(
-                            color: AppColors.textPrimary,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withOpacity(0.8),
+                                offset: const Offset(0, 1),
+                                blurRadius: 4,
+                              ),
+                            ],
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: AppSpacing.small),
+                        const SizedBox(height: 4),
 
-                        // 集数统计
+                        // 集数统计和年份
                         Row(
                           children: [
-                            Icon(
-                              Icons.movie,
-                              size: 16,
-                              color: AppColors.primary,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${widget.series.episodeCount} 集',
+                                style: AppTextStyles.labelSmall.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                            const SizedBox(width: AppSpacing.micro),
+                            const SizedBox(width: 8),
                             Text(
-                              '共 ${widget.series.episodeCount} 集',
+                              _formatDateYear(widget.series.addedAt),
                               style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
+                                color: Colors.white.withOpacity(0.8),
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.8),
+                                    offset: const Offset(0, 1),
+                                    blurRadius: 2,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-
-                        const Spacer(),
-
-                        // 添加时间
-                        Text(
-                          _formatDate(widget.series.addedAt),
-                          style: AppTextStyles.labelSmall.copyWith(
-                            color: AppColors.textTertiary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -199,16 +217,36 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
   }
 
   Widget _buildPlaceholder() {
-    return Center(
-      child: Icon(
-        Icons.folder_special,
-        size: 64,
-        color: AppColors.primary.withOpacity(0.3),
+    return Container(
+      color: AppColors.surfaceVariant,
+      child: Center(
+        child: Icon(
+          Icons.folder_special,
+          size: 64,
+          color: AppColors.textSecondary.withOpacity(0.5),
+        ),
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  String _cleanTitle(String title) {
+    // 1. 替换点号为为空格
+    var cleaned = title.replaceAll('.', ' ');
+    
+    // 2. 移除常见的发布信息标签 (不区分大小写)
+    final regex = RegExp(
+      r'(S\d+.*|1080p.*|2160p.*|4k.*|WEBRip.*|BluRay.*|HDTV.*)', 
+      caseSensitive: false,
+    );
+    
+    if (regex.hasMatch(cleaned)) {
+      cleaned = cleaned.split(regex).first;
+    }
+
+    return cleaned.trim();
+  }
+
+  String _formatDateYear(DateTime date) {
+    return '${date.year}';
   }
 }

@@ -458,7 +458,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 200,
-          childAspectRatio: 0.75,
+          childAspectRatio: 0.65,
           crossAxisSpacing: AppSpacing.large,
           mainAxisSpacing: AppSpacing.large,
         ),
@@ -1040,7 +1040,7 @@ class _AllVideosPageState extends State<_AllVideosPage> {
             : ResponsiveGrid(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 0.75, // 调整为竖向封面比例
+                childAspectRatio: 0.65, // 调整为竖向封面比例
                 children: videos.map((video) => VideoPosterCard(
                   video: video,
                   onTap: () => widget.onVideoTap(video),
@@ -1078,7 +1078,7 @@ class _AllVideosPageState extends State<_AllVideosPage> {
                       },
                     )
                   : ResponsiveGrid(
-                      childAspectRatio: 0.75, // 竖向封面比例
+                      childAspectRatio: 0.65, // 竖向封面比例
                       children: _pagedVideos.map((video) => VideoPosterCard(
                         video: video,
                         onTap: () => widget.onVideoTap(video),

@@ -74,6 +74,11 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
   }
 
 
+  Future<void> _loadSeriesDetails() async {
+    await _loadMetadata();
+    await _loadEpisodes();
+  }
+
   Future<void> _loadEpisodes() async {
     setState(() {
       _isLoading = true;
@@ -345,210 +350,184 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      extendBodyBehindAppBar: true, // Allow body to extend behind app bar for transparency
       body: CustomScrollView(
         slivers: [
-          // 顶部应用栏
+          // 1. 沉浸式背景墙 (SliverAppBar)
           SliverAppBar(
-            backgroundColor: AppColors.background,
+            backgroundColor: Colors.transparent,
             elevation: 0,
             pinned: true,
-            expandedHeight: (_metadata?['backdropPath'] ?? widget.series.backdropPath) != null ? 320.0 : null,
-            flexibleSpace: (_metadata?['backdropPath'] ?? widget.series.backdropPath) != null
-                ? FlexibleSpaceBar(
-                    background: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        SmartImage(
-                          path: _metadata?['backdropPath'] ?? widget.series.backdropPath,
-                          fit: BoxFit.cover,
-                        ),
-                        // 渐变遮罩，确保标题可见
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withOpacity(0.3),
-                                Colors.transparent,
-                                AppColors.background,
-                              ],
-                              stops: const [0.0, 0.5, 1.0],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : null,
+            expandedHeight: 420.0, // Increased height to fit poster
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.arrow_back, color: Colors.white),
+              ),
               onPressed: () => Navigator.pop(context),
             ),
-            title: Text(
-              widget.series.name,
-              style: AppTextStyles.headlineMedium.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
             actions: [
-              // 刮削按钮
-              if (!_isScraping)
-                IconButton(
-                  icon: Icon(
-                    _metadata != null ? Icons.refresh : Icons.download,
-                    color: AppColors.textPrimary,
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
                   ),
-                  tooltip: _metadata != null ? '重新刮削' : '刮削元数据',
-                  onPressed: _scrapeSeries,
+                  child: const Icon(Icons.refresh, color: Colors.white),
                 ),
-              // 排序按钮
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.sort, color: AppColors.textPrimary),
-                color: AppColors.surface,
-                onSelected: (value) {
-                  setState(() {
-                    _sortBy = value;
-                    _filterAndSortEpisodes();
-                  });
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'number_asc',
-                    child: Text('集数 (正序)'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'number_desc',
-                    child: Text('集数 (倒序)'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'name_asc',
-                    child: Text('名称 (A-Z)'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'name_desc',
-                    child: Text('名称 (Z-A)'),
-                  ),
-                ],
+                onPressed: _loadSeriesDetails,
               ),
-              const SizedBox(width: AppSpacing.small),
-            ],
-          ),
-
-          // 剧集信息头部
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.large),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 封面图
-                  Container(
-                    width: 120,
-                    height: 180,
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: PopupMenuButton<String>(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
-                      borderRadius: BorderRadius.circular(AppRadius.medium),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      color: Colors.black.withOpacity(0.5),
+                      shape: BoxShape.circle,
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppRadius.medium),
-                      child: SmartImage(
-                        path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
-                        fit: BoxFit.cover,
-                        placeholder: _buildPlaceholder(),
+                    child: const Icon(Icons.sort, color: Colors.white),
+                  ),
+                  offset: const Offset(0, 50),
+                  onSelected: (value) {
+                    setState(() {
+                      _sortBy = value; // Changed from _sortOption to _sortBy to match existing code
+                      _filterAndSortEpisodes();
+                    });
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'number_asc', child: Text('集数 (正序)')), // Changed from 'default'
+                    const PopupMenuItem(value: 'number_desc', child: Text('集数 (倒序)')), // Added
+                    const PopupMenuItem(value: 'name_asc', child: Text('名称 (A-Z)')),
+                    const PopupMenuItem(value: 'name_desc', child: Text('名称 (Z-A)')),
+                  ],
+                ),
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.none, // Disable parallax so poster scrolls with body
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 1. 背景图
+                  SmartImage(
+                    path: _metadata?['backdropPath'] ?? widget.series.backdropPath,
+                    fit: BoxFit.cover,
+                  ),
+                  // 2. 渐变遮罩 (Top to Bottom)
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.6), // Top darkening
+                          Colors.transparent,
+                          AppColors.background.withOpacity(0.8), // Fade to background
+                          AppColors.background, // Solid background at bottom
+                        ],
+                        stops: const [0.0, 0.4, 0.8, 1.0],
                       ),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.large),
-                  
-                  // 详细信息
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // 3. 内容区域 (Poster + Info) - Moved inside FlexibleSpaceBar for correct Z-order
+                  Positioned(
+                    left: AppSpacing.large,
+                    right: AppSpacing.large,
+                    bottom: AppSpacing.large, // Align to bottom of expanded area
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        // 标题（使用刮削的名称或原名称）
-                        if (_metadata?['name'] != null && _metadata!['name'] != widget.series.name)
-                          Text(
-                            _metadata!['name'],
-                            style: AppTextStyles.titleLarge.copyWith(
-                              color: AppColors.textPrimary,
+                        // 悬浮海报
+                        Material(
+                          elevation: 12,
+                          color: Colors.transparent,
+                          shadowColor: Colors.black.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(AppRadius.medium),
+                          child: Container(
+                            width: 160,
+                            height: 240,
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(AppRadius.medium),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
+                              ),
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(AppRadius.medium),
+                              child: SmartImage(
+                                key: ValueKey('poster_v3_${_metadata?['posterPath'] ?? widget.series.thumbnailPath}'),
+                                path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
+                                width: 160,
+                                height: 240,
+                                fit: BoxFit.contain,
+                                alignment: Alignment.topCenter,
+                                placeholder: _buildPlaceholder(),
+                              ),
+                            ),
                           ),
-                        // 评分和集数
-                        Row(
-                          children: [
-                            if (_metadata?['rating'] != null) ...[
-                              const Icon(Icons.star, color: Colors.amber, size: 16),
-                              const SizedBox(width: 4),
+                        ),
+                        const SizedBox(width: AppSpacing.large),
+                        
+                        // 标题和基本信息
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              // 标题
                               Text(
-                                _metadata!['rating'].toStringAsFixed(1),
-                                style: AppTextStyles.titleMedium.copyWith(
-                                  color: AppColors.textPrimary,
+                                _metadata?['name'] ?? widget.series.name,
+                                style: AppTextStyles.headlineMedium.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.8),
+                                      offset: const Offset(0, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
                                 ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(height: AppSpacing.small),
+                              
+                              // 评分和标签
+                              Row(
+                                children: [
+                                  if (_metadata?['rating'] != null) ...[
+                                    _buildInfoChip(
+                                      icon: Icons.star,
+                                      label: _metadata!['rating'].toStringAsFixed(1),
+                                      color: Colors.amber,
+                                    ),
+                                    const SizedBox(width: AppSpacing.small),
+                                  ],
+                                  _buildInfoChip(
+                                    label: '${_episodes.length} 集',
+                                    backgroundColor: AppColors.surfaceVariant,
+                                  ),
+                                  if (_metadata?['releaseDate'] != null) ...[
+                                    const SizedBox(width: AppSpacing.small),
+                                    _buildInfoChip(
+                                      label: _metadata!['releaseDate'].toString().substring(0, 4),
+                                      backgroundColor: AppColors.surfaceVariant,
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ],
-                            Text(
-                              '共 ${_episodes.length} 集',
-                              style: AppTextStyles.titleMedium.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.medium),
-                        if (_metadata?['overview'] != null || widget.series.overview != null) ...[
-                          Text(
-                            _metadata?['overview'] ?? widget.series.overview!,
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: AppSpacing.medium),
-                        ],
-                        // 发布日期
-                        if (_metadata?['releaseDate'] != null) ...[
-                          Text(
-                            '首播: ${_metadata!['releaseDate']}',
-                            style: AppTextStyles.bodySmall.copyWith(
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.small),
-                        ],
-                        Text(
-                          '路径: ${widget.series.folderPath}',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: AppColors.textTertiary,
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.large),
-                        // 播放按钮
-                        if (_filteredEpisodes.isNotEmpty)
-                          ElevatedButton.icon(
-                            onPressed: () => _playEpisode(_filteredEpisodes.first),
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('播放第一集'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.large,
-                                vertical: AppSpacing.medium,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                   ),
@@ -557,43 +536,98 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
             ),
           ),
 
-          // 搜索栏
+          // 2. 内容区域 (Overview + Buttons + List)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
-              child: TextField(
-                style: TextStyle(color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  hintText: '搜索集数...',
-                  hintStyle: TextStyle(color: AppColors.textSecondary),
-                  prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
-                  filled: true,
-                  fillColor: AppColors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.medium),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.medium,
-                    vertical: AppSpacing.small,
-                  ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Removed Poster Row from here
+                  
+                  const SizedBox(height: AppSpacing.large),
+
+                    // 简介
+                    if (_metadata?['overview'] != null || widget.series.overview != null)
+                      Text(
+                        _metadata?['overview'] ?? widget.series.overview!,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.5,
+                        ),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    
+                    const SizedBox(height: AppSpacing.large),
+
+                    // 操作按钮栏
+                    Row(
+                      children: [
+                        if (_filteredEpisodes.isNotEmpty)
+                          Expanded(
+                            flex: 2, // Give more space to Play button
+                            child: ElevatedButton.icon(
+                              onPressed: () => _playEpisode(_filteredEpisodes.first),
+                              icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                              label: const Text('播放第一集', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                                ),
+                                elevation: 8,
+                                shadowColor: AppColors.primary.withOpacity(0.5),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: AppSpacing.medium),
+                        // 搜索框
+                        Expanded(
+                          flex: 1,
+                          child: TextField(
+                            style: TextStyle(color: AppColors.textPrimary),
+                            decoration: InputDecoration(
+                              hintText: '搜索...',
+                              hintStyle: TextStyle(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                              filled: true,
+                              fillColor: AppColors.surface.withOpacity(0.8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.medium),
+                                borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.medium),
+                                borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.medium),
+                                borderSide: BorderSide(color: AppColors.primary.withOpacity(0.5), width: 1.5),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.medium,
+                                vertical: 16,
+                              ),
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                _searchQuery = value;
+                                _filterAndSortEpisodes();
+                              });
+                            },
+                        ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                    _filterAndSortEpisodes();
-                  });
-                },
               ),
             ),
-          ),
 
-          // 间距
-          const SliverToBoxAdapter(
-            child: SizedBox(height: AppSpacing.medium),
-          ),
-
-          // 集数列表
+          // 3. 集数列表
           _isLoading
               ? const SliverFillRemaining(
                   child: Center(child: CircularProgressIndicator()),
@@ -610,15 +644,18 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                       ),
                     )
                   : SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.large,
+                        0, // Top padding handled by Transform
+                        AppSpacing.large,
+                        AppSpacing.xxLarge,
+                      ),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
                             final episode = _filteredEpisodes[index];
-                            // 从MetadataStoreService加载集数元数据
                             final episodeMetadata = MetadataStoreService.getEpisodeMetadata(episode.id);
                             
-                            // 如果有元数据，使用刮削的stillPath更新Episode
                             Episode displayEpisode = episode;
                             if (episodeMetadata != null && episodeMetadata['stillPath'] != null) {
                               displayEpisode = episode.copyWith(
@@ -637,10 +674,60 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                         ),
                       ),
                     ),
-                    
-          // 底部留白
-          const SliverToBoxAdapter(
-            child: SizedBox(height: AppSpacing.xxLarge),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCircleActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    Widget? child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        shape: BoxShape.circle,
+      ),
+      child: child ?? IconButton(
+        icon: Icon(icon, color: Colors.white, size: 20),
+        tooltip: tooltip,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _buildInfoChip({
+    IconData? icon,
+    required String label,
+    Color? color,
+    Color backgroundColor = Colors.transparent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor == Colors.transparent 
+            ? AppColors.surfaceVariant.withOpacity(0.5) 
+            : backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+        border: backgroundColor == Colors.transparent 
+            ? Border.all(color: AppColors.surfaceVariant) 
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: color ?? AppColors.textPrimary),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: AppTextStyles.labelSmall.copyWith(
+              color: color ?? AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
