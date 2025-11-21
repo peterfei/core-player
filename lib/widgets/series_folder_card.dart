@@ -112,7 +112,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
               children: [
                 // 封面图区域
                 Expanded(
-                  flex: 3,
+                  flex: 4, // Reduced from 3 to 4 (relative to info) to adjust ratio, wait, 4:3 is 57:43. 3:2 is 60:40. So 4:3 gives MORE space to info.
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.surfaceVariant,
@@ -129,6 +129,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                       child: SmartImage(
                         path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
                         fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
                         placeholder: _buildPlaceholder(),
                       ),
                     ),
@@ -137,7 +138,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
 
                 // 信息区域
                 Expanded(
-                  flex: 2,
+                  flex: 3, // Increased from 2 to 3 to give more space for text
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.medium),
                     child: Column(
@@ -145,18 +146,16 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // 剧集名称
-                        Flexible(
-                          child: Text(
-                            widget.series.name,
-                            style: AppTextStyles.titleMedium.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                        Text(
+                          widget.series.name,
+                          style: AppTextStyles.titleMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: AppSpacing.micro),
+                        const SizedBox(height: AppSpacing.small),
 
                         // 集数统计
                         Row(

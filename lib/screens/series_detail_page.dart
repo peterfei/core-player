@@ -352,7 +352,7 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
             backgroundColor: AppColors.background,
             elevation: 0,
             pinned: true,
-            expandedHeight: (_metadata?['backdropPath'] ?? widget.series.backdropPath) != null ? 200.0 : null,
+            expandedHeight: (_metadata?['backdropPath'] ?? widget.series.backdropPath) != null ? 320.0 : null,
             flexibleSpace: (_metadata?['backdropPath'] ?? widget.series.backdropPath) != null
                 ? FlexibleSpaceBar(
                     background: Stack(

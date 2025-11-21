@@ -19,6 +19,8 @@ import 'package:yinghe_player/services/series_service.dart';
 import 'package:yinghe_player/models/series.dart';
 import 'package:yinghe_player/widgets/series_folder_card.dart';
 import 'package:yinghe_player/screens/series_detail_page.dart';
+import 'package:yinghe_player/widgets/video_list_tile.dart';
+import 'package:yinghe_player/widgets/video_poster_card.dart';
 
 import 'package:yinghe_player/services/cache_test_service.dart';
 import 'package:yinghe_player/models/playback_history.dart';
@@ -734,6 +736,7 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   String _searchQuery = '';
   String _sortBy = 'name_asc'; // 'name_asc', 'name_desc'
   bool _groupByFolder = true; // 默认启用按文件夹分组
+  bool _isListView = false; // 视图模式：false=封面(网格), true=列表
   int _currentPage = 0;
   static const int _itemsPerPage = 20;
   
@@ -883,6 +886,44 @@ class _AllVideosPageState extends State<_AllVideosPage> {
           ),
           const SizedBox(width: AppSpacing.small),
           
+          // 视图切换 (列表/封面)
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.small),
+              border: Border.all(color: AppColors.surfaceVariant),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.grid_view, 
+                    size: 18,
+                    color: !_isListView ? AppColors.primary : AppColors.textSecondary,
+                  ),
+                  tooltip: '封面模式',
+                  onPressed: () => setState(() => _isListView = false),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  padding: EdgeInsets.zero,
+                ),
+                Container(width: 1, height: 20, color: AppColors.surfaceVariant),
+                IconButton(
+                  icon: Icon(
+                    Icons.view_list, 
+                    size: 18,
+                    color: _isListView ? AppColors.primary : AppColors.textSecondary,
+                  ),
+                  tooltip: '列表模式',
+                  onPressed: () => setState(() => _isListView = true),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.small),
+
           // 排序选择
           DropdownButton<String>(
             value: _sortBy,
@@ -986,15 +1027,25 @@ class _AllVideosPageState extends State<_AllVideosPage> {
           ),
         ),
         
-        // 视频网格 - 添加 shrinkWrap 避免无限高度
+        // 视频列表/网格
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
-          child: AdaptiveVideoGrid(
-            videos: videos,
-            onTap: widget.onVideoTap,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-          ),
+          child: _isListView 
+            ? Column(
+                children: videos.map((video) => VideoListTile(
+                  video: video,
+                  onTap: () => widget.onVideoTap(video),
+                )).toList(),
+              )
+            : ResponsiveGrid(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: 0.75, // 调整为竖向封面比例
+                children: videos.map((video) => VideoPosterCard(
+                  video: video,
+                  onTap: () => widget.onVideoTap(video),
+                )).toList(),
+              ),
         ),
         
         const SizedBox(height: AppSpacing.large),
@@ -1005,7 +1056,7 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   Widget _buildFlatList() {
     return Column(
       children: [
-        // 视频网格
+        // 视频网格/列表
         Expanded(
           child: _pagedVideos.isEmpty
             ? Center(
@@ -1016,10 +1067,23 @@ class _AllVideosPageState extends State<_AllVideosPage> {
               )
             : Padding(
                 padding: const EdgeInsets.all(AppSpacing.large),
-                child: AdaptiveVideoGrid(
-                  videos: _pagedVideos,
-                  onTap: widget.onVideoTap,
-                ),
+                child: _isListView
+                  ? ListView.builder(
+                      itemCount: _pagedVideos.length,
+                      itemBuilder: (context, index) {
+                        return VideoListTile(
+                          video: _pagedVideos[index],
+                          onTap: () => widget.onVideoTap(_pagedVideos[index]),
+                        );
+                      },
+                    )
+                  : ResponsiveGrid(
+                      childAspectRatio: 0.75, // 竖向封面比例
+                      children: _pagedVideos.map((video) => VideoPosterCard(
+                        video: video,
+                        onTap: () => widget.onVideoTap(video),
+                      )).toList(),
+                    ),
               ),
         ),
         

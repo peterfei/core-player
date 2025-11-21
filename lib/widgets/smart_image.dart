@@ -9,6 +9,7 @@ class SmartImage extends StatelessWidget {
   final Widget? errorWidget;
   final double? width;
   final double? height;
+  final AlignmentGeometry alignment;
 
   const SmartImage({
     Key? key,
@@ -18,6 +19,7 @@ class SmartImage extends StatelessWidget {
     this.errorWidget,
     this.width,
     this.height,
+    this.alignment = Alignment.center,
   }) : super(key: key);
 
   @override
@@ -32,6 +34,7 @@ class SmartImage extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
+        alignment: alignment,
         errorBuilder: (context, error, stackTrace) => _buildError(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
@@ -49,6 +52,7 @@ class SmartImage extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
+        alignment: alignment,
         errorBuilder: (context, error, stackTrace) => _buildError(),
       );
     }
