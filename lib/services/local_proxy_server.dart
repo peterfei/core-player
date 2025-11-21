@@ -70,7 +70,7 @@ class LocalProxyServer {
   }
 
   HttpServer? _server;
-  int _port = 8080;
+  int _port = 18888;
   bool _isRunning = false;
   String? _serverAddress; // 实际绑定的 IP 地址
   final Map<String, String> _urlToProxyUrl = {};
@@ -79,7 +79,7 @@ class LocalProxyServer {
   final Map<String, _VideoRequest> _requestCache = {};
   int _requestIdCounter = 0;
 
-  Future<void> start({int port = 8080, bool forceRestart = false}) async {
+  Future<void> start({int port = 18888, bool forceRestart = false}) async {
     print('🚀 LocalProxyServer.start() 被调用');
     print('   当前运行状态: $_isRunning');
     print('   目标端口: $port');
@@ -108,55 +108,53 @@ class LocalProxyServer {
 
     _port = port;
 
-    try {
-      print('   📝 创建路由器...');
-      final router = Router();
+    print('   📝 创建路由器...');
+    final router = Router();
 
-      // 处理所有请求 (Catch-all)
-      // 注意：shelf_router 的 catch-all 语法是 /<param|.*>
-      // 并且 handler 会接收到这个参数，所以需要适配
-      router.all('/<path|.*>', (Request request, String path) {
-        return _handleRequest(request);
-      });
+    // 处理所有请求 (Catch-all)
+    router.all('/<path|.*>', (Request request, String path) {
+      return _handleRequest(request);
+    });
 
-      // 创建自定义日志中间件
-      Middleware customLogger() {
-        return (Handler innerHandler) {
-          return (Request request) async {
-            print('📥 收到HTTP请求:');
-            print('   时间: ${DateTime.now()}');
-            print('   方法: ${request.method}');
-            print('   URL: ${request.requestedUri}');
-            print('   路径: ${request.requestedUri.path}');
-            print('   查询参数: ${request.requestedUri.queryParameters}');
-            print('   Headers: ${request.headers.keys.toList()}');
-            
-            final response = await innerHandler(request);
-            
-            print('📤 返回响应:');
-            print('   状态码: ${response.statusCode}');
-            print('   Headers: ${response.headers.keys.toList()}');
-            
-            return response;
-          };
+    // 创建自定义日志中间件
+    Middleware customLogger() {
+      return (Handler innerHandler) {
+        return (Request request) async {
+          print('📥 收到HTTP请求:');
+          print('   时间: ${DateTime.now()}');
+          print('   方法: ${request.method}');
+          print('   URL: ${request.requestedUri}');
+          print('   路径: ${request.requestedUri.path}');
+          print('   查询参数: ${request.requestedUri.queryParameters}');
+          print('   Headers: ${request.headers.keys.toList()}');
+          
+          final response = await innerHandler(request);
+          
+          print('📤 返回响应:');
+          print('   状态码: ${response.statusCode}');
+          print('   Headers: ${response.headers.keys.toList()}');
+          
+          return response;
         };
-      }
+      };
+    }
 
-      // 创建CORS处理器
-      print('   📝 创建中间件...');
-      final handler = const Pipeline()
-          .addMiddleware(corsHeaders())
-          .addMiddleware(customLogger())  // 使用自定义日志
-          .addHandler(router);
+    // 创建CORS处理器
+    print('   📝 创建中间件...');
+    final handler = const Pipeline()
+        .addMiddleware(corsHeaders())
+        .addMiddleware(customLogger())  // 使用自定义日志
+        .addHandler(router);
 
-      // 获取实际 IP 地址用于生成 URL（避免 macOS 沙箱对 localhost 的限制）
-      print('   📝 查找本机网络地址...');
-      final ipAddress = await _getLocalIPAddress();
+    // 获取实际 IP 地址用于生成 URL（避免 macOS 沙箱对 localhost 的限制）
+    print('   📝 查找本机网络地址...');
+    final ipAddress = await _getLocalIPAddress();
 
-      if (ipAddress == null) {
-        throw Exception('无法获取网络地址');
-      }
+    if (ipAddress == null) {
+      throw Exception('无法获取网络地址');
+    }
 
+    try {
       // 启动服务器，绑定到所有接口（0.0.0.0）
       // 但在 URL 中使用实际 IP 地址
       print('   📝 启动HTTP服务器...');
@@ -169,7 +167,10 @@ class LocalProxyServer {
             InternetAddress.anyIPv4, // 绑定到 0.0.0.0
             _port,
           )
-          .timeout(Duration(seconds: 5));
+          .timeout(const Duration(seconds: 5));
+
+      // 更新实际使用的端口（如果是0，系统会分配随机端口）
+      _port = _server!.port;
 
       _isRunning = true;
       _serverAddress = ipAddress; // 保存实际地址用于 URL 生成
@@ -182,7 +183,36 @@ class LocalProxyServer {
       // 自测试：验证服务器确实在监听
       _testServerConnectivity();
     } catch (e, stackTrace) {
-      print('❌ Failed to start local proxy server: $e');
+      print('❌ Failed to start local proxy server on port $_port: $e');
+      
+      // 如果是端口被占用错误，尝试使用随机端口重试
+      if (e.toString().contains('Address already in use') || e.toString().contains('errno = 48')) {
+        if (_port != 0) {
+          print('⚠️ Port $_port is busy, retrying with random port (0)...');
+          try {
+             _server = await shelf_io
+                .serve(
+                  handler,
+                  InternetAddress.anyIPv4,
+                  0, // 使用随机端口
+                )
+                .timeout(const Duration(seconds: 5));
+                
+             _port = _server!.port;
+             _isRunning = true;
+             _serverAddress = ipAddress;
+             
+             print('✅ Local proxy server started on random port: $_port');
+             print('   对外访问地址: http://$ipAddress:$_port');
+             
+             _testServerConnectivity();
+             return;
+          } catch (retryError) {
+             print('❌ Retry with random port failed: $retryError');
+          }
+        }
+      }
+      
       print('   堆栈: $stackTrace');
       // 确保状态一致
       _isRunning = false;

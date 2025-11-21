@@ -669,6 +669,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _videoName =
         widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
 
+    print('🎬 PlayerScreen initialized');
+    print('   Video Path: $_videoPath');
+    print('   Is Network: $_isNetworkVideo');
+
     // 如果是网络视频，设置网络监控和高级缓冲
     if (_isNetworkVideo) {
       _setupNetworkMonitoring();

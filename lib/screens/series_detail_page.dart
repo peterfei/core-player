@@ -9,6 +9,8 @@ import '../services/metadata_scraper_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import '../widgets/episode_card.dart';
 import '../widgets/smart_image.dart';
+import '../services/local_proxy_server.dart';
+import '../services/media_server_service.dart';
 import 'player_screen.dart';
 
 
@@ -141,17 +143,152 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
     });
   }
 
-  void _playEpisode(Episode episode) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PlayerScreen.local(
-          videoFile: File(episode.path),
-          webVideoName: episode.name,
-          episode: episode,
+  void _playEpisode(Episode episode) async {
+    print('🔍 Debugging Episode:');
+    print('   Name: ${episode.name}');
+    print('   Path: ${episode.path}');
+    print('   SourceId: ${episode.sourceId}');
+    print('   Id: ${episode.id}');
+
+    String? effectiveSourceId = episode.sourceId;
+    final servers = MediaServerService.getServers();
+    
+    print('   Available Servers: ${servers.length}');
+    for (var s in servers) {
+      print('   - ${s.name} (${s.type}): ${s.sharedFolders}');
+    }
+
+    // 如果 sourceId 为空，尝试通过路径匹配找到对应的服务器
+    if (effectiveSourceId == null) {
+      print('⚠️ SourceId is null, attempting to find matching server...');
+      
+      for (var server in servers) {
+        // 检查该服务器的共享文件夹是否包含此文件
+        if (server.sharedFolders != null) {
+          for (var folder in server.sharedFolders!) {
+            if (episode.path.startsWith(folder) || folder == '/') {
+              print('✅ Found matching server: ${server.name} (${server.id})');
+              effectiveSourceId = server.id;
+              break;
+            }
+          }
+        }
+        if (effectiveSourceId != null) break;
+      }
+      
+      // 如果还是没找到，尝试使用第一个 SMB 服务器
+      if (effectiveSourceId == null) {
+        final smbServers = servers.where((s) => s.type.toLowerCase() == 'smb').toList();
+        if (smbServers.isNotEmpty) {
+          print('⚠️ Fallback: Using first available SMB server: ${smbServers.first.name}');
+          effectiveSourceId = smbServers.first.id;
+        }
+      }
+    }
+
+    if (effectiveSourceId != null) {
+      // 确保代理服务器已启动
+      if (!LocalProxyServer.instance.isRunning) {
+        print('⚠️ Proxy server is not running, attempting to start...');
+        await LocalProxyServer.instance.start();
+        if (!LocalProxyServer.instance.isRunning) {
+          print('❌ Failed to start proxy server');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('播放服务启动失败，请重启应用重试'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // 网络视频（SMB等）
+      // 使用代理服务器生成播放URL
+      final proxyUrl = LocalProxyServer.instance.getProxyUrl(
+        episode.path,
+        sourceId: effectiveSourceId,
+      );
+      
+      print('▶️ 播放网络视频: ${episode.name}');
+      print('   原始路径: ${episode.path}');
+      print('   代理URL: $proxyUrl');
+      print('   SourceID: $effectiveSourceId');
+      
+      // 再次检查生成的 URL 是否是代理 URL
+      if (!proxyUrl.startsWith('http')) {
+        print('❌ Generated URL is not a proxy URL: $proxyUrl');
+         if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('播放失败'),
+                content: Text('无法生成播放地址。\n\n原始路径: ${episode.path}'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('确定'),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PlayerScreen.network(
+            videoPath: proxyUrl,
+            webVideoName: episode.name,
+            episode: episode,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      // 如果找不到服务器，且路径看起来像网络路径（以/开头），显示错误提示
+      if (episode.path.startsWith('/')) {
+        print('❌ 无法确定视频源服务器');
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('无法播放'),
+              content: Text('无法找到该视频对应的服务器配置。\n\n视频路径: ${episode.path}\n\n请尝试重新扫描媒体库。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('确定'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // 本地视频
+      print('▶️ 播放本地视频: ${episode.name}');
+      print('   路径: ${episode.path}');
+      
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PlayerScreen.local(
+            videoFile: File(episode.path),
+            webVideoName: episode.name,
+            episode: episode,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _scrapeSeries() async {
