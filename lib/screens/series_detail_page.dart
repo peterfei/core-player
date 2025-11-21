@@ -349,6 +349,14 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Calculate target height for 16:9 backdrop
+    final targetHeight = screenWidth * 9 / 16;
+    // Clamp height: at least 420, at most 65% of screen height
+    final expandedHeight = targetHeight.clamp(420.0, screenHeight * 0.65);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBodyBehindAppBar: true, // Allow body to extend behind app bar for transparency
@@ -359,7 +367,7 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
             backgroundColor: Colors.transparent,
             elevation: 0,
             pinned: true,
-            expandedHeight: 420.0, // Increased height to fit poster
+            expandedHeight: expandedHeight, // Responsive height
             leading: IconButton(
               icon: Container(
                 padding: const EdgeInsets.all(8),
