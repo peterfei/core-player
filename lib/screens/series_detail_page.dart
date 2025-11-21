@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/series.dart';
@@ -414,12 +415,24 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // 1. 背景图
+                  // 1. 背景图 (模糊底层)
+                  ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: SmartImage(
+                      path: _metadata?['backdropPath'] ?? widget.series.backdropPath,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  // 2. 黑色遮罩 (让背景变暗，突出前景)
+                  Container(
+                    color: Colors.black.withOpacity(0.4),
+                  ),
+                  // 3. 前景图 (完整显示)
                   SmartImage(
                     path: _metadata?['backdropPath'] ?? widget.series.backdropPath,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                   ),
-                  // 2. 渐变遮罩 (Top to Bottom)
+                  // 4. 渐变遮罩 (Top to Bottom)
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -435,7 +448,7 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                       ),
                     ),
                   ),
-                  // 3. 内容区域 (Poster + Info) - Moved inside FlexibleSpaceBar for correct Z-order
+                  // 5. 内容区域 (Poster + Info) - Moved inside FlexibleSpaceBar for correct Z-order
                   Positioned(
                     left: AppSpacing.large,
                     right: AppSpacing.large,
