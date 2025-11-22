@@ -252,6 +252,7 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
           builder: (context) => PlayerScreen.network(
             videoPath: proxyUrl,
             webVideoName: episode.name,
+            originalVideoPath: episode.path,
             episode: episode,
           ),
         ),

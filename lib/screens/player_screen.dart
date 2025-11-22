@@ -54,6 +54,7 @@ class PlayerScreen extends StatefulWidget {
   final File? videoFile;
   final String? webVideoUrl;
   final String? webVideoName;
+  final String? originalVideoPath; // 新增：原始视频路径（用于历史记录和缓存键）
   final int? seekTo;
   final bool fromHistory;
   final Episode? episode;
@@ -63,6 +64,7 @@ class PlayerScreen extends StatefulWidget {
     this.videoFile,
     this.webVideoUrl,
     this.webVideoName,
+    this.originalVideoPath,
     this.seekTo,
     this.fromHistory = false,
     this.episode,
@@ -73,6 +75,7 @@ class PlayerScreen extends StatefulWidget {
     super.key,
     required String videoPath,
     this.webVideoName,
+    this.originalVideoPath,
     this.seekTo,
     this.fromHistory = false,
     this.episode,
@@ -88,7 +91,8 @@ class PlayerScreen extends StatefulWidget {
     this.fromHistory = false,
     this.episode,
   })  : videoFile = videoFile,
-        webVideoUrl = null;
+        webVideoUrl = null,
+        originalVideoPath = null;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -115,6 +119,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _showHwAccelNotification = false;
   String _hwAccelNotificationMessage = '';
   NotificationType _hwAccelNotificationType = NotificationType.info;
+
+  late String _cacheKey; // 新增：缓存和历史记录的唯一键
 
   // 初始化播放器和服务
   Future<void> _initializePlayerAndServices() async {
@@ -144,6 +150,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       });
     }
   }
+
+
 
   // 初始化播放器配置
   Future<void> _initializePlayer() async {
@@ -666,8 +674,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     // 设置视频路径和名称
     _videoPath = widget.webVideoUrl ?? widget.videoFile?.path ?? '';
+    
+    // 设置缓存键（优先使用原始路径，否则使用播放路径）
+    _cacheKey = widget.originalVideoPath ?? _videoPath;
+
     _videoName =
-        widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
+        widget.webVideoName ?? HistoryService.extractVideoName(_cacheKey);
 
     print('🎬 PlayerScreen initialized');
     print('   Video Path: $_videoPath');
@@ -1480,14 +1492,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     // 查找是否有历史记录
-    final existingHistory = await HistoryService.getHistoryByPath(_videoPath!);
+    final existingHistory = await HistoryService.getHistoryByPath(_cacheKey);
 
     if (existingHistory != null) {
       // 如果是从历史记录播放，更新最后播放时间但不询问
       if (widget.fromHistory) {
         // 使用增强版历史记录更新，包含书签和缩略图信息
         await HistoryService.addOrUpdateHistory(
-          videoPath: existingHistory.videoPath,
+          videoPath: existingHistory.videoPath, // Should match _cacheKey
           videoName: existingHistory.videoName,
           currentPosition: widget.seekTo ?? 0,
           totalDuration: _totalDuration.inSeconds,
@@ -1521,7 +1533,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else {
       // 创建新的历史记录（使用增强版方法）
       await HistoryService.addOrUpdateHistory(
-        videoPath: _videoPath!,
+        videoPath: _cacheKey,
         videoName: _videoName!,
         currentPosition: widget.seekTo ?? 0,
         totalDuration: _totalDuration.inSeconds,
@@ -1601,7 +1613,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     try {
       await HistoryService.addOrUpdateHistory(
-        videoPath: _videoPath!,
+        videoPath: _cacheKey,
         videoName: _videoName!,
         currentPosition: _currentPosition.inSeconds,
         totalDuration: _totalDuration.inSeconds,
@@ -1718,6 +1730,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       child: CacheIndicator(
                         videoUrl: widget.webVideoUrl!,
                         videoTitle: _videoName,
+                        cacheKey: _cacheKey,
                         onTap: _showCacheInfo,
                       ),
                     ),
@@ -1849,6 +1862,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             CacheControlButton(
                               videoUrl: widget.webVideoUrl!,
                               videoTitle: _videoName,
+                              cacheKey: _cacheKey,
                             ),
                         ],
                       ),
@@ -2147,9 +2161,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       await cacheService.initialize(); // 确保缓存服务已初始化
 
-      final cacheEntry = await cacheService.getCacheEntry(widget.webVideoUrl!);
-      final hasCache = await cacheService.hasCache(widget.webVideoUrl!);
-      final isDownloading = downloadService.isDownloading(widget.webVideoUrl!);
+      // 使用 _cacheKey 检查缓存
+      final cacheEntry = await cacheService.getCacheEntry(_cacheKey);
+      final hasCache = await cacheService.hasCache(_cacheKey);
+      
+      // 检查下载状态（注意：CacheDownloadService 现在支持 cacheKey 键）
+      final isDownloading = downloadService.isDownloading(_cacheKey);
 
       print('Cache status check:');
       print('  URL: ${widget.webVideoUrl}');
@@ -2229,21 +2246,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final downloadService = CacheDownloadService.instance;
 
       // 检查是否已经在下载
-      if (downloadService.isDownloading(originalUrl)) {
-        print('Already downloading: $originalUrl');
+      if (downloadService.isDownloading(_cacheKey)) {
+        print('Already downloading: $_cacheKey');
         return;
       }
 
       // 检查是否已有缓存
-      if (await cacheService.hasCache(originalUrl)) {
-        print('Already cached: $originalUrl');
+      if (await cacheService.hasCache(_cacheKey)) {
+        print('Already cached: $_cacheKey');
         return;
       }
 
       print('🚀 Starting background download: $originalUrl');
 
       // 启动下载（不等待完成）
-      downloadService.downloadAndCache(originalUrl, title: _videoName).listen(
+      downloadService.downloadAndCache(originalUrl, title: _videoName, cacheKey: _cacheKey).listen(
         (_) {
           // 字节流数据，在这里不需要处理
         },
@@ -2257,7 +2274,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
 
       // 单独监听下载进度
-      downloadService.getDownloadProgress(originalUrl).listen(
+      downloadService.getDownloadProgress(_cacheKey).listen(
         (progress) {
           print(
               'Download progress: ${(progress.progressPercentage * 100).toStringAsFixed(1)}%');
@@ -2274,7 +2291,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _downloadProgressSubscription?.cancel();
     _downloadProgressSubscription = CacheDownloadService.instance
-        .getDownloadProgress(widget.webVideoUrl!)
+        .getDownloadProgress(_cacheKey)
         .listen((progress) {
       if (mounted) {
         setState(() {
@@ -2294,6 +2311,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           .downloadAndCache(
         widget.webVideoUrl!,
         title: _videoName,
+        cacheKey: _cacheKey,
       )
           .listen(
         (_) {},
@@ -2335,7 +2353,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     try {
       final downloadService = CacheDownloadService.instance;
-      await downloadService.cancelDownload(widget.webVideoUrl!);
+      await downloadService.cancelDownload(_cacheKey);
 
       if (mounted) {
         setState(() {

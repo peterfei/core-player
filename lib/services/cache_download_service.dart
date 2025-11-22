@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/cache_config.dart';
 import '../models/cache_entry.dart';
@@ -40,10 +39,11 @@ class CacheDownloadService {
   Stream<DownloadProgress> get globalProgressStream =>
       _globalProgressController.stream;
 
-  Stream<List<int>> downloadAndCache(String url, {String? title}) async* {
+  Stream<List<int>> downloadAndCache(String url, {String? title, String? cacheKey}) async* {
+    final key = cacheKey ?? url;
     // 检查是否已有缓存
     final cacheService = VideoCacheService.instance;
-    final cachePath = await cacheService.getCachePath(url);
+    final cachePath = await cacheService.getCachePath(key);
 
     if (cachePath != null) {
       // 已有完整缓存，直接读取本地文件
@@ -54,40 +54,40 @@ class CacheDownloadService {
     }
 
     // 检查是否已有部分缓存
-    final partialEntry = await cacheService.getCacheEntry(url);
+    final partialEntry = await cacheService.getCacheEntry(key);
     final resumeFromByte = partialEntry?.downloadedBytes ?? 0;
 
     // 创建或获取缓存文件路径
     final filePath = partialEntry?.localPath ??
-        await cacheService.createCacheFile(url, title: title);
+        await cacheService.createCacheFile(key, title: title);
 
     // 如果已在下载中，等待其完成
-    if (_activeDownloads.containsKey(url)) {
-      final task = _activeDownloads[url]!;
+    if (_activeDownloads.containsKey(key)) {
+      final task = _activeDownloads[key]!;
       yield* _streamFromFileWithProgress(filePath, task);
       return;
     }
 
     // 开始新的下载任务
     final task = DownloadTask(
-      url: url,
+      url: url, // Download URL
       filePath: filePath,
       completer: Completer<void>(),
       progressController: StreamController<DownloadProgress>.broadcast(),
     );
 
-    _activeDownloads[url] = task;
+    _activeDownloads[key] = task;
     task.downloadedBytes = resumeFromByte;
 
     try {
       // 并行下载和流式读取
-      final downloadFuture = _downloadFile(url, filePath, resumeFromByte, task);
+      final downloadFuture = _downloadFile(url, filePath, resumeFromByte, task, key);
 
       yield* _streamFromFileWithProgress(filePath, task);
 
       await downloadFuture;
     } finally {
-      _activeDownloads.remove(url);
+      _activeDownloads.remove(key);
       await task.progressController.close();
     }
   }
@@ -168,6 +168,7 @@ class CacheDownloadService {
     String filePath,
     int resumeFromByte,
     DownloadTask task,
+    String cacheKey,
   ) async {
     try {
       final cacheService = VideoCacheService.instance;
@@ -213,11 +214,11 @@ class CacheDownloadService {
             if (response.statusCode == 200 || response.statusCode == 206) {
                // 如果是新下载且有Content-Length，更新缓存条目的文件大小
               if (resumeFromByte == 0 && response.contentLength > 0) {
-                 await VideoCacheService.instance.updateCacheFileSize(url, response.contentLength);
+                 await VideoCacheService.instance.updateCacheFileSize(cacheKey, response.contentLength);
               }
 
               await _processStreamedResponse(
-                  response, randomAccessFile, task, url, resumeFromByte);
+                  response, randomAccessFile, task, cacheKey, resumeFromByte);
               
               break; // 下载成功，退出重试循环
             } else {
@@ -265,7 +266,7 @@ class CacheDownloadService {
 
       // 获取文件大小并标记缓存完成
       final fileSize = await file.length();
-      await cacheService.markCacheComplete(url, fileSize);
+      await cacheService.markCacheComplete(cacheKey, fileSize);
     } catch (e) {
       task.completer.completeError(e);
 
@@ -288,7 +289,7 @@ class CacheDownloadService {
     HttpClientResponse response,
     RandomAccessFile randomAccessFile,
     DownloadTask task,
-    String url,
+    String cacheKey,
     int initialBytes,
   ) async {
     // 尝试获取总大小：优先使用响应头，如果未知则尝试从缓存条目获取
@@ -297,7 +298,7 @@ class CacheDownloadService {
       task.totalBytes = totalBytes; // Update task's totalBytes
     }
     if (totalBytes <= 0) {
-      final entry = await VideoCacheService.instance.getCacheEntry(url);
+      final entry = await VideoCacheService.instance.getCacheEntry(cacheKey);
       totalBytes = entry?.fileSize ?? 0;
       if (totalBytes > 0) {
         task.totalBytes = totalBytes; // Update task's totalBytes if from cache
@@ -340,7 +341,7 @@ class CacheDownloadService {
 
         // 更新缓存服务中的进度
         await VideoCacheService.instance.updateCacheProgress(
-          url,
+          cacheKey,
           task.downloadedBytes,
           totalBytes: contentLength,
         );
