@@ -1550,19 +1550,63 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 开始定期保存播放进度
     _startHistoryTimer();
 
-    // 后台生成简单缩略图（仅本地视频）
-    // SMB 视频无法直接访问文件，跳过此步骤
+    // 后台生成简单缩略图
+    // 支持本地视频、网络视频和SMB视频（通过代理）
     final isSMBVideo = widget.episode?.sourceId != null;
-    if (_videoPath != null && !_isNetworkVideo && !isSMBVideo) {
-      Future.delayed(const Duration(seconds: 3), () async {
-        await SimpleThumbnailService.generateThumbnail(
-          videoPath: _videoPath!,
-          width: 320,
-          height: 180,
-          seekSeconds: 1.0,
-          securityBookmark: _securityBookmark,
-        );
+    
+    print('🖼️ 缩略图生成检查: videoPath=$_videoPath, isSMB=$isSMBVideo, episode=${widget.episode?.path}');
+    
+    if ((_videoPath != null && _videoPath!.isNotEmpty) || isSMBVideo) {
+      print('🖼️ 准备生成缩略图，1秒后开始...');
+      Future.delayed(const Duration(seconds: 1), () async {
+        try {
+          String? thumbnailSource = _videoPath;
+          
+          // 如果是SMB视频,获取代理URL作为缩略图源
+          if (isSMBVideo && widget.episode != null) {
+             try {
+               final proxy = LocalProxyServer.instance;
+               if (!proxy.isRunning) {
+                 print('🖼️ 启动代理服务器...');
+                 await proxy.start();
+               }
+               thumbnailSource = proxy.getProxyUrl(
+                 widget.episode!.path,
+                 sourceId: widget.episode!.sourceId,
+               );
+               print('🖼️ SMB视频缩略图源: $thumbnailSource');
+             } catch (e) {
+               print('❌ 获取SMB代理URL失败: $e');
+             }
+          }
+          
+          if (thumbnailSource != null && thumbnailSource.isNotEmpty) {
+             // 获取刚刚创建的历史记录ID
+             final history = await HistoryService.getHistoryByPath(_cacheKey);
+             
+             if (history != null) {
+                print('🖼️ 开始生成缩略图: ${history.videoName} (ID: ${history.id})');
+                await SimpleThumbnailService.generateAndCacheThumbnail(
+                  videoPath: thumbnailSource,
+                  historyId: history.id,
+                  width: 320,
+                  height: 180,
+                  seekSeconds: 1.0,
+                  securityBookmark: _securityBookmark,
+                );
+                print('✅ 缩略图生成完成');
+             } else {
+                print('❌ 未找到历史记录: $_cacheKey');
+             }
+          } else {
+             print('❌ 缩略图源为空');
+          }
+        } catch (e) {
+          print('❌ 缩略图生成异常: $e');
+        }
       });
+    } else {
+      print('🖼️ 跳过缩略图生成');
     }
   }
 
@@ -3516,6 +3560,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
         if (thumbnailPath != null) {
           print('✅ 缩略图生成成功: $thumbnailPath');
           _thumbnailGenerated = true;
+          _thumbnailCachePath = thumbnailPath;
+          
+          // 更新历史记录，保存缩略图路径
+          try {
+            final history = await HistoryService.getHistoryByPath(_cacheKey);
+            if (history != null) {
+              await HistoryService.updateThumbnailPath(history.id, thumbnailPath);
+              print('✅ 缩略图路径已保存到历史记录');
+            } else {
+              print('⚠️ 未找到历史记录，无法保存缩略图路径');
+            }
+          } catch (e) {
+            print('❌ 保存缩略图路径到历史记录失败: $e');
+          }
         } else {
           print('❌ 缩略图生成失败');
         }
@@ -3530,7 +3588,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// 计算最优延迟时间
   int _calculateOptimalDelay() {
     // 默认延迟
-    int delaySeconds = 3;
+    int delaySeconds = 2; // 缩短默认延迟
 
     if (_isNetworkVideo) {
       // 检查是否是缓存视频
@@ -3538,11 +3596,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       if (hasCache) {
         // 缓存视频延迟较短，因为数据已经本地
-        delaySeconds = 2;
+        delaySeconds = 1;
         print('🎯 检测到缓存视频，使用较短延迟：${delaySeconds}s');
       } else {
-        // 纯网络视频需要更多时间缓冲
-        delaySeconds = 6;
+        // 纯网络视频（包括SMB代理）使用中等延迟
+        delaySeconds = 2;
         print('🌐 纯网络视频，使用较长延迟：${delaySeconds}s');
       }
     } else {
