@@ -242,10 +242,15 @@ class VideoCacheService {
   }) async {
     await _ensureInitialized();
 
+    print('📝 标记缓存完成:');
+    print('   URL: $url');
+    print('   总大小: $totalSize bytes');
+
     final cacheKey = _generateCacheKey(url);
     final entry = _cacheBox.get(cacheKey);
 
     if (entry != null) {
+      print('   找到缓存条目，更新为完成状态');
       final completedEntry = CacheEntry(
         id: entry.id,
         url: entry.url,

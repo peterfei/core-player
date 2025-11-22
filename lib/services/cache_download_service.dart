@@ -266,6 +266,8 @@ class CacheDownloadService {
 
       // 获取文件大小并标记缓存完成
       final fileSize = await file.length();
+      print('✅ 下载完成，文件大小: $fileSize bytes');
+      print('   准备标记缓存为完成状态...');
       await cacheService.markCacheComplete(cacheKey, fileSize);
     } catch (e) {
       task.completer.completeError(e);
@@ -317,6 +319,11 @@ class CacheDownloadService {
 
       await randomAccessFile.writeFrom(chunk);
       task.downloadedBytes += chunk.length;
+      
+      // 防止下载字节数超过总字节数（可能由于服务器返回的Content-Length不准确）
+      if (task.downloadedBytes > task.totalBytes) {
+        task.downloadedBytes = task.totalBytes;
+      }
 
       final currentTime = DateTime.now().millisecondsSinceEpoch;
 

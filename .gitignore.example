@@ -1,0 +1,92 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio build artifacts
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ============================================
+# 项目特定忽略
+# ============================================
+run_macos_direct.sh
+openspec/
+.claude/
+*.md.bak
+test_*.dart
+CLAUDE.md
+AGENTS.md
+SUBTITLE_*.md
+UPGRADE_*.md
+
+# ============================================
+# 专业版功能（不开源）
+# ============================================
+
+# 媒体服务器集成模块
+lib/services/media_server_service.dart
+lib/services/emby_api_service.dart
+lib/services/jellyfin_api_service.dart
+lib/services/plex_api_service.dart
+
+# SMB/NAS 支持
+lib/services/file_source/smb_file_source.dart
+lib/services/local_proxy_server.dart
+lib/services/smb_connection_pool.dart
+
+# 媒体服务器UI
+lib/screens/media_server_list_page.dart
+lib/screens/add_server_page.dart
+lib/screens/server_detail_page.dart
+lib/screens/media_library_view.dart
+
+# 媒体服务器相关模型
+lib/models/media_server.dart
+lib/models/scanned_video.dart
+
+# 媒体服务器相关组件
+lib/widgets/server_status_indicator.dart
+lib/widgets/scan_progress_dialog.dart
+
+# ============================================
+# 占位符（开源版本需要保留）
+# ============================================
+!lib/services/media_server_service.stub.dart
+!lib/services/plugin_interface.dart
+!lib/docs/pro-features.md
