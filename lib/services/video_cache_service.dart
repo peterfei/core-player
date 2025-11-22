@@ -208,6 +208,32 @@ class VideoCacheService {
     }
   }
 
+  Future<void> updateCacheFileSize(String url, int fileSize) async {
+    await _ensureInitialized();
+
+    final cacheKey = _generateCacheKey(url);
+    final entry = _cacheBox.get(cacheKey);
+
+    if (entry != null) {
+      final updatedEntry = CacheEntry(
+        id: entry.id,
+        url: entry.url,
+        localPath: entry.localPath,
+        fileSize: fileSize,
+        createdAt: entry.createdAt,
+        lastAccessedAt: DateTime.now(),
+        accessCount: entry.accessCount,
+        isComplete: entry.isComplete,
+        downloadedBytes: entry.downloadedBytes,
+        title: entry.title,
+        thumbnail: entry.thumbnail,
+        duration: entry.duration,
+      );
+
+      await _cacheBox.put(cacheKey, updatedEntry);
+    }
+  }
+
   Future<void> markCacheComplete(
     String url,
     int totalSize, {
