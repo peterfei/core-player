@@ -395,6 +395,7 @@ class _HistoryListWidgetState extends State<HistoryListWidget> {
           builder: (context) => PlayerScreen.network(
             videoPath: history.streamUrl ?? history.videoPath,
             webVideoName: history.videoName,
+            originalVideoPath: history.videoPath, // 关键修复：传递原始路径作为缓存key
             seekTo: seekTo,
             fromHistory: true,
           ),

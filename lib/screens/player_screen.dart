@@ -2023,6 +2023,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
         // 网络视频：检查缓存
         print('🌐 网络视频模式');
         playbackUrl = await _getPlaybackUrl(widget.webVideoUrl!);
+        
+        // 明确显示是否使用缓存
+        final isUsingCache = !playbackUrl.startsWith('http');
+        if (isUsingCache) {
+          print('✅ 🎯 使用本地缓存播放');
+          print('   缓存文件: $playbackUrl');
+        } else {
+          print('⚠️ 🌐 使用网络流播放 (无缓存)');
+          print('   网络URL: $playbackUrl');
+        }
       } else if (widget.episode?.sourceId != null) {
         // SMB/NAS 视频：使用本地代理服务器方案
         // 原因：macOS 沙箱限制 MPV 直接访问 SMB，且阻止访问 localhost
@@ -2249,8 +2259,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
       // 确保缓存服务已初始化
       await cacheService.initialize();
 
+      // 关键修复：使用 _cacheKey 而不是 originalUrl 来检查缓存
+      // 因为下载时使用的是 _cacheKey (SMB原始路径)
+      final cacheCheckKey = _cacheKey;
+      print('🔍 Checking cache with key: $cacheCheckKey');
+
       // 第一步：同步快速检查缓存（< 50ms）
-      final cachePath = cacheService.getCachePathSync(originalUrl);
+      final cachePath = cacheService.getCachePathSync(cacheCheckKey);
       if (cachePath != null) {
         stopwatch.stop();
         print('✅ Cache hit (sync) in ${stopwatch.elapsedMilliseconds}ms: $cachePath');
@@ -2258,7 +2273,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
 
       // 第二步：异步详细检查缓存（< 100ms）
-      final asyncCachePath = await cacheService.getCachePath(originalUrl);
+      final asyncCachePath = await cacheService.getCachePath(cacheCheckKey);
       if (asyncCachePath != null) {
         stopwatch.stop();
         print('✅ Cache hit (async) in ${stopwatch.elapsedMilliseconds}ms: $asyncCachePath');
