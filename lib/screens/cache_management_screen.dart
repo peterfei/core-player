@@ -172,14 +172,13 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
       await cacheService.removeCache(entry.url);
       await _loadData();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('缓存已移除'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('缓存已移除'),
+            ),
+          );
+        }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -197,7 +196,6 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('缓存管理'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -542,10 +540,14 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isComplete ? Colors.green : Colors.orange,
+          backgroundColor: isComplete
+              ? Colors.green
+              : Theme.of(context).colorScheme.primaryContainer,
           child: Icon(
             isComplete ? Icons.offline_bolt : Icons.downloading,
-            color: Colors.white,
+            color: isComplete
+                ? Colors.white
+                : Theme.of(context).colorScheme.onPrimaryContainer,
           ),
         ),
         title: Text(

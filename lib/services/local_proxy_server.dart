@@ -461,42 +461,26 @@ class LocalProxyServer {
       // 获取文件大小
       int fileSize = 0;
       try {
-        // 尝试通过列出父目录来获取文件信息
-        final parentPath = p.dirname(path);
-        final fileName = p.basename(path);
+        print('   尝试获取文件大小 (getFileInfo)...');
+        final fileItem = await source.getFileInfo(path);
         
-        print('   尝试获取文件大小...');
-        print('     父目录: $parentPath');
-        print('     文件名: $fileName');
-        
-        final files = await source.listFiles(parentPath);
-        print('     父目录包含 ${files.length} 个项目');
-        
-        final fileItem = files.firstWhere(
-          (f) {
-            // 尝试多种匹配方式
-            final matches = f.path == path || 
-                           f.name == fileName ||
-                           f.path.endsWith(fileName);
-            if (matches) {
-              print('     ✅ 找到匹配文件: ${f.name} (${f.size} bytes)');
-            }
-            return matches;
-          },
-          orElse: () {
-            print('     ⚠️ 未找到文件，尝试直接使用路径');
-            // 如果找不到，返回一个占位符，稍后会尝试直接读取
-            return FileItem(
-              name: fileName,
-              path: path,
-              isDirectory: false,
-              size: 0,
-            );
-          },
-        );
-        
-        fileSize = fileItem.size;
-        print('   文件大小: $fileSize bytes');
+        if (fileItem != null) {
+          fileSize = fileItem.size;
+          print('   ✅ 获取文件信息成功: ${fileItem.name} ($fileSize bytes)');
+        } else {
+          print('   ⚠️ 无法获取文件信息，尝试回退到目录列表方式');
+           // 尝试通过列出父目录来获取文件信息 (回退机制)
+          final parentPath = p.dirname(path);
+          final fileName = p.basename(path);
+          
+          final files = await source.listFiles(parentPath);
+          final item = files.firstWhere(
+            (f) => f.path == path || f.name == fileName || f.path.endsWith(fileName),
+            orElse: () => throw Exception('File not found in directory listing'),
+          );
+          fileSize = item.size;
+          print('   ✅ 通过目录列表获取大小: $fileSize bytes');
+        }
       } catch (e) {
         print('   ⚠️ 无法获取文件大小: $e');
         print('   将尝试流式传输（可能影响seek功能）');
