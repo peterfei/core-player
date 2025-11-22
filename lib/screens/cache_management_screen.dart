@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/cache_config.dart';
 import '../models/cache_entry.dart';
 import '../services/video_cache_service.dart';
+import '../services/cache_download_service.dart';
 
 class CacheManagementScreen extends StatefulWidget {
   const CacheManagementScreen({Key? key}) : super(key: key);
@@ -25,10 +27,52 @@ class _CacheManagementScreenState extends State<CacheManagementScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadData();
+    _setupProgressSubscription();
+  }
+
+  StreamSubscription? _progressSubscription;
+
+  void _setupProgressSubscription() {
+    _progressSubscription =
+        CacheDownloadService.instance.globalProgressStream.listen((progress) {
+      if (!mounted) return;
+
+      // 更新部分下载列表中的进度
+      final index =
+          _partialDownloads.indexWhere((entry) => entry.url == progress.url);
+      if (index != -1) {
+        setState(() {
+          final oldEntry = _partialDownloads[index];
+          _partialDownloads[index] = CacheEntry(
+            id: oldEntry.id,
+            url: oldEntry.url,
+            localPath: oldEntry.localPath,
+            fileSize: progress.totalBytes > 0
+                ? progress.totalBytes
+                : oldEntry.fileSize,
+            createdAt: oldEntry.createdAt,
+            lastAccessedAt: oldEntry.lastAccessedAt,
+            accessCount: oldEntry.accessCount,
+            isComplete: oldEntry.isComplete,
+            downloadedBytes: progress.downloadedBytes,
+            title: oldEntry.title,
+            thumbnail: oldEntry.thumbnail,
+            duration: oldEntry.duration,
+          );
+        });
+      } else {
+        // 如果不在列表中（可能是新开始的下载），刷新数据
+        // 避免频繁刷新，可以加个简单的防抖或者只在列表为空时刷新
+        if (_partialDownloads.isEmpty) {
+          _loadData();
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _progressSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }

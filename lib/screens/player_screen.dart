@@ -9,6 +9,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:window_manager/window_manager.dart';
 import '../models/playback_history.dart';
 import '../models/buffer_config.dart';
 import '../models/network_stats.dart';
@@ -27,6 +28,7 @@ import '../services/hardware_acceleration_service.dart';
 import '../services/performance_monitor_service.dart';
 import '../services/network_thumbnail_service.dart';
 import '../services/settings_service.dart';
+import '../theme/design_tokens/design_tokens.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 import '../models/subtitle_config.dart';
 import '../models/video_info.dart';
@@ -39,8 +41,14 @@ import '../widgets/performance_overlay.dart' as custom;
 import '../widgets/video_error_dialog.dart';
 import '../widgets/feedback_dialog.dart';
 import '../widgets/notification_banner.dart';
+import '../widgets/player/system_info_overlay.dart';
+import '../widgets/player/network_speed_indicator.dart';
+import '../widgets/player/lock_button.dart';
 import 'subtitle_settings_screen.dart';
 import 'subtitle_download_screen.dart';
+import '../models/episode.dart';
+import '../services/media_server_service.dart';
+import '../services/file_source_factory.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
@@ -48,6 +56,7 @@ class PlayerScreen extends StatefulWidget {
   final String? webVideoName;
   final int? seekTo;
   final bool fromHistory;
+  final Episode? episode;
 
   const PlayerScreen({
     super.key,
@@ -56,6 +65,7 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
+    this.episode,
   });
 
   // 用于网络视频的便捷构造函数
@@ -65,6 +75,7 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
+    this.episode,
   })  : videoFile = null,
         webVideoUrl = videoPath;
 
@@ -75,6 +86,7 @@ class PlayerScreen extends StatefulWidget {
     this.webVideoName,
     this.seekTo,
     this.fromHistory = false,
+    this.episode,
   })  : videoFile = videoFile,
         webVideoUrl = null;
 
@@ -145,18 +157,41 @@ class _PlayerScreenState extends State<PlayerScreen> {
       print('🔧 硬件加速事件监听器已设置');
 
       // 再初始化硬件加速服务
-      await HardwareAccelerationService.instance.initialize();
-      _hwAccelConfig =
-          await HardwareAccelerationService.instance.getRecommendedConfig();
-      print('🔧 硬件加速服务初始化完成');
+    await HardwareAccelerationService.instance.initialize();
+    _hwAccelConfig =
+        await HardwareAccelerationService.instance.getRecommendedConfig();
+    print('🔧 硬件加速服务初始化完成');
 
-      // 创建播放器配置
-      final config = _buildPlayerConfiguration();
+    // Create a Player instance with configuration
+    player = Player(
+      configuration: const PlayerConfiguration(
+        logLevel: MPVLogLevel.warn,
+      ),
+    );
+    
+    // Apply critical MPV configurations for SMB/Network playback
+    if (player.platform is NativePlayer) {
+      final nativePlayer = player.platform as NativePlayer;
+      
+      // 1. Bypass system proxy (fixes Internal Privoxy Error)
+      await nativePlayer.setProperty('http-proxy', '');
+      await nativePlayer.setProperty('stream-lavf-o', 'http_proxy=');
+      
+      // 2. Enable Cache (fixes stuttering)
+      await nativePlayer.setProperty('cache', 'yes');
+      await nativePlayer.setProperty('demuxer-max-bytes', '${256 * 1024 * 1024}'); // 256MB
+      await nativePlayer.setProperty('demuxer-readahead-secs', '60');
+      
+      // 3. Enable Hardware Decoding
+      await nativePlayer.setProperty('hwdec', 'auto');
+      
+      print('🔧 MPV Configured: Proxy bypassed, Cache enabled (256MB), Hwdec auto');
+    }
 
-      // 创建播放器实例
-      player = Player(configuration: config);
-      controller = VideoController(player);
+    controller = VideoController(player);
       print('🔧 播放器实例创建完成');
+      print('   协议白名单: http, https, tcp, tls, crypto');
+      print('   缓冲区大小: 32MB');
 
       print('🎮 播放器初始化完成');
       print('  硬件加速: ${_hwAccelConfig?.enabled == true ? "✅ 已启用" : "❌ 未启用"}');
@@ -166,112 +201,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     } catch (e) {
       print('❌ 播放器初始化失败: $e');
-      // 降级到基础配置
-      player = Player(configuration: const PlayerConfiguration(libass: true));
+      // 降级到基础配置 - 使用完全默认设置
+      print('⚠️ 使用降级配置（完全默认）');
+      player = Player();
       controller = VideoController(player);
     }
   }
 
   // 构建播放器配置
   PlayerConfiguration _buildPlayerConfiguration() {
-    Map<String, dynamic> libmpvSettings = {
-      'libass': true, // 保持原有字幕支持
-    };
+    print('🔧 构建播放器配置...');
+    print('🔧 使用完全默认配置，避免任何自定义设置导致的问题');
 
-    // 应用硬件加速配置
-    if (_hwAccelConfig?.enabled == true && _hwAccelConfig != null) {
-      final hwConfig = _hwAccelConfig!.getMediaKitConfig();
-      libmpvSettings.addAll(hwConfig);
-      print('🚀 应用硬件加速配置: ${hwConfig}');
-    }
-
-    // 超高清视频和大文件优化设置
-    libmpvSettings.addAll({
-      // 优化大文件性能
-      'cache': 'yes',
-      'cache-secs': '300', // 5分钟缓存
-      'cache-size': '500000', // 500MB缓存大小
-      'demuxer-max-bytes': '100000000', // 100MB解复用器缓存
-      'demuxer-max-back-bytes': '50000000', // 50MB向后缓存
-
-      // 优化seek性能 - 针对大文件的关键优化
-      'hr-seek': 'yes', // 高精度seek
-      'hr-seek-framedrop': 'yes', // seek时允许丢帧以快速响应
-      'hr-seek-demuxer-offset': '0.1', // 减少demuxer偏移
-      'load-seeking': 'yes', // 加载seek
-
-      // 超高清视频解码优化
-      'vd-lavc-fast': 'yes', // 快速解码
-      'vd-lavc-skipframe': 'no', // 正常播放时不要跳帧
-      'vd-lavc-dr': 'yes', // 直接渲染（如果支持）
-      'vd-lavc-threads': 'auto', // 自动线程数
-
-      // 大文件I/O优化
-      'stream-buffer-size': '1048576', // 1MB流缓冲区
-      'max-bytes-per-chunk': '4194304', // 4MB每个块
-
-      // 内存优化
-      'demuxer-readahead-secs': '20', // 预读20秒
-      'demuxer-readahead-bytes': '52428800', // 50MB预读
-
-      // 性能监控
-      'stats': 'yes', // 启用统计信息
-
-      // 编解码器优化
-      'hwdec-codecs': 'all', // 尝试所有硬件解码器
-      'ad-lavc-dr': 'yes', // 硬件解码直接渲染
-    });
-
-    // 根据视频信息进一步优化
-    if (_currentVideoInfo != null) {
-      final videoInfo = _currentVideoInfo!;
-      if (videoInfo.isLargeFile) {
-        // 大文件特殊优化
-        libmpvSettings.addAll({
-          'demuxer-readahead-secs': '30', // 增加预读
-          'demuxer-readahead-bytes': '104857600', // 增加预读到100MB
-          'cache-size': '1000000', // 增加缓存到1GB
-        });
-        print('🎬 应用大文件优化设置');
-      }
-
-      if (videoInfo.isHighFramerate) {
-        // 高帧率视频优化
-        libmpvSettings.addAll({
-          'framedrop': 'yes', // 允许丢帧保持同步
-          'display-fps': videoInfo.fps.toString(), // 指定显示帧率
-          'sync-max-video-change': '100', // 最大视频变化百分比
-        });
-        print('🎬 应用高帧率优化设置');
-      }
-
-      if (videoInfo.isUltraHD) {
-        // 超高清视频优化
-        libmpvSettings.addAll({
-          'sws-fast': 'yes', // 快速软件缩放
-          'sws-luma-sharpness': '1.5', // 锐化度
-          'sws-chroma-sharpness': '1.5', // 色度锐化
-          'vf-add': 'lavfi=[fps=fps_source]', // 保持原始帧率
-        });
-        print('🎬 应用超高清优化设置');
-      }
-
-      // 根据编解码器优化
-      if (videoInfo.videoCodec.codec.toLowerCase() == 'hevc') {
-        libmpvSettings.addAll({
-          'vd-lavc-profile': 'main',
-          'vd-lavc-level': '5.1',
-        });
-      } else if (videoInfo.videoCodec.codec.toLowerCase() == 'vp9') {
-        libmpvSettings.addAll({
-          'vd-lavc-threads': '8', // VP9需要更多线程
-        });
-      }
-    }
-
-    print('🔧 最终播放器配置: $libmpvSettings');
+    // 不应用任何自定义配置，使用 media_kit 的默认值
+    // 默认包含: http, https 协议支持
     return const PlayerConfiguration(
-      libass: true,
+      // 使用所有默认值
+      // - osc: false (默认)
+      // - logLevel: MPVLogLevel.error (默认)
+      // - protocolWhitelist: ['udp', 'rtp', 'tcp', 'tls', 'data', 'file', 'http', 'https', 'crypto']
+      // - bufferSize: 32MB (默认)
     );
   }
 
@@ -636,6 +585,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // 播放状态
   bool _isPlaying = true;
   bool _isControlsVisible = true;
+  bool _isLocked = false; // 锁屏状态
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
   double _volume = 1.0;
@@ -698,6 +648,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   StreamSubscription? _bufferingSubscription;
   StreamSubscription? _bufferSubscription;
   StreamSubscription? _subtitleContentSubscription;
+  StreamSubscription? _errorSubscription;
+  StreamSubscription? _logSubscription;
   List<subtitle_models.SubtitleTrack> _subtitleTracks = [];
   subtitle_models.SubtitleTrack? _currentSubtitleTrack;
   bool _hasSubtitles = false;
@@ -709,12 +661,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 初始化macOS书签服务
     MacOSBookmarkService.initialize();
 
-    // 异步初始化播放器和硬件加速
-    _initializePlayerAndServices();
-
-    // 初始化缓冲配置
-    _initializeBufferConfig();
-
     // 检查是否为网络视频
     _isNetworkVideo = widget.webVideoUrl != null && widget.videoFile == null;
 
@@ -722,6 +668,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _videoPath = widget.webVideoUrl ?? widget.videoFile?.path ?? '';
     _videoName =
         widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
+
+    print('🎬 PlayerScreen initialized');
+    print('   Video Path: $_videoPath');
+    print('   Is Network: $_isNetworkVideo');
 
     // 如果是网络视频，设置网络监控和高级缓冲
     if (_isNetworkVideo) {
@@ -734,11 +684,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 初始化字幕服务
     _initializeSubtitleService();
 
-    // 打开视频并开始播放
-    _loadVideo();
+    // 异步初始化播放器和服务，然后加载视频
+    _initializeAndLoadVideo();
 
     // 3秒后自动隐藏控制界面
     _startControlsTimer();
+  }
+
+  /// 初始化播放器并加载视频
+  Future<void> _initializeAndLoadVideo() async {
+    // 1. 初始化缓冲配置
+    await _initializeBufferConfig();
+
+    // 2. 初始化播放器和硬件加速
+    await _initializePlayerAndServices();
+
+    // 3. 播放器初始化完成后，加载视频
+    await _loadVideo();
   }
 
   /// 初始化缓冲配置
@@ -885,6 +847,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
         player.stream.subtitle.listen((subtitleLines) {
       // 字幕内容更新时可以在这里处理，例如显示在自定义 UI 中
       // debugPrint('Subtitle: $subtitleLines');
+    });
+
+    // 监听播放器错误事件 - 关键：诊断网络播放问题
+    _errorSubscription = player.stream.error.listen((error) {
+      print('❌ 播放器错误事件: $error');
+      if (mounted) {
+        // 显示错误提示给用户
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('播放错误: $error'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    });
+
+    // 监听 MPV 日志事件 - 捕获所有级别的日志以诊断问题
+    _logSubscription = player.stream.log.listen((log) {
+      // 记录所有 MPV 日志
+      final text = log.text.trim();
+      if (text.isNotEmpty) {
+        print('📝 MPV [${log.level}]: $text');
+      }
+
+      // 高亮关键信息
+      if (text.toLowerCase().contains('http') ||
+          text.toLowerCase().contains('127.0.0.1') ||
+          text.toLowerCase().contains('localhost') ||
+          text.toLowerCase().contains('connect') ||
+          text.toLowerCase().contains('protocol') ||
+          text.toLowerCase().contains('playlist') ||
+          text.toLowerCase().contains('demux') ||
+          text.toLowerCase().contains('stream')) {
+        print('🌐🌐🌐 关键日志 [${log.level}]: $text');
+      }
     });
   }
 
@@ -1432,7 +1430,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _startControlsTimer() {
     _controlsTimer?.cancel();
     _controlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
+      if (mounted && !_isLocked) { // 锁定状态下不自动隐藏
         setState(() {
           _isControlsVisible = false;
         });
@@ -1462,6 +1460,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 切换控制界面显示
   void _toggleControls() {
+    // 锁定状态下不响应控件切换
+    if (_isLocked) return;
+    
     setState(() {
       _isControlsVisible = !_isControlsVisible;
     });
@@ -1538,7 +1539,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _startHistoryTimer();
 
     // 后台生成简单缩略图（仅本地视频）
-    if (_videoPath != null && !_isNetworkVideo) {
+    // SMB 视频无法直接访问文件，跳过此步骤
+    final isSMBVideo = widget.episode?.sourceId != null;
+    if (_videoPath != null && !_isNetworkVideo && !isSMBVideo) {
       Future.delayed(const Duration(seconds: 3), () async {
         await SimpleThumbnailService.generateThumbnail(
           videoPath: _videoPath!,
@@ -1615,26 +1618,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   // 切换全屏模式
-  void _toggleFullscreen() {
+  void _toggleFullscreen() async {
     setState(() {
       _isFullscreen = !_isFullscreen;
     });
-    if (_isFullscreen) {
-      // 进入全屏模式
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      await windowManager.setFullScreen(_isFullscreen);
     } else {
-      // 退出全屏模式
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+      if (_isFullscreen) {
+        // 进入全屏模式
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        // 退出全屏模式
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      }
     }
     _startControlsTimer();
   }
@@ -1654,15 +1662,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleControls,
-        onSecondaryTapUp: (details) {
-          // 右键点击显示上下文菜单
-          _showContextMenu(context, details.globalPosition);
-        },
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
+      body: Stack(
+        children: [
+          // 第一层：包含视频和所有控件的GestureDetector
+          GestureDetector(
+            onTap: _isLocked ? null : _toggleControls,
+            onSecondaryTapUp: _isLocked ? null : (details) {
+              // 右键点击显示上下文菜单
+              _showContextMenu(context, details.globalPosition);
+            },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
             // 视频播放区域
             Center(
               child: Stack(
@@ -1672,6 +1683,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   if (_isInitialized && controller != null)
                     Video(
                       controller: controller!,
+                      controls: NoVideoControls, // 禁用默认控制界面
                       subtitleViewConfiguration:
                           _buildSubtitleViewConfiguration(),
                     )
@@ -1687,8 +1699,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ],
                       ),
                     ),
-                  // 网络视频增强缓冲指示器
-                  if (_isNetworkVideo)
+                  // 网络视频增强缓冲指示器（锁定时隐藏）
+                  if (_isNetworkVideo && !_isLocked)
                     EnhancedBufferingIndicator(
                       isBuffering: _isBuffering,
                       bufferProgress: _bufferProgress,
@@ -1698,8 +1710,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       networkQuality: _currentNetworkStats.quality,
                       message: _networkStatus == '正在连接...' ? '正在连接...' : null,
                     ),
-                  // 缓存状态指示器（左上角）
-                  if (_isNetworkVideo)
+                  // 缓存状态指示器（左上角，锁定时隐藏）
+                  if (_isNetworkVideo && !_isLocked)
                     Positioned(
                       top: 80,
                       left: 16,
@@ -1712,14 +1724,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ],
               ),
             ),
-            // 性能监控覆盖层（全局显示，不受控制栏影响）
-            if (_showPerformanceOverlay)
+            // 性能监控覆盖层（全局显示，不受控制栏影响，锁定时隐藏）
+            if (_showPerformanceOverlay && !_isLocked)
               custom.PerformanceOverlay(
                 showByDefault: true,
                 enableKeyboardToggle: true,
               ),
-            // 性能指示器（当覆盖层隐藏时显示）
-            if (!_showPerformanceOverlay && _currentVideoInfo != null)
+            // 性能指示器（当覆盖层隐藏时显示，锁定时隐藏）
+            if (!_showPerformanceOverlay && _currentVideoInfo != null && !_isLocked)
               Positioned(
                 top: 16,
                 right: 16,
@@ -1727,8 +1739,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   isVisible: true,
                 ),
               ),
-            // 硬件加速通知横幅
-            if (_showHwAccelNotification)
+            // 硬件加速通知横幅（锁定时隐藏）
+            if (_showHwAccelNotification && !_isLocked)
               Positioned(
                 top: _isNetworkVideo ? 140 : 80, // 如果有缓存指示器，显示在下方
                 left: 16,
@@ -1744,9 +1756,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   },
                 ),
               ),
-            // 播放控制界面
-            AnimatedOpacity(
-              opacity: _isControlsVisible ? 1.0 : 0.0,
+            // 系统信息覆盖层（右上角）
+            if (!_isLocked)
+              const Positioned(
+                top: 16,
+                right: 16,
+                child: SystemInfoOverlay(),
+              ),
+            // 网速指示器（左上角）
+            if (!_isLocked)
+              const Positioned(
+                top: 16,
+                left: 16,
+                child: NetworkSpeedIndicator(),
+              ),
+            // 播放控制界面（通过IgnorePointer控制交互，AnimatedOpacity控制可见性）
+            IgnorePointer(
+              ignoring: _isLocked || !_isControlsVisible, // 锁定或不可见时忽略事件
+              child: AnimatedOpacity(
+              opacity: (_isLocked ? 0.0 : (_isControlsVisible ? 1.0 : 0.0)),
               duration: const Duration(milliseconds: 300),
               child: Container(
                 color: Colors.black.withValues(alpha: 0.7),
@@ -1884,8 +1912,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
               ),
             ),
+              ), // IgnorePointer 闭合
           ],
         ),
+      ),
+      // 锁定按钮（外层Stack，在GestureDetector之外）
+      Positioned(
+        left: 16,
+        top: MediaQuery.of(context).size.height / 2 - 24,
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              _isLocked = !_isLocked;
+              if (_isLocked) {
+                _isControlsVisible = false; // 锁定时隐藏控件
+              } else {
+                _isControlsVisible = true; // 解锁时显示控件
+                _startControlsTimer(); // 启动自动隐藏计时器
+              }
+            });
+          },
+          behavior: HitTestBehavior.opaque,
+          child: LockButton(
+            isLocked: _isLocked,
+            onToggle: () {},
+          ),
+        ),
+      ),
+        ],
       ),
     );
   }
@@ -1909,9 +1963,52 @@ class _PlayerScreenState extends State<PlayerScreen> {
       String playbackUrl;
       if (widget.webVideoUrl != null) {
         // 网络视频：检查缓存
+        print('🌐 网络视频模式');
         playbackUrl = await _getPlaybackUrl(widget.webVideoUrl!);
+      } else if (widget.episode?.sourceId != null) {
+        // SMB/NAS 视频：使用本地代理服务器方案
+        // 原因：macOS 沙箱限制 MPV 直接访问 SMB，且阻止访问 localhost
+        // 解决方案：启动绑定到真实 IP 的本地 HTTP 代理，将 SMB 流转换为 HTTP 流
+        print('📡 SMB视频播放准备 (LocalProxyServer方案):');
+        print('   路径: ${widget.episode!.path}');
+        print('   源ID: ${widget.episode!.sourceId}');
+
+        try {
+          setState(() {
+            _isBuffering = true;
+            _networkStatus = '正在连接媒体服务器...';
+          });
+
+          // 1. 确保代理服务器已启动
+          final proxy = LocalProxyServer.instance;
+          if (!proxy.isRunning) {
+            print('   启动本地代理服务器...');
+            await proxy.start();
+          }
+
+          // 2. 获取代理 URL (会自动处理 SMB 连接和流式传输)
+          // 注意：getProxyUrl 会生成一个指向本机真实 IP 的 URL，绕过沙箱限制
+          playbackUrl = proxy.getProxyUrl(
+            widget.episode!.path,
+            sourceId: widget.episode!.sourceId,
+          );
+
+          print('   ✅ 代理 URL 生成成功: $playbackUrl');
+          
+          // 3. 播放代理 URL
+          // MPV 配置已在 _initializePlayer 中设置 (绕过代理、启用缓存等)
+          await player.open(Media(playbackUrl), play: true);
+          
+          // 4. 添加到历史记录 (使用原始路径作为标识)
+          // 注意：这里我们保存原始 SMB 路径，而不是代理 URL
+          await _networkService.addUrlToHistory(widget.episode!.path);
+          
+        } catch (e) {
+          rethrow;
+        }
       } else {
         // 本地视频：使用文件路径
+        print('💾 本地视频模式');
         playbackUrl = widget.videoFile!.path;
       }
 
@@ -1919,9 +2016,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       print('🎬 Opening video: $playbackUrl');
 
-      // 检查是否有配套的字幕文件
+      // 检查是否为 SMB/远程视频
+      final isSMBVideo = widget.episode?.sourceId != null;
+
+      // 检查是否有配套的字幕文件（仅本地视频）
       String? subtitlePath;
-      if (!_isNetworkVideo && widget.videoFile != null) {
+      if (!_isNetworkVideo && !isSMBVideo && widget.videoFile != null) {
         subtitlePath =
             await _subtitleService.findMatchingSubtitle(widget.videoFile!.path);
         if (subtitlePath != null) {
@@ -1929,9 +2029,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       }
 
-      // 对于macOS本地视频，创建安全书签
+      // 对于macOS本地视频，创建安全书签（仅本地视频）
       if (MacOSBookmarkService.isSupported &&
           !_isNetworkVideo &&
+          !isSMBVideo &&
           widget.videoFile != null) {
         print('🔐 创建macOS安全书签: ${widget.videoFile!.path}');
         _securityBookmark =
@@ -1952,12 +2053,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
 
       try {
+        print('📺 准备打开播放器...');
+        print('   Media URI: ${media.uri}');
+        print('   Media extras: ${media.extras}');
+
         await player.open(media, play: true);
 
-        // 分析视频信息和格式兼容性
-        await _analyzeVideoInfo();
-      } catch (e) {
+        print('✅ 播放器 open() 调用成功');
+        print('   播放状态: ${player.state.playing}');
+        print('   缓冲状态: ${player.state.buffering}');
+        print('   持续时间: ${player.state.duration}');
+
+        // 分析视频信息和格式兼容性（仅本地视频）
+        // SMB 视频无法直接分析，因为文件不在本地
+        if (!isSMBVideo && !_isNetworkVideo) {
+          await _analyzeVideoInfo();
+        }
+      } catch (e, stackTrace) {
         // 处理播放器打开错误
+        print('❌ 播放器打开失败!');
+        print('   错误: $e');
+        print('   堆栈: $stackTrace');
         _handlePlaybackError(e, _videoPath, media.uri);
       }
 
@@ -2693,8 +2809,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _networkStatus = '重新连接...';
       });
 
+      // 检查是否为 SMB 视频并获取代理 URL
+      String playbackUrl = videoPath;
+      if (widget.episode?.sourceId != null && videoPath == widget.episode!.path) {
+         // 重新获取代理 URL
+         final proxy = LocalProxyServer.instance;
+         if (!proxy.isRunning) await proxy.start();
+         playbackUrl = proxy.getProxyUrl(videoPath, sourceId: widget.episode!.sourceId);
+         print('🔄 重试播放 SMB 视频，使用代理 URL: $playbackUrl');
+      }
+
       // 尝试重新打开视频
-      final media = Media(videoPath);
+      final media = Media(playbackUrl);
       await player.open(media, play: true);
 
       // 重新分析视频信息
@@ -3040,9 +3166,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle( // 移除 const，因为 AppColors.textPrimary 不是常量
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: AppColors.textPrimary, // 从 Colors.black87 改为 AppColors.textPrimary 以适配深色主题
             ),
           ),
           Flexible(
@@ -3183,7 +3309,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
       case 'toggle_performance_overlay':
         setState(() {
           _showPerformanceOverlay = !_showPerformanceOverlay;
+          debugPrint('🎯 性能覆盖层已${_showPerformanceOverlay ? "开启" : "关闭"}');
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_showPerformanceOverlay ? '性能覆盖层已开启' : '性能覆盖层已关闭'),
+            duration: const Duration(seconds: 1),
+          ),
+        );
         break;
       case 'toggle_controls':
         setState(() {
@@ -3482,6 +3615,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _bufferingSubscription?.cancel();
         _bufferSubscription?.cancel();
         _subtitleContentSubscription?.cancel();
+        _errorSubscription?.cancel();
+        _logSubscription?.cancel();
 
         // 停止带宽监控
         if (_isNetworkVideo) {
@@ -3540,7 +3675,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       if (!mounted || _videoPath.isEmpty) return;
 
+      // 检查是否为 SMB/远程视频
+      final isSMBVideo = widget.episode?.sourceId != null;
+
       print('📸 尝试从正在播放的视频中截图...');
+      print('   视频类型: ${isSMBVideo ? "SMB" : (_isNetworkVideo ? "网络" : "本地")}');
 
       // 使用当前正在播放的player截图
       final screenshot = await player.screenshot();
@@ -3581,23 +3720,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
       } else {
         print('❌ 播放器截图返回空，尝试备用方案...');
 
-        // 备用方案：使用SimpleThumbnailService
-        final historyId = _videoPath.hashCode.abs().toString();
-        _thumbnailCachePath =
-            await SimpleThumbnailService.generateAndCacheThumbnail(
-          videoPath: _videoPath,
-          historyId: historyId,
-          width: 320,
-          height: 180,
-          seekSeconds: 1.0,
-          securityBookmark: _securityBookmark,
-        );
+        // 备用方案：仅对本地视频使用 SimpleThumbnailService
+        // SMB 视频无法直接访问文件系统，只能依赖播放器截图
+        if (!isSMBVideo && !_isNetworkVideo) {
+          final historyId = _videoPath.hashCode.abs().toString();
+          _thumbnailCachePath =
+              await SimpleThumbnailService.generateAndCacheThumbnail(
+            videoPath: _videoPath,
+            historyId: historyId,
+            width: 320,
+            height: 180,
+            seekSeconds: 1.0,
+            securityBookmark: _securityBookmark,
+          );
 
-        if (_thumbnailCachePath != null) {
-          _thumbnailGenerated = true;
-          print('✅ 备用方案缩略图生成成功');
+          if (_thumbnailCachePath != null) {
+            _thumbnailGenerated = true;
+            print('✅ 备用方案缩略图生成成功');
+          } else {
+            print('❌ 所有缩略图生成方案都失败');
+          }
         } else {
-          print('❌ 所有缩略图生成方案都失败');
+          print('⚠️ SMB/网络视频无法使用备用缩略图方案，将在后续播放中重试截图');
         }
       }
     } catch (e) {

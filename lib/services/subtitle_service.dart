@@ -517,7 +517,9 @@ class SubtitleService {
     final r = (argbColor >> 16) & 0xFF;
     final g = (argbColor >> 8) & 0xFF;
     final b = argbColor & 0xFF;
-    return '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}/${(a / 255.0).toStringAsFixed(2)}';
+    
+    // MPV format: #AARRGGBB
+    return '#${a.toRadixString(16).padLeft(2, '0')}${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}';
   }
 
   /// 将位置枚举转换为 MPV 位置值

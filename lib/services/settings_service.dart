@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'tmdb_service.dart';
 
 enum PlaybackQualityMode {
   auto,
@@ -15,6 +16,12 @@ class SettingsService {
   static const String _firstLaunchKey = 'first_launch';
   static const String _playbackQualityModeKey = 'playback_quality_mode';
   static const String _performanceAlertsEnabledKey = 'performance_alerts_enabled';
+  static const String _tmdbApiKey = 'tmdb_api_key';
+  static const String _tmdbAccessToken = 'tmdb_access_token';
+  static const String _autoScrapeEnabledKey = 'auto_scrape_enabled';
+  // 用户提供的默认 Key
+  static const String _defaultTmdbApiKey = '7881c04fb4405464297402a783614152';
+  static const String _defaultTmdbAccessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3ODgxYzA0ZmI0NDA1NDY0Mjk3NDAyYTc4MzYxNDE1MiIsIm5iZiI6MTYzMzQxMTkxNy45MzUwMDAyLCJzdWIiOiI2MTViZTM0ZDFjNjM1YjAwNDQ4M2YxNTQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.-Vlwm0cNIraTqijZXpPXuXZ-SDj56fyqucDvoU1oCjg';
 
   // 默认设置值
   static const bool _defaultHistoryEnabled = true;
@@ -23,6 +30,32 @@ class SettingsService {
   static const bool _defaultThumbnailsEnabled = true;
   static const PlaybackQualityMode _defaultPlaybackQualityMode = PlaybackQualityMode.auto;
   static const bool _defaultPerformanceAlertsEnabled = false; // 默认关闭
+  static const bool _defaultAutoScrapeEnabled = true; // 默认开启自动刮削
+
+  // TMDB 设置
+  static Future<String?> getTMDBApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tmdbApiKey) ?? _defaultTmdbApiKey;
+  }
+
+  static Future<String?> getTMDBAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tmdbAccessToken) ?? _defaultTmdbAccessToken;
+  }
+
+  static Future<void> setTMDBApiKey(String apiKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tmdbApiKey, apiKey);
+    final accessToken = await getTMDBAccessToken();
+    TMDBService.init(apiKey, accessToken: accessToken);
+  }
+
+  static Future<void> setTMDBAccessToken(String accessToken) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tmdbAccessToken, accessToken);
+    final apiKey = await getTMDBApiKey();
+    TMDBService.init(apiKey ?? '', accessToken: accessToken);
+  }
 
   // 历史记录设置
   static Future<bool> isHistoryEnabled() async {
@@ -90,6 +123,18 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_performanceAlertsEnabledKey, enabled);
   }
+
+  // 自动刮削设置
+  static Future<bool> getAutoScrapeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_autoScrapeEnabledKey) ?? _defaultAutoScrapeEnabled;
+  }
+
+  static Future<void> setAutoScrapeEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoScrapeEnabledKey, enabled);
+  }
+
 
   // 应用设置
   static Future<bool> isFirstLaunch() async {

@@ -1,15 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:yinghe_player/screens/home_screen.dart';
 import 'package:yinghe_player/services/video_cache_service.dart';
 import 'package:yinghe_player/services/local_proxy_server.dart';
+import 'package:yinghe_player/services/media_server_service.dart';
+import 'package:yinghe_player/services/media_library_service.dart';
+import 'package:yinghe_player/services/metadata_store_service.dart';
+import 'package:yinghe_player/services/tmdb_service.dart';
+import 'package:yinghe_player/services/settings_service.dart';
 
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
+import 'package:yinghe_player/theme/app_theme.dart';
+import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 
-void main() {
+
+void main() async {
   // Initialize media_kit
   MediaKit.ensureInitialized();
+
+  // Initialize window_manager
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(1280, 720),
+    center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+  );
+  
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 
   // 捕获 Flutter 框架错误(包括键盘事件错误)
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -57,6 +83,20 @@ class _MyAppState extends State<MyApp> {
       // 异步初始化缓存服务
       await VideoCacheService.instance.initialize();
 
+      // 初始化影视服务器服务
+      await MediaServerService.initialize();
+      
+      // 初始化媒体库服务
+      await MediaLibraryService.init();
+      await MetadataStoreService.init();
+      
+      // 初始化 TMDB 服务
+      final tmdbApiKey = await SettingsService.getTMDBApiKey();
+      final tmdbAccessToken = await SettingsService.getTMDBAccessToken();
+      if ((tmdbApiKey != null && tmdbApiKey.isNotEmpty) || (tmdbAccessToken != null && tmdbAccessToken.isNotEmpty)) {
+        TMDBService.init(tmdbApiKey ?? '', accessToken: tmdbAccessToken);
+      }
+
       // 启动代理服务器
       await LocalProxyServer.instance.start();
 
@@ -80,27 +120,21 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (!_initialized) {
       return MaterialApp(
-        title: '影核播放器',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
-        ),
+        title: 'CorePlayer',
+        theme: AppTheme.darkTheme,
         home: const Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: AppColors.background,
           body: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                 ),
                 SizedBox(height: 20),
                 Text(
                   '正在初始化缓存服务...',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
+                  style: AppTextStyles.bodyLarge,
                 ),
               ],
             ),
@@ -110,39 +144,29 @@ class _MyAppState extends State<MyApp> {
     }
 
     return MaterialApp(
-      title: '影核播放器',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      title: 'CorePlayer',
+      theme: AppTheme.darkTheme,
       home: _error != null
           ? Scaffold(
-              backgroundColor: Colors.black,
+              backgroundColor: AppColors.background,
               body: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.error_outline,
-                      color: Colors.red,
+                      color: AppColors.error,
                       size: 64,
                     ),
                     const SizedBox(height: 20),
-                    const Text(
+                    Text(
                       '缓存服务初始化失败',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: AppTextStyles.headlineSmall,
                     ),
                     const SizedBox(height: 10),
                     Text(
                       '应用将在无缓存模式下运行',
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 14,
-                      ),
+                      style: AppTextStyles.bodyMedium,
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton(

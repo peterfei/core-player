@@ -182,6 +182,11 @@ class CacheDownloadService {
           throw Exception(
               'HTTP ${streamedResponse.statusCode}: Failed to download');
         } else {
+          // 如果是新下载且有Content-Length，更新缓存条目的文件大小
+          if (resumeFromByte == 0 && streamedResponse.contentLength != null) {
+             await VideoCacheService.instance.updateCacheFileSize(url, streamedResponse.contentLength!);
+          }
+
           await _processStreamedResponse(
               streamedResponse, randomAccessFile, task, url, resumeFromByte);
         }
@@ -220,7 +225,14 @@ class CacheDownloadService {
     String url,
     int initialBytes,
   ) async {
-    final contentLength = response.contentLength ?? 0;
+    // 尝试获取总大小：优先使用响应头，如果未知则尝试从缓存条目获取
+    int totalBytes = response.contentLength ?? 0;
+    if (totalBytes <= 0) {
+      final entry = await VideoCacheService.instance.getCacheEntry(url);
+      totalBytes = entry?.fileSize ?? 0;
+    }
+    
+    final contentLength = totalBytes;
     final startTime = DateTime.now();
     int lastProgressTime = startTime.millisecondsSinceEpoch;
 
