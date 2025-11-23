@@ -76,8 +76,30 @@ class PluginStatusService {
       // 启动内存清理定时器
       _startMemoryCleanupTimer();
 
+      // 加载所有可用插件到显示列表（但不激活它们）
+      final availablePluginIds = _lazyLoader.getAvailablePluginIds();
       if (kDebugMode) {
-        print('PluginStatusService initialized with lazy loading and performance monitoring');
+        print('Loading ${availablePluginIds.length} available plugins...');
+      }
+
+      for (final pluginId in availablePluginIds) {
+        try {
+          final plugin = await _lazyLoader.loadPlugin(pluginId);
+          if (plugin != null) {
+            _plugins[pluginId] = plugin;
+            if (kDebugMode) {
+              print('Loaded plugin: $pluginId (${plugin.metadata.name})');
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('Failed to load plugin $pluginId: $e');
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('PluginStatusService initialized with ${_plugins.length} plugins loaded (lazy loading and performance monitoring enabled)');
       }
     } catch (e) {
       if (kDebugMode) {

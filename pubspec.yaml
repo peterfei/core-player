@@ -62,6 +62,10 @@ dependencies:
   uuid: ^4.5.2
   battery_plus: ^7.0.0
 
+  # CorePlayer Pro商业插件包
+  coreplayer_pro_plugins:
+    path: ../core-player-pro-plugins
+
 
 dev_dependencies:
   flutter_test:
