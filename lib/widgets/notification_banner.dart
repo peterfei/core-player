@@ -43,7 +43,7 @@ class _NotificationBannerState extends State<NotificationBanner>
     );
 
     _slideAnimation = Tween<double>(
-      begin: -1.0,
+      begin: 1.0, // 从底部开始
       end: 0.0,
     ).animate(CurvedAnimation(
       parent: _controller,
@@ -322,7 +322,7 @@ class NotificationManager {
     final overlay = Overlay.of(context);
     _overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + kToolbarHeight + 8,
+        bottom: MediaQuery.of(context).padding.bottom + 80, // 底部显示，留出安全区域和空间
         left: 8,
         right: 8,
         child: NotificationBanner(

@@ -12,6 +12,8 @@ import '../widgets/episode_card.dart';
 import '../widgets/smart_image.dart';
 import '../services/local_proxy_server.dart';
 import '../services/media_server_service.dart';
+import '../core/plugin_system/plugin_loader.dart';
+import '../widgets/upgrade_dialog.dart';
 import 'player_screen.dart';
 
 
@@ -193,6 +195,28 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
     }
 
     if (effectiveSourceId != null) {
+      // 检查是否为 SMB 且为社区版
+      try {
+        final serverConfig = servers.firstWhere(
+          (s) => s.id == effectiveSourceId,
+        );
+
+        if (serverConfig.type.toLowerCase() == 'smb' && 
+            EditionConfig.isCommunityEdition) {
+          print('🔒 SMB playback restricted in Community Edition');
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const UpgradeDialog(),
+            );
+          }
+          return;
+        }
+      } catch (e) {
+        print('⚠️ Failed to check server config: $e');
+      }
+
       // 确保代理服务器已启动
       if (!LocalProxyServer.instance.isRunning) {
         print('⚠️ Proxy server is not running, attempting to start...');

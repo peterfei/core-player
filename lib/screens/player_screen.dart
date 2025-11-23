@@ -49,6 +49,7 @@ import 'subtitle_download_screen.dart';
 import '../models/episode.dart';
 import '../services/media_server_service.dart';
 import '../services/file_source_factory.dart';
+import '../core/plugin_system/plugin_loader.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
@@ -2042,6 +2043,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
         print('   源ID: ${widget.episode!.sourceId}');
 
         try {
+          // 检查是否为 SMB 且为社区版
+          final servers = MediaServerService.getServers();
+          try {
+            final serverConfig = servers.firstWhere(
+              (s) => s.id == widget.episode!.sourceId,
+            );
+
+            if (serverConfig.type.toLowerCase() == 'smb' && 
+                EditionConfig.isCommunityEdition) {
+              print('🔒 SMB playback restricted in Community Edition');
+              if (mounted) {
+                _showUpgradeDialog();
+              }
+              return;
+            }
+          } catch (e) {
+            print('⚠️ Failed to check server config: $e');
+            // Continue to let LocalProxyServer handle the error if server not found
+          }
+
           setState(() {
             _isBuffering = true;
             _networkStatus = '正在连接媒体服务器...';
@@ -2398,12 +2419,44 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('缓存启动失败: $e'),
+            content: Text('缓存失败: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
+  }
+
+  /// 显示升级提示对话框
+  void _showUpgradeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('需要专业版功能'),
+        content: const Text(
+          'SMB 视频播放是专业版功能。\n'
+          '当前社区版不支持此功能，请升级到专业版以解锁 SMB 播放、更多插件支持和高级功能。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Close player
+            },
+            child: const Text('返回'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Close player
+              // TODO: Navigate to upgrade page if available
+            },
+            child: const Text('了解详情'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 取消下载
