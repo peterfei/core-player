@@ -160,8 +160,29 @@ class VideoCacheService {
     await _ensureInitialized();
 
     final cacheKey = _generateCacheKey(url);
-    final fileName = '$cacheKey.mp4';
+    
+    // 从URL中提取文件扩展名,而不是硬编码.mp4
+    String extension = '.mp4'; // 默认扩展名
+    try {
+      final uri = Uri.parse(url);
+      final urlPath = uri.path;
+      if (urlPath.isNotEmpty) {
+        final ext = path.extension(urlPath);
+        if (ext.isNotEmpty) {
+          extension = ext;
+        }
+      }
+    } catch (e) {
+      print('⚠️ 无法从URL提取扩展名,使用默认.mp4: $e');
+    }
+    
+    final fileName = '$cacheKey$extension';
     final filePath = path.join(_cacheDirectory.path, fileName);
+    
+    print('📝 创建缓存条目:');
+    print('   URL: $url');
+    print('   扩展名: $extension');
+    print('   文件路径: $filePath');
 
     // 创建缓存条目
     final entry = CacheEntry(
@@ -242,10 +263,15 @@ class VideoCacheService {
   }) async {
     await _ensureInitialized();
 
+    print('📝 标记缓存完成:');
+    print('   URL: $url');
+    print('   总大小: $totalSize bytes');
+
     final cacheKey = _generateCacheKey(url);
     final entry = _cacheBox.get(cacheKey);
 
     if (entry != null) {
+      print('   找到缓存条目，更新为完成状态');
       final completedEntry = CacheEntry(
         id: entry.id,
         url: entry.url,

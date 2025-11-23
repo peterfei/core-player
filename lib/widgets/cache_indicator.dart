@@ -8,6 +8,7 @@ import '../services/cache_download_service.dart';
 class CacheIndicator extends StatefulWidget {
   final String videoUrl;
   final String? videoTitle;
+  final String? cacheKey; // Added cacheKey
   final bool showProgress;
   final VoidCallback? onTap;
 
@@ -15,6 +16,7 @@ class CacheIndicator extends StatefulWidget {
     Key? key,
     required this.videoUrl,
     this.videoTitle,
+    this.cacheKey,
     this.showProgress = true,
     this.onTap,
   }) : super(key: key);
@@ -29,6 +31,8 @@ class _CacheIndicatorState extends State<CacheIndicator> {
   bool _isDownloading = false;
   StreamSubscription? _downloadSubscription;
 
+  String get _key => widget.cacheKey ?? widget.videoUrl;
+
   @override
   void initState() {
     super.initState();
@@ -38,7 +42,7 @@ class _CacheIndicatorState extends State<CacheIndicator> {
   @override
   void didUpdateWidget(CacheIndicator oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.videoUrl != widget.videoUrl) {
+    if (oldWidget.videoUrl != widget.videoUrl || oldWidget.cacheKey != widget.cacheKey) {
       _downloadSubscription?.cancel();
       _initializeCacheStatus();
     }
@@ -57,24 +61,28 @@ class _CacheIndicatorState extends State<CacheIndicator> {
 
   Future<void> _updateCacheStatus() async {
     final cacheService = VideoCacheService.instance;
-    final entry = await cacheService.getCacheEntry(widget.videoUrl);
+    final entry = await cacheService.getCacheEntry(_key);
     final isDownloading =
-        CacheDownloadService.instance.isDownloading(widget.videoUrl);
+        CacheDownloadService.instance.isDownloading(_key);
 
-    setState(() {
-      _cacheEntry = entry;
-      _isDownloading = isDownloading;
-    });
+    if (mounted) {
+      setState(() {
+        _cacheEntry = entry;
+        _isDownloading = isDownloading;
+      });
+    }
   }
 
   void _setupDownloadListener() {
     _downloadSubscription?.cancel();
     _downloadSubscription = CacheDownloadService.instance
-        .getDownloadProgress(widget.videoUrl)
+        .getDownloadProgress(_key)
         .listen((progress) {
-      setState(() {
-        _downloadProgress = progress;
-      });
+      if (mounted) {
+        setState(() {
+          _downloadProgress = progress;
+        });
+      }
     });
   }
 
@@ -208,11 +216,13 @@ class _CacheIndicatorState extends State<CacheIndicator> {
 class CacheControlButton extends StatefulWidget {
   final String videoUrl;
   final String? videoTitle;
+  final String? cacheKey; // Added cacheKey
 
   const CacheControlButton({
     Key? key,
     required this.videoUrl,
     this.videoTitle,
+    this.cacheKey,
   }) : super(key: key);
 
   @override
@@ -223,6 +233,8 @@ class _CacheControlButtonState extends State<CacheControlButton> {
   CacheEntry? _cacheEntry;
   bool _isDownloading = false;
 
+  String get _key => widget.cacheKey ?? widget.videoUrl;
+
   @override
   void initState() {
     super.initState();
@@ -231,14 +243,16 @@ class _CacheControlButtonState extends State<CacheControlButton> {
 
   Future<void> _updateStatus() async {
     final cacheService = VideoCacheService.instance;
-    final entry = await cacheService.getCacheEntry(widget.videoUrl);
+    final entry = await cacheService.getCacheEntry(_key);
     final isDownloading =
-        CacheDownloadService.instance.isDownloading(widget.videoUrl);
+        CacheDownloadService.instance.isDownloading(_key);
 
-    setState(() {
-      _cacheEntry = entry;
-      _isDownloading = isDownloading;
-    });
+    if (mounted) {
+      setState(() {
+        _cacheEntry = entry;
+        _isDownloading = isDownloading;
+      });
+    }
   }
 
   bool get _isCached => _cacheEntry?.isComplete ?? false;
@@ -308,8 +322,11 @@ class _CacheControlButtonState extends State<CacheControlButton> {
     switch (value) {
       case 'download':
         try {
-          await downloadService.downloadAndCache(widget.videoUrl,
-              title: widget.videoTitle);
+          await downloadService.downloadAndCache(
+            widget.videoUrl,
+            title: widget.videoTitle,
+            cacheKey: widget.cacheKey,
+          );
           await _updateStatus();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -332,12 +349,12 @@ class _CacheControlButtonState extends State<CacheControlButton> {
         break;
 
       case 'cancel':
-        await downloadService.cancelDownload(widget.videoUrl);
+        await downloadService.cancelDownload(_key);
         await _updateStatus();
         break;
 
       case 'remove':
-        await cacheService.removeCache(widget.videoUrl);
+        await cacheService.removeCache(_key);
         await _updateStatus();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

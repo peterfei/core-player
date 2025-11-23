@@ -250,4 +250,32 @@ class SMBFileSource implements FileSource {
       rethrow;
     }
   }
+  @override
+  Future<FileItem?> getFileInfo(String path) async {
+    if (_client == null) {
+      await connect();
+    }
+
+    try {
+      print('🔍 SMB: 获取文件信息: $path');
+      final file = await _client!.file(path);
+      
+      // 验证文件是否存在（通过检查大小或尝试读取属性）
+      // 注意：smb_connect 的 file() 方法可能只是创建一个句柄，不一定验证存在性
+      // 我们通过检查 size 是否合理来判断，或者捕获异常
+      
+      return FileItem(
+        name: file.name,
+        path: file.path,
+        isDirectory: file.isDirectory(),
+        size: file.size,
+        modified: file.lastModified != null 
+            ? DateTime.fromMillisecondsSinceEpoch(file.lastModified!) 
+            : null,
+      );
+    } catch (e) {
+      print('⚠️ SMB: 获取文件信息失败 $path: $e');
+      return null;
+    }
+  }
 }

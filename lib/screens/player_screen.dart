@@ -54,6 +54,7 @@ class PlayerScreen extends StatefulWidget {
   final File? videoFile;
   final String? webVideoUrl;
   final String? webVideoName;
+  final String? originalVideoPath; // 新增：原始视频路径（用于历史记录和缓存键）
   final int? seekTo;
   final bool fromHistory;
   final Episode? episode;
@@ -63,6 +64,7 @@ class PlayerScreen extends StatefulWidget {
     this.videoFile,
     this.webVideoUrl,
     this.webVideoName,
+    this.originalVideoPath,
     this.seekTo,
     this.fromHistory = false,
     this.episode,
@@ -73,6 +75,7 @@ class PlayerScreen extends StatefulWidget {
     super.key,
     required String videoPath,
     this.webVideoName,
+    this.originalVideoPath,
     this.seekTo,
     this.fromHistory = false,
     this.episode,
@@ -88,7 +91,8 @@ class PlayerScreen extends StatefulWidget {
     this.fromHistory = false,
     this.episode,
   })  : videoFile = videoFile,
-        webVideoUrl = null;
+        webVideoUrl = null,
+        originalVideoPath = null;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -115,6 +119,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _showHwAccelNotification = false;
   String _hwAccelNotificationMessage = '';
   NotificationType _hwAccelNotificationType = NotificationType.info;
+
+  late String _cacheKey; // 新增：缓存和历史记录的唯一键
 
   // 初始化播放器和服务
   Future<void> _initializePlayerAndServices() async {
@@ -144,6 +150,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       });
     }
   }
+
+
 
   // 初始化播放器配置
   Future<void> _initializePlayer() async {
@@ -666,8 +674,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     // 设置视频路径和名称
     _videoPath = widget.webVideoUrl ?? widget.videoFile?.path ?? '';
+    
+    // 设置缓存键（优先使用原始路径，否则使用播放路径）
+    _cacheKey = widget.originalVideoPath ?? _videoPath;
+
     _videoName =
-        widget.webVideoName ?? HistoryService.extractVideoName(_videoPath);
+        widget.webVideoName ?? HistoryService.extractVideoName(_cacheKey);
 
     print('🎬 PlayerScreen initialized');
     print('   Video Path: $_videoPath');
@@ -1480,14 +1492,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     // 查找是否有历史记录
-    final existingHistory = await HistoryService.getHistoryByPath(_videoPath!);
+    final existingHistory = await HistoryService.getHistoryByPath(_cacheKey);
 
     if (existingHistory != null) {
       // 如果是从历史记录播放，更新最后播放时间但不询问
       if (widget.fromHistory) {
         // 使用增强版历史记录更新，包含书签和缩略图信息
         await HistoryService.addOrUpdateHistory(
-          videoPath: existingHistory.videoPath,
+          videoPath: existingHistory.videoPath, // Should match _cacheKey
           videoName: existingHistory.videoName,
           currentPosition: widget.seekTo ?? 0,
           totalDuration: _totalDuration.inSeconds,
@@ -1521,7 +1533,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else {
       // 创建新的历史记录（使用增强版方法）
       await HistoryService.addOrUpdateHistory(
-        videoPath: _videoPath!,
+        videoPath: _cacheKey,
         videoName: _videoName!,
         currentPosition: widget.seekTo ?? 0,
         totalDuration: _totalDuration.inSeconds,
@@ -1538,19 +1550,63 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 开始定期保存播放进度
     _startHistoryTimer();
 
-    // 后台生成简单缩略图（仅本地视频）
-    // SMB 视频无法直接访问文件，跳过此步骤
+    // 后台生成简单缩略图
+    // 支持本地视频、网络视频和SMB视频（通过代理）
     final isSMBVideo = widget.episode?.sourceId != null;
-    if (_videoPath != null && !_isNetworkVideo && !isSMBVideo) {
-      Future.delayed(const Duration(seconds: 3), () async {
-        await SimpleThumbnailService.generateThumbnail(
-          videoPath: _videoPath!,
-          width: 320,
-          height: 180,
-          seekSeconds: 1.0,
-          securityBookmark: _securityBookmark,
-        );
+    
+    print('🖼️ 缩略图生成检查: videoPath=$_videoPath, isSMB=$isSMBVideo, episode=${widget.episode?.path}');
+    
+    if ((_videoPath != null && _videoPath!.isNotEmpty) || isSMBVideo) {
+      print('🖼️ 准备生成缩略图，1秒后开始...');
+      Future.delayed(const Duration(seconds: 1), () async {
+        try {
+          String? thumbnailSource = _videoPath;
+          
+          // 如果是SMB视频,获取代理URL作为缩略图源
+          if (isSMBVideo && widget.episode != null) {
+             try {
+               final proxy = LocalProxyServer.instance;
+               if (!proxy.isRunning) {
+                 print('🖼️ 启动代理服务器...');
+                 await proxy.start();
+               }
+               thumbnailSource = proxy.getProxyUrl(
+                 widget.episode!.path,
+                 sourceId: widget.episode!.sourceId,
+               );
+               print('🖼️ SMB视频缩略图源: $thumbnailSource');
+             } catch (e) {
+               print('❌ 获取SMB代理URL失败: $e');
+             }
+          }
+          
+          if (thumbnailSource != null && thumbnailSource.isNotEmpty) {
+             // 获取刚刚创建的历史记录ID
+             final history = await HistoryService.getHistoryByPath(_cacheKey);
+             
+             if (history != null) {
+                print('🖼️ 开始生成缩略图: ${history.videoName} (ID: ${history.id})');
+                await SimpleThumbnailService.generateAndCacheThumbnail(
+                  videoPath: thumbnailSource,
+                  historyId: history.id,
+                  width: 320,
+                  height: 180,
+                  seekSeconds: 1.0,
+                  securityBookmark: _securityBookmark,
+                );
+                print('✅ 缩略图生成完成');
+             } else {
+                print('❌ 未找到历史记录: $_cacheKey');
+             }
+          } else {
+             print('❌ 缩略图源为空');
+          }
+        } catch (e) {
+          print('❌ 缩略图生成异常: $e');
+        }
       });
+    } else {
+      print('🖼️ 跳过缩略图生成');
     }
   }
 
@@ -1601,7 +1657,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     try {
       await HistoryService.addOrUpdateHistory(
-        videoPath: _videoPath!,
+        videoPath: _cacheKey,
         videoName: _videoName!,
         currentPosition: _currentPosition.inSeconds,
         totalDuration: _totalDuration.inSeconds,
@@ -1718,6 +1774,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       child: CacheIndicator(
                         videoUrl: widget.webVideoUrl!,
                         videoTitle: _videoName,
+                        cacheKey: _cacheKey,
                         onTap: _showCacheInfo,
                       ),
                     ),
@@ -1849,6 +1906,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             CacheControlButton(
                               videoUrl: widget.webVideoUrl!,
                               videoTitle: _videoName,
+                              cacheKey: _cacheKey,
                             ),
                         ],
                       ),
@@ -1965,6 +2023,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
         // 网络视频：检查缓存
         print('🌐 网络视频模式');
         playbackUrl = await _getPlaybackUrl(widget.webVideoUrl!);
+        
+        // 明确显示是否使用缓存
+        final isUsingCache = !playbackUrl.startsWith('http');
+        if (isUsingCache) {
+          print('✅ 🎯 使用本地缓存播放');
+          print('   缓存文件: $playbackUrl');
+        } else {
+          print('⚠️ 🌐 使用网络流播放 (无缓存)');
+          print('   网络URL: $playbackUrl');
+        }
       } else if (widget.episode?.sourceId != null) {
         // SMB/NAS 视频：使用本地代理服务器方案
         // 原因：macOS 沙箱限制 MPV 直接访问 SMB，且阻止访问 localhost
@@ -2147,9 +2215,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       await cacheService.initialize(); // 确保缓存服务已初始化
 
-      final cacheEntry = await cacheService.getCacheEntry(widget.webVideoUrl!);
-      final hasCache = await cacheService.hasCache(widget.webVideoUrl!);
-      final isDownloading = downloadService.isDownloading(widget.webVideoUrl!);
+      // 使用 _cacheKey 检查缓存
+      final cacheEntry = await cacheService.getCacheEntry(_cacheKey);
+      final hasCache = await cacheService.hasCache(_cacheKey);
+      
+      // 检查下载状态（注意：CacheDownloadService 现在支持 cacheKey 键）
+      final isDownloading = downloadService.isDownloading(_cacheKey);
 
       print('Cache status check:');
       print('  URL: ${widget.webVideoUrl}');
@@ -2188,8 +2259,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
       // 确保缓存服务已初始化
       await cacheService.initialize();
 
+      // 关键修复：使用 _cacheKey 而不是 originalUrl 来检查缓存
+      // 因为下载时使用的是 _cacheKey (SMB原始路径)
+      final cacheCheckKey = _cacheKey;
+      print('🔍 Checking cache with key: $cacheCheckKey');
+
       // 第一步：同步快速检查缓存（< 50ms）
-      final cachePath = cacheService.getCachePathSync(originalUrl);
+      final cachePath = cacheService.getCachePathSync(cacheCheckKey);
       if (cachePath != null) {
         stopwatch.stop();
         print('✅ Cache hit (sync) in ${stopwatch.elapsedMilliseconds}ms: $cachePath');
@@ -2197,7 +2273,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
 
       // 第二步：异步详细检查缓存（< 100ms）
-      final asyncCachePath = await cacheService.getCachePath(originalUrl);
+      final asyncCachePath = await cacheService.getCachePath(cacheCheckKey);
       if (asyncCachePath != null) {
         stopwatch.stop();
         print('✅ Cache hit (async) in ${stopwatch.elapsedMilliseconds}ms: $asyncCachePath');
@@ -2229,21 +2305,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final downloadService = CacheDownloadService.instance;
 
       // 检查是否已经在下载
-      if (downloadService.isDownloading(originalUrl)) {
-        print('Already downloading: $originalUrl');
+      if (downloadService.isDownloading(_cacheKey)) {
+        print('Already downloading: $_cacheKey');
         return;
       }
 
       // 检查是否已有缓存
-      if (await cacheService.hasCache(originalUrl)) {
-        print('Already cached: $originalUrl');
+      if (await cacheService.hasCache(_cacheKey)) {
+        print('Already cached: $_cacheKey');
         return;
       }
 
       print('🚀 Starting background download: $originalUrl');
 
       // 启动下载（不等待完成）
-      downloadService.downloadAndCache(originalUrl, title: _videoName).listen(
+      downloadService.downloadAndCache(originalUrl, title: _videoName, cacheKey: _cacheKey).listen(
         (_) {
           // 字节流数据，在这里不需要处理
         },
@@ -2257,7 +2333,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
 
       // 单独监听下载进度
-      downloadService.getDownloadProgress(originalUrl).listen(
+      downloadService.getDownloadProgress(_cacheKey).listen(
         (progress) {
           print(
               'Download progress: ${(progress.progressPercentage * 100).toStringAsFixed(1)}%');
@@ -2274,7 +2350,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _downloadProgressSubscription?.cancel();
     _downloadProgressSubscription = CacheDownloadService.instance
-        .getDownloadProgress(widget.webVideoUrl!)
+        .getDownloadProgress(_cacheKey)
         .listen((progress) {
       if (mounted) {
         setState(() {
@@ -2294,6 +2370,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           .downloadAndCache(
         widget.webVideoUrl!,
         title: _videoName,
+        cacheKey: _cacheKey,
       )
           .listen(
         (_) {},
@@ -2335,7 +2412,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     try {
       final downloadService = CacheDownloadService.instance;
-      await downloadService.cancelDownload(widget.webVideoUrl!);
+      await downloadService.cancelDownload(_cacheKey);
 
       if (mounted) {
         setState(() {
@@ -3498,6 +3575,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
         if (thumbnailPath != null) {
           print('✅ 缩略图生成成功: $thumbnailPath');
           _thumbnailGenerated = true;
+          _thumbnailCachePath = thumbnailPath;
+          
+          // 更新历史记录，保存缩略图路径
+          try {
+            final history = await HistoryService.getHistoryByPath(_cacheKey);
+            if (history != null) {
+              await HistoryService.updateThumbnailPath(history.id, thumbnailPath);
+              print('✅ 缩略图路径已保存到历史记录');
+            } else {
+              print('⚠️ 未找到历史记录，无法保存缩略图路径');
+            }
+          } catch (e) {
+            print('❌ 保存缩略图路径到历史记录失败: $e');
+          }
         } else {
           print('❌ 缩略图生成失败');
         }
@@ -3512,7 +3603,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// 计算最优延迟时间
   int _calculateOptimalDelay() {
     // 默认延迟
-    int delaySeconds = 3;
+    int delaySeconds = 2; // 缩短默认延迟
 
     if (_isNetworkVideo) {
       // 检查是否是缓存视频
@@ -3520,11 +3611,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       if (hasCache) {
         // 缓存视频延迟较短，因为数据已经本地
-        delaySeconds = 2;
+        delaySeconds = 1;
         print('🎯 检测到缓存视频，使用较短延迟：${delaySeconds}s');
       } else {
-        // 纯网络视频需要更多时间缓冲
-        delaySeconds = 6;
+        // 纯网络视频（包括SMB代理）使用中等延迟
+        delaySeconds = 2;
         print('🌐 纯网络视频，使用较长延迟：${delaySeconds}s');
       }
     } else {

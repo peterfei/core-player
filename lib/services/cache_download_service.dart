@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/cache_config.dart';
 import '../models/cache_entry.dart';
@@ -14,6 +13,7 @@ class DownloadTask {
   final StreamController<DownloadProgress> progressController;
   bool isCancelled = false;
   int downloadedBytes = 0;
+  int totalBytes = 0;
 
   DownloadTask({
     required this.url,
@@ -39,10 +39,11 @@ class CacheDownloadService {
   Stream<DownloadProgress> get globalProgressStream =>
       _globalProgressController.stream;
 
-  Stream<List<int>> downloadAndCache(String url, {String? title}) async* {
+  Stream<List<int>> downloadAndCache(String url, {String? title, String? cacheKey}) async* {
+    final key = cacheKey ?? url;
     // 检查是否已有缓存
     final cacheService = VideoCacheService.instance;
-    final cachePath = await cacheService.getCachePath(url);
+    final cachePath = await cacheService.getCachePath(key);
 
     if (cachePath != null) {
       // 已有完整缓存，直接读取本地文件
@@ -53,40 +54,40 @@ class CacheDownloadService {
     }
 
     // 检查是否已有部分缓存
-    final partialEntry = await cacheService.getCacheEntry(url);
+    final partialEntry = await cacheService.getCacheEntry(key);
     final resumeFromByte = partialEntry?.downloadedBytes ?? 0;
 
     // 创建或获取缓存文件路径
     final filePath = partialEntry?.localPath ??
-        await cacheService.createCacheFile(url, title: title);
+        await cacheService.createCacheFile(key, title: title);
 
     // 如果已在下载中，等待其完成
-    if (_activeDownloads.containsKey(url)) {
-      final task = _activeDownloads[url]!;
+    if (_activeDownloads.containsKey(key)) {
+      final task = _activeDownloads[key]!;
       yield* _streamFromFileWithProgress(filePath, task);
       return;
     }
 
     // 开始新的下载任务
     final task = DownloadTask(
-      url: url,
+      url: url, // Download URL
       filePath: filePath,
       completer: Completer<void>(),
       progressController: StreamController<DownloadProgress>.broadcast(),
     );
 
-    _activeDownloads[url] = task;
+    _activeDownloads[key] = task;
     task.downloadedBytes = resumeFromByte;
 
     try {
       // 并行下载和流式读取
-      final downloadFuture = _downloadFile(url, filePath, resumeFromByte, task);
+      final downloadFuture = _downloadFile(url, filePath, resumeFromByte, task, key);
 
       yield* _streamFromFileWithProgress(filePath, task);
 
       await downloadFuture;
     } finally {
-      _activeDownloads.remove(url);
+      _activeDownloads.remove(key);
       await task.progressController.close();
     }
   }
@@ -94,43 +95,71 @@ class CacheDownloadService {
   Stream<List<int>> _streamFromFileWithProgress(
       String filePath, DownloadTask task) async* {
     final file = File(filePath);
-    int lastReportedSize = 0;
+    int offset = 0;
+    RandomAccessFile? raf;
 
-    while (!task.completer.isCompleted && !task.isCancelled) {
-      try {
+    try {
+      while (!task.completer.isCompleted && !task.isCancelled) {
         if (await file.exists()) {
-          final currentSize = await file.length();
-
-          // 只有当文件大小有变化时才读取新数据
-          if (currentSize > lastReportedSize) {
-            final bytes = await file.readAsBytes();
-            yield bytes.sublist(lastReportedSize, currentSize);
-            lastReportedSize = currentSize;
+          if (raf == null) {
+            raf = await file.open(mode: FileMode.read);
           }
 
-          // 更新进度
+          final length = await raf.length();
+          if (length > offset) {
+            await raf.setPosition(offset);
+            // Read in chunks to avoid memory spikes if a large chunk was written
+            const chunkSize = 64 * 1024; // 64KB chunks
+            while (offset < length) {
+              final readSize = (length - offset) > chunkSize
+                  ? chunkSize
+                  : (length - offset);
+              final bytes = await raf.read(readSize);
+              if (bytes.isEmpty) break;
+              
+              yield bytes;
+              offset += bytes.length;
+            }
+          }
+
+          // Update progress for the task listener (e.g. player)
+          // Note: We do NOT emit to global controller here to avoid conflict with downloader
           final progress = DownloadProgress(
             url: task.url,
-            downloadedBytes: currentSize,
-            totalBytes: 0, // 未知总大小
-            speed: 0, // 速度计算需要在下载器中完成
+            downloadedBytes: offset,
+            totalBytes: task.totalBytes,
+            speed: 0, // Playback stream doesn't calculate download speed
             timestamp: DateTime.now(),
           );
-
           task.progressController.add(progress);
-          _globalProgressController.add(progress);
         }
 
-        await Future.delayed(Duration(milliseconds: 100));
-      } catch (e) {
-        break;
+        await Future.delayed(const Duration(milliseconds: 100));
       }
-    }
 
-    // 最终完整读取
-    if (await file.exists() && task.completer.isCompleted) {
-      final bytes = await file.readAsBytes();
-      yield bytes.sublist(lastReportedSize);
+      // Final check to ensure we read everything
+      if (await file.exists() && task.completer.isCompleted) {
+        if (raf == null) {
+          raf = await file.open(mode: FileMode.read);
+        }
+        final length = await raf.length();
+        if (length > offset) {
+          await raf.setPosition(offset);
+          while (offset < length) {
+             // Read remaining data
+             final bytes = await raf.read(length - offset); // Should be small now
+             if (bytes.isEmpty) break;
+             yield bytes;
+             offset += bytes.length;
+          }
+        }
+      }
+    } catch (e) {
+      print('Error streaming file: $e');
+    } finally {
+      try {
+        await raf?.close();
+      } catch (_) {}
     }
   }
 
@@ -139,6 +168,7 @@ class CacheDownloadService {
     String filePath,
     int resumeFromByte,
     DownloadTask task,
+    String cacheKey,
   ) async {
     try {
       final cacheService = VideoCacheService.instance;
@@ -159,39 +189,76 @@ class CacheDownloadService {
           await randomAccessFile.setPosition(resumeFromByte);
         }
 
-        final request = http.Request('GET', Uri.parse(url));
-        if (resumeFromByte > 0) {
-          request.headers.addAll({'Range': 'bytes=$resumeFromByte-'});
-        }
+        // 尝试下载，带重试机制
+        int retryCount = 0;
+        const maxRetries = 3;
+        
+        while (true) {
+          HttpClient? httpClient;
+          try {
+            // 使用 HttpClient 直接控制代理设置
+            httpClient = HttpClient();
+            // 强制绕过系统代理，直接连接
+            // 这对于连接本地代理服务器 (127.0.0.1 或 192.168.x.x) 至关重要
+            // 避免被 Privoxy 或其他 VPN 代理拦截导致 500 错误
+            httpClient.findProxy = (uri) => 'DIRECT';
+            
+            final request = await httpClient.getUrl(Uri.parse(url));
+            
+            if (resumeFromByte > 0) {
+              request.headers.add('Range', 'bytes=$resumeFromByte-');
+            }
 
-        final client = http.Client();
-        final streamedResponse = await client.send(request);
+            final response = await request.close();
 
-        if (streamedResponse.statusCode != 206 && resumeFromByte > 0) {
-          // 服务器不支持范围请求，重新开始
-          await randomAccessFile.setPosition(0);
-          final newRequest = http.Request('GET', Uri.parse(url));
-          final newResponse = await client.send(newRequest);
-          if (newResponse.statusCode != 200) {
-            throw Exception(
-                'HTTP ${newResponse.statusCode}: Failed to download');
+            if (response.statusCode == 200 || response.statusCode == 206) {
+               // 如果是新下载且有Content-Length，更新缓存条目的文件大小
+              if (resumeFromByte == 0 && response.contentLength > 0) {
+                 await VideoCacheService.instance.updateCacheFileSize(cacheKey, response.contentLength);
+              }
+
+              await _processStreamedResponse(
+                  response, randomAccessFile, task, cacheKey, resumeFromByte);
+              
+              break; // 下载成功，退出重试循环
+            } else {
+              // 读取错误响应体
+              // HttpClientResponse 也是 Stream<List<int>>
+              final body = await response.transform(SystemEncoding().decoder).join();
+              print('❌ Download failed: HTTP ${response.statusCode}');
+              print('   Response body: $body');
+              
+              if (response.statusCode == 416) {
+                 print('⚠️ Range not satisfiable, checking file size...');
+                 throw Exception('HTTP 416: Range not satisfiable');
+              }
+              
+              if (retryCount < maxRetries) {
+                retryCount++;
+                print('⚠️ Download failed, retrying ($retryCount/$maxRetries) in 2s...');
+                await Future.delayed(const Duration(seconds: 2));
+                continue;
+              }
+              
+              throw Exception(
+                  'HTTP ${response.statusCode}: Failed to download. Body: $body');
+            }
+          } catch (e) {
+            if (e.toString().contains('HTTP 416')) rethrow;
+            
+            if (retryCount < maxRetries) {
+              retryCount++;
+              print('⚠️ Download exception: $e');
+              print('   Retrying ($retryCount/$maxRetries) in 2s...');
+              await Future.delayed(const Duration(seconds: 2));
+              continue;
+            }
+            rethrow;
+          } finally {
+            httpClient?.close();
           }
-          await _processStreamedResponse(
-              newResponse, randomAccessFile, task, url, 0);
-        } else if (streamedResponse.statusCode != 200 && resumeFromByte == 0) {
-          throw Exception(
-              'HTTP ${streamedResponse.statusCode}: Failed to download');
-        } else {
-          // 如果是新下载且有Content-Length，更新缓存条目的文件大小
-          if (resumeFromByte == 0 && streamedResponse.contentLength != null) {
-             await VideoCacheService.instance.updateCacheFileSize(url, streamedResponse.contentLength!);
-          }
-
-          await _processStreamedResponse(
-              streamedResponse, randomAccessFile, task, url, resumeFromByte);
         }
-
-        client.close();
+        
         task.completer.complete();
       } finally {
         await randomAccessFile.close();
@@ -199,7 +266,9 @@ class CacheDownloadService {
 
       // 获取文件大小并标记缓存完成
       final fileSize = await file.length();
-      await cacheService.markCacheComplete(url, fileSize);
+      print('✅ 下载完成，文件大小: $fileSize bytes');
+      print('   准备标记缓存为完成状态...');
+      await cacheService.markCacheComplete(cacheKey, fileSize);
     } catch (e) {
       task.completer.completeError(e);
 
@@ -219,30 +288,42 @@ class CacheDownloadService {
   }
 
   Future<void> _processStreamedResponse(
-    http.StreamedResponse response,
+    HttpClientResponse response,
     RandomAccessFile randomAccessFile,
     DownloadTask task,
-    String url,
+    String cacheKey,
     int initialBytes,
   ) async {
     // 尝试获取总大小：优先使用响应头，如果未知则尝试从缓存条目获取
-    int totalBytes = response.contentLength ?? 0;
+    int totalBytes = response.contentLength;
+    if (totalBytes > 0) {
+      task.totalBytes = totalBytes; // Update task's totalBytes
+    }
     if (totalBytes <= 0) {
-      final entry = await VideoCacheService.instance.getCacheEntry(url);
+      final entry = await VideoCacheService.instance.getCacheEntry(cacheKey);
       totalBytes = entry?.fileSize ?? 0;
+      if (totalBytes > 0) {
+        task.totalBytes = totalBytes; // Update task's totalBytes if from cache
+      }
     }
     
-    final contentLength = totalBytes;
+    final contentLength = totalBytes; // This is the final determined total size for progress calculation
     final startTime = DateTime.now();
     int lastProgressTime = startTime.millisecondsSinceEpoch;
 
-    await for (final chunk in response.stream) {
+    // HttpClientResponse 本身就是 Stream<List<int>>
+    await for (final chunk in response) {
       if (task.isCancelled) {
         throw Exception('Download cancelled');
       }
 
       await randomAccessFile.writeFrom(chunk);
       task.downloadedBytes += chunk.length;
+      
+      // 防止下载字节数超过总字节数（可能由于服务器返回的Content-Length不准确）
+      if (task.downloadedBytes > task.totalBytes) {
+        task.downloadedBytes = task.totalBytes;
+      }
 
       final currentTime = DateTime.now().millisecondsSinceEpoch;
 
@@ -250,8 +331,9 @@ class CacheDownloadService {
       if (currentTime - lastProgressTime >= 500) {
         final elapsedTime =
             (currentTime - startTime.millisecondsSinceEpoch) / 1000;
+        final downloadedSinceStart = task.downloadedBytes - initialBytes;
         final speed =
-            elapsedTime > 0 ? task.downloadedBytes / elapsedTime : 0.0;
+            elapsedTime > 0 ? downloadedSinceStart / elapsedTime : 0.0;
 
         final progress = DownloadProgress(
           url: task.url,
@@ -266,7 +348,7 @@ class CacheDownloadService {
 
         // 更新缓存服务中的进度
         await VideoCacheService.instance.updateCacheProgress(
-          url,
+          cacheKey,
           task.downloadedBytes,
           totalBytes: contentLength,
         );

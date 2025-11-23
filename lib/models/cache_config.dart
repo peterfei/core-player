@@ -149,7 +149,9 @@ class DownloadProgress {
 
   double get progressPercentage {
     if (totalBytes <= 0) return 0.0;
-    return downloadedBytes / totalBytes;
+    // 限制进度最大为100%
+    final progress = downloadedBytes / totalBytes;
+    return progress > 1.0 ? 1.0 : progress;
   }
 
   bool get isComplete => downloadedBytes >= totalBytes && totalBytes > 0;

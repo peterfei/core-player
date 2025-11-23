@@ -141,15 +141,27 @@ class NetworkThumbnailService {
         return null;
       }
 
-      // 保存缩略图
-      final thumbnailPath = await _saveThumbnail(videoUrl, imageBytes, width, height);
-      print('✅ 缩略图保存成功: $thumbnailPath');
-
-      // 更新历史记录
-      await _updateHistoryThumbnail(videoUrl, thumbnailPath);
-
-      print('✅ 缩略图生成操作完成 [操作ID: $operationId]');
-      return thumbnailPath;
+      print('✅ 截图成功，大小: ${imageBytes.length} bytes');
+      
+      // 关键修改：立即保存缩略图和更新历史记录，不受播放器释放影响
+      // 使用 unawaited 让保存操作在后台继续执行，即使播放器被释放
+      String? savedThumbnailPath;
+      try {
+        // 立即保存缩略图（同步执行，确保文件写入）
+        savedThumbnailPath = await _saveThumbnail(videoUrl, imageBytes, width, height);
+        print('✅ 缩略图文件保存成功: $savedThumbnailPath');
+        
+        // 立即更新历史记录（同步执行）
+        await _updateHistoryThumbnail(videoUrl, savedThumbnailPath);
+        print('✅ 历史记录已更新缩略图路径');
+        
+        print('✅ 缩略图生成操作完成 [操作ID: $operationId]');
+        return savedThumbnailPath;
+      } catch (e) {
+        print('❌ 保存缩略图或更新历史记录失败: $e');
+        // 即使更新历史记录失败，也返回缩略图路径
+        return savedThumbnailPath;
+      }
     } catch (e) {
       if (e.toString().contains('Player has been disposed')) {
         print('⚠️ 播放器在缩略图生成过程中被释放 [操作ID: $operationId]');
@@ -468,16 +480,36 @@ class NetworkThumbnailService {
     String thumbnailPath,
   ) async {
     try {
+      print('🔍 开始更新历史记录缩略图...');
+      print('   视频URL: $videoUrl');
+      print('   缩略图路径: $thumbnailPath');
+      
       final histories = await HistoryService.getHistories();
+      print('   历史记录总数: ${histories.length}');
 
       // 查找匹配的历史记录
+      bool found = false;
       for (final history in histories) {
+        // 调试日志：显示每条历史记录的关键信息
+        if (history.sourceType == 'network') {
+          print('   检查历史记录: ${history.videoName}');
+          print('     - videoPath: ${history.videoPath}');
+          print('     - streamUrl: ${history.streamUrl}');
+          print('     - sourceType: ${history.sourceType}');
+        }
+        
         if (history.videoPath == videoUrl ||
             (history.sourceType == 'network' && history.streamUrl == videoUrl)) {
           await HistoryService.updateThumbnailPath(history.id, thumbnailPath);
           print('✅ 已更新历史记录缩略图: ${history.videoName}');
+          found = true;
           break;
         }
+      }
+      
+      if (!found) {
+        print('⚠️ 未找到匹配的历史记录');
+        print('   搜索的URL: $videoUrl');
       }
     } catch (e) {
       print('❌ 更新历史记录缩略图失败: $e');

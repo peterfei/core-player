@@ -57,8 +57,10 @@ class SimpleThumbnailService {
         return null;
       }
 
-      // 检查视频文件是否存在
-      if (!await File(videoPath).exists()) {
+      final isNetworkUrl = videoPath.startsWith('http') || videoPath.startsWith('https');
+
+      // 检查视频文件是否存在 (仅限本地文件)
+      if (!isNetworkUrl && !await File(videoPath).exists()) {
         print('视频文件不存在: $videoPath');
         return null;
       }
@@ -78,8 +80,8 @@ class SimpleThumbnailService {
         return thumbnailPath;
       }
 
-      // macOS: 优先尝试原生AVFoundation视频帧捕获
-      if (Platform.isMacOS) {
+      // macOS: 优先尝试原生AVFoundation视频帧捕获 (仅限本地文件)
+      if (Platform.isMacOS && !isNetworkUrl) {
         print('🎯 尝试原生AVFoundation视频帧捕获（最高优先级）...');
         try {
           final nativeFrame = await NativeVideoCaptureService.captureVideoFrame(
@@ -103,8 +105,8 @@ class SimpleThumbnailService {
         }
       }
 
-      // macOS和Linux: 尝试FFmpeg
-      if (Platform.isMacOS || Platform.isLinux) {
+      // macOS和Linux: 尝试FFmpeg (仅限本地文件)
+      if ((Platform.isMacOS || Platform.isLinux) && !isNetworkUrl) {
         print('${Platform.isMacOS ? 'macOS' : 'Linux'}: 尝试使用FFmpeg生成缩略图...');
         final success = await _trySystemFFmpeg(
             videoPath, thumbnailPath, width, height, seekSeconds);
@@ -127,7 +129,7 @@ class SimpleThumbnailService {
         }
       }
 
-      // 尝试使用VideoPlayer提取真实视频帧
+      // 尝试使用VideoPlayer提取真实视频帧 (支持本地和网络)
       print('尝试使用VideoPlayer提取真实视频帧...');
       final success = await _tryVideoPlayerRealFrame(
           videoPath, thumbnailPath, width, height, seekSeconds);
@@ -138,7 +140,7 @@ class SimpleThumbnailService {
         print('❌ VideoPlayer提取真实帧失败，降级到增强占位符');
       }
 
-      // 尝试使用VideoPlayer获取视频信息创建占位符
+      // 尝试使用VideoPlayer获取视频信息创建占位符 (支持本地和网络)
       print('尝试使用VideoPlayer创建增强占位符...');
       final placeholderSuccess = await _tryVideoPlayerPlaceholder(
           videoPath, thumbnailPath, width, height);
@@ -234,7 +236,10 @@ class SimpleThumbnailService {
     try {
       print('使用VideoPlayer提取真实视频帧开始...');
 
-      final controller = VideoPlayerController.file(File(videoPath));
+      final isNetworkUrl = videoPath.startsWith('http') || videoPath.startsWith('https');
+      final controller = isNetworkUrl
+          ? VideoPlayerController.networkUrl(Uri.parse(videoPath))
+          : VideoPlayerController.file(File(videoPath));
 
       // 初始化控制器
       await controller.initialize();
@@ -368,19 +373,21 @@ class SimpleThumbnailService {
       // 获取文件大小
       String fileSizeText = '';
       try {
-        final file = File(videoPath);
-        if (await file.exists()) {
-          final fileSize = await file.length();
-          if (fileSize < 1024) {
-            fileSizeText = '${fileSize} B';
-          } else if (fileSize < 1024 * 1024) {
-            fileSizeText = '${(fileSize / 1024).toStringAsFixed(1)} KB';
-          } else if (fileSize < 1024 * 1024 * 1024) {
-            fileSizeText =
-                '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
-          } else {
-            fileSizeText =
-                '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+        if (!isNetworkUrl) {
+          final file = File(videoPath);
+          if (await file.exists()) {
+            final fileSize = await file.length();
+            if (fileSize < 1024) {
+              fileSizeText = '${fileSize} B';
+            } else if (fileSize < 1024 * 1024) {
+              fileSizeText = '${(fileSize / 1024).toStringAsFixed(1)} KB';
+            } else if (fileSize < 1024 * 1024 * 1024) {
+              fileSizeText =
+                  '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+            } else {
+              fileSizeText =
+                  '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+            }
           }
         }
       } catch (e) {
@@ -485,7 +492,10 @@ class SimpleThumbnailService {
       print('❌ VideoPlayer高质量缩略图生成失败: $e');
       try {
         // 确保controller被释放
-        final controller = VideoPlayerController.file(File(videoPath));
+        final isNetworkUrl = videoPath.startsWith('http') || videoPath.startsWith('https');
+        final controller = isNetworkUrl
+            ? VideoPlayerController.networkUrl(Uri.parse(videoPath))
+            : VideoPlayerController.file(File(videoPath));
         await controller.initialize();
         await controller.dispose();
       } catch (e2) {
@@ -504,7 +514,10 @@ class SimpleThumbnailService {
   ) async {
     try {
       print('尝试使用VideoPlayer获取视频信息...');
-      final controller = VideoPlayerController.file(File(videoPath));
+      final isNetworkUrl = videoPath.startsWith('http') || videoPath.startsWith('https');
+      final controller = isNetworkUrl
+          ? VideoPlayerController.networkUrl(Uri.parse(videoPath))
+          : VideoPlayerController.file(File(videoPath));
       await controller.initialize();
 
       // 获取详细视频信息

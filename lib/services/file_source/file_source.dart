@@ -13,6 +13,9 @@ abstract class FileSource {
   /// [start] 起始字节位置（包含）
   /// [end] 结束字节位置（包含）
   Stream<List<int>> openRead(String path, [int? start, int? end]);
+
+  /// 获取单个文件信息（用于直接获取大小，无需列出目录）
+  Future<FileItem?> getFileInfo(String path);
 }
 
 class FileItem {
