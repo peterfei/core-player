@@ -12,8 +12,11 @@ import 'package:yinghe_player/services/settings_service.dart';
 
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
+import 'package:yinghe_player/services/plugin_status_service.dart';
+import 'package:yinghe_player/services/global_error_handler.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
+import 'package:yinghe_player/core/plugin_system/plugin_loader.dart';
 
 
 void main() async {
@@ -31,11 +34,14 @@ void main() async {
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.normal,
   );
-  
+
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
     await windowManager.focus();
   });
+
+  // 初始化全局错误处理器
+  GlobalErrorHandler().initialize();
 
   // 捕获 Flutter 框架错误(包括键盘事件错误)
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -85,11 +91,11 @@ class _MyAppState extends State<MyApp> {
 
       // 初始化影视服务器服务
       await MediaServerService.initialize();
-      
+
       // 初始化媒体库服务
       await MediaLibraryService.init();
       await MetadataStoreService.init();
-      
+
       // 初始化 TMDB 服务
       final tmdbApiKey = await SettingsService.getTMDBApiKey();
       final tmdbAccessToken = await SettingsService.getTMDBAccessToken();
@@ -99,6 +105,24 @@ class _MyAppState extends State<MyApp> {
 
       // 启动代理服务器
       await LocalProxyServer.instance.start();
+
+      // 初始化插件系统
+      try {
+        await initializePluginSystem(config: PluginLoadConfig(
+          autoActivate: false, // 暂时禁用自动激活
+          enableLazyLoading: false,
+          loadTimeout: const Duration(seconds: 10),
+          maxConcurrentLoads: 2,
+        ));
+        print('Plugin system initialized successfully');
+
+        // 初始化插件状态服务
+        await PluginStatusService().initialize();
+        print('Plugin status service initialized successfully');
+      } catch (e) {
+        print('Failed to initialize plugin system: $e');
+        // 插件系统初始化失败不应该阻止应用启动
+      }
 
       if (mounted) {
         setState(() {
@@ -118,8 +142,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    Widget childWidget;
+
     if (!_initialized) {
-      return MaterialApp(
+      childWidget = MaterialApp(
         title: 'CorePlayer',
         theme: AppTheme.darkTheme,
         home: const Scaffold(
@@ -133,7 +159,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 SizedBox(height: 20),
                 Text(
-                  '正在初始化缓存服务...',
+                  '正在初始化应用和插件系统...',
                   style: AppTextStyles.bodyLarge,
                 ),
               ],
@@ -141,47 +167,52 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
       );
+    } else {
+      childWidget = MaterialApp(
+        title: 'CorePlayer',
+        theme: AppTheme.darkTheme,
+        home: _error != null
+            ? Scaffold(
+                backgroundColor: AppColors.background,
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: AppColors.error,
+                        size: 64,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        '缓存服务初始化失败',
+                        style: AppTextStyles.headlineSmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '应用将在无缓存模式下运行',
+                        style: AppTextStyles.bodyMedium,
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _error = null;
+                          });
+                        },
+                        child: const Text('继续使用'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : const HomeScreen(),
+      );
     }
 
-    return MaterialApp(
-      title: 'CorePlayer',
-      theme: AppTheme.darkTheme,
-      home: _error != null
-          ? Scaffold(
-              backgroundColor: AppColors.background,
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: AppColors.error,
-                      size: 64,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      '缓存服务初始化失败',
-                      style: AppTextStyles.headlineSmall,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '应用将在无缓存模式下运行',
-                      style: AppTextStyles.bodyMedium,
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _error = null;
-                        });
-                      },
-                      child: const Text('继续使用'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : const HomeScreen(),
+    // 包装全局错误监听器
+    return GlobalErrorListener(
+      child: childWidget,
     );
   }
 }
