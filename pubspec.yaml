@@ -61,6 +61,10 @@ dependencies:
   smb_connect: ^0.0.9
   uuid: ^4.5.2
   battery_plus: ^7.0.0
+  dio: ^5.4.0
+  pub_semver: ^2.1.4
+  archive: ^3.6.1
+  yaml: ^3.1.2
 
   # CorePlayer Pro商业插件包
   coreplayer_pro_plugins:

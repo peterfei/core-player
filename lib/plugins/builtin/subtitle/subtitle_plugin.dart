@@ -41,7 +41,7 @@ class SubtitlePlugin extends CorePlugin {
   SubtitlePlugin();
 
   @override
-  PluginMetadata get metadata => _metadata;
+  PluginMetadata get staticMetadata => _metadata;
 
   @override
   PluginState get state => _internalState;
@@ -59,7 +59,7 @@ class SubtitlePlugin extends CorePlugin {
     // 加载默认样式
     await _loadDefaultStyle();
 
-    setStateInternal(PluginState.initialized);
+    setStateInternal(PluginState.ready);
     print('SubtitlePlugin initialized');
   }
 
@@ -78,7 +78,7 @@ class SubtitlePlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     _currentSubtitles.clear();
     _parsers.clear();
     setStateInternal(PluginState.disposed);

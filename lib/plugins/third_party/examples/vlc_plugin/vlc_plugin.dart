@@ -64,7 +64,7 @@ class VLCPlugin extends CorePlugin {
   VLCConfig _config = const VLCConfig();
 
   /// 统计信息
-  VLCStats _stats = const VLCStats();
+  VLCStats _stats = VLCStats(lastUpdate: DateTime.now());
 
   /// 定时器
   Timer? _statsTimer;
@@ -72,7 +72,7 @@ class VLCPlugin extends CorePlugin {
   VLCPlugin();
 
   @override
-  PluginMetadata get metadata => _metadata;
+  PluginMetadata get staticMetadata => _metadata;
 
   @override
   PluginState get state => _internalState;
@@ -94,7 +94,7 @@ class VLCPlugin extends CorePlugin {
       // 启动统计定时器
       _startStatsTimer();
 
-      setStateInternal(PluginState.initialized);
+      setStateInternal(PluginState.ready);
       print('VLCPlugin initialized');
     } catch (e) {
       print('Failed to initialize VLCPlugin: $e');
@@ -132,7 +132,7 @@ class VLCPlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     // 停止统计定时器
     _statsTimer?.cancel();
     _statsTimer = null;

@@ -1,6 +1,10 @@
+import 'dart:math' as math;
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter/services.dart';
 import '../../../core/plugin_system/core_plugin.dart';
 import '../../../core/plugin_system/plugin_interface.dart';
@@ -54,7 +58,7 @@ class ThemePlugin extends CorePlugin {
   ThemePlugin();
 
   @override
-  PluginMetadata get metadata => _metadata;
+  PluginMetadata get staticMetadata => _metadata;
 
   @override
   PluginState get state => _internalState;
@@ -73,9 +77,9 @@ class ThemePlugin extends CorePlugin {
     await _loadCustomThemes();
 
     // 应用默认主题
-    await _applyTheme('default');
+    await applyTheme('default');
 
-    setStateInternal(PluginState.initialized);
+    setStateInternal(PluginState.ready);
     print('ThemePlugin initialized');
   }
 
@@ -92,7 +96,7 @@ class ThemePlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     _currentTheme = null;
     _builtinThemes.clear();
     _customThemes.clear();
@@ -236,10 +240,10 @@ class ThemePlugin extends CorePlugin {
   }
 
   /// 获取内置主题
-  Map<String, AppTheme> getBuiltinThemes => Map.unmodifiable(_builtinThemes);
+  Map<String, AppTheme> get getBuiltinThemes => Map.unmodifiable(_builtinThemes);
 
   /// 获取自定义主题
-  Map<String, AppTheme> getCustomThemes => Map.unmodifiable(_customThemes);
+  Map<String, AppTheme> get getCustomThemes => Map.unmodifiable(_customThemes);
 
   /// 创建自定义主题
   String createCustomTheme({
@@ -423,10 +427,10 @@ class ThemePlugin extends CorePlugin {
 
     // 生成主色调
     final hue = random.nextDouble() * 360;
-    final primary = HSLColor.fromAHSL(hue, 0.7, 0.5).toColor();
+    final primary = HSLColor.fromAHSL(1.0, hue, 0.7, 0.5).toColor();
 
     // 生成互补色
-    final complementary = HSLColor.fromAHSL((hue + 180) % 360, 0.7, 0.5).toColor();
+    final complementary = HSLColor.fromAHSL(1.0, (hue + 180) % 360, 0.7, 0.5).toColor();
 
     // 生成背景色
     final background = isDark ? Colors.black : Colors.white;
@@ -440,7 +444,7 @@ class ThemePlugin extends CorePlugin {
       'primary': primary,
       'secondary': complementary,
       'background': background,
-      'surface': surface,
+      'surface': surface ?? Colors.grey,
     };
   }
 
@@ -458,7 +462,7 @@ class ThemePlugin extends CorePlugin {
         foregroundColor: isDark ? Colors.white : Colors.black,
         elevation: 2,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: isDark ? Color(0xFF1E1E1E) : Colors.white,
         elevation: 2,
       ),
@@ -543,7 +547,7 @@ class ThemePlugin extends CorePlugin {
         foregroundColor: isDark ? Colors.white : Colors.black,
         elevation: 2,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surfaceColor,
         elevation: 2,
       ),
@@ -620,9 +624,9 @@ class AppTheme {
       'id': id,
       'name': name,
       'description': description,
-      'previewColors': previewColors.map((key, value) => {
-        key: value.value,
-      }),
+      'previewColors': previewColors.map((key, value) => MapEntry(
+        key, value.value
+      )),
       'isDark': isDark,
       'isCustom': isCustom,
       'createdAt': createdAt?.toIso8601String(),

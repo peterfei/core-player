@@ -67,7 +67,7 @@ class BilibiliPlugin extends CorePlugin {
   BilibiliPlugin();
 
   @override
-  PluginMetadata get metadata => _metadata;
+  PluginMetadata get staticMetadata => _metadata;
 
   @override
   PluginState get state => _internalState;
@@ -91,7 +91,7 @@ class BilibiliPlugin extends CorePlugin {
     // 初始化弹幕管理器
     _danmakuManager.initialize();
 
-    setStateInternal(PluginState.initialized);
+    setStateInternal(PluginState.ready);
     print('BilibiliPlugin initialized');
   }
 
@@ -125,7 +125,7 @@ class BilibiliPlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     _httpClient?.close();
     _danmakuManager.dispose();
     _searchHistory.clear();
@@ -181,6 +181,7 @@ class BilibiliPlugin extends CorePlugin {
               duration: item['duration'],
               picUrl: item['pic'],
               publishedAt: DateTime.fromMillisecondsSinceEpoch(item['pubdate'] * 1000),
+              cid: item['cid'] ?? 0,
             );
           }).toList();
 
@@ -464,7 +465,7 @@ class BilibiliPlugin extends CorePlugin {
   }
 
   /// 设置配置
-  void setConfig(BilibiliConfig config) {
+  void setBilibiliConfig(BilibiliConfig config) {
     _config = config;
     _danmakuManager.updateConfig(config);
     _saveConfig();

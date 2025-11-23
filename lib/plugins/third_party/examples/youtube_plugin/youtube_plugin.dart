@@ -65,7 +65,7 @@ class YouTubePlugin extends CorePlugin {
   YouTubePlugin();
 
   @override
-  PluginMetadata get metadata => _metadata;
+  PluginMetadata get staticMetadata => _metadata;
 
   @override
   PluginState get state => _internalState;
@@ -86,7 +86,7 @@ class YouTubePlugin extends CorePlugin {
     // 加载缓存数据
     await _loadCacheData();
 
-    setStateInternal(PluginState.initialized);
+    setStateInternal(PluginState.ready);
     print('YouTubePlugin initialized');
   }
 
@@ -117,7 +117,7 @@ class YouTubePlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     _apiClient?.close();
     _playlists.clear();
     _captions.clear();
@@ -396,7 +396,7 @@ class YouTubePlugin extends CorePlugin {
   }
 
   /// 设置配置
-  void setConfig(YouTubeConfig config) {
+  void setYouTubeConfig(YouTubeConfig config) {
     _config = config;
     _saveConfig();
   }

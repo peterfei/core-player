@@ -47,7 +47,7 @@ class AudioEffectsPlugin extends CorePlugin {
   AudioEffectsPlugin();
 
   @override
-  PluginMetadata get metadata => _metadata;
+  PluginMetadata get staticMetadata => _metadata;
 
   @override
   PluginState get state => _internalState;
@@ -65,7 +65,7 @@ class AudioEffectsPlugin extends CorePlugin {
     // 初始化均衡器
     _initializeEqualizer();
 
-    setStateInternal(PluginState.initialized);
+    setStateInternal(PluginState.ready);
     print('AudioEffectsPlugin initialized');
   }
 
@@ -84,7 +84,7 @@ class AudioEffectsPlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     _spectrumController.close();
     _equalizerGains.fillRange(0, _equalizerGains.length, 0.0);
     _spectrumData.fillRange(0, _spectrumData.length, 0.0);

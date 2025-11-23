@@ -19,11 +19,15 @@ class EditionConfig {
 
   static String get currentEdition {
     const edition = String.fromEnvironment('EDITION', defaultValue: community);
+
+    // 🔧 调试输出当前版本
+    print('🏷️ Current Edition: $edition (Environment: ${const String.fromEnvironment('EDITION')})');
+
     return edition;
   }
 
   static bool get isCommunityEdition => currentEdition == community;
-  static bool get isProEdition => currentEdition == pro;
+  static bool get isProEdition => currentEdition == pro || currentEdition == 'prod';
 
   /// 检查特定版本是否可用
   static bool isEditionAvailable(String edition) {

@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import '../core/plugin_system/plugin_loader.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/core_plugin.dart';
+import '../core/plugin_system/plugin_metadata_loader.dart';
 import '../services/plugin_status_service.dart';
 import '../widgets/plugin_error_handler.dart';
 import '../widgets/plugin_performance_dashboard.dart';
 import 'plugin_manager/plugin_filter_model.dart';
-import 'plugin_manager/advanced_search_widget.dart';
+
+import 'package:yinghe_player/widgets/update/update_notification_dialog.dart';
+import 'package:yinghe_player/screens/plugin_update_management_page.dart';
+import 'package:yinghe_player/plugins/plugin_registry_update_extension.dart';
+import 'package:yinghe_player/core/plugin_system/plugin_registry.dart';
+import '../services/update/update_detector.dart';
 
 class PluginManagerScreen extends StatefulWidget {
   const PluginManagerScreen({super.key});
@@ -37,6 +43,42 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     _tabController.addListener(_onTabChanged);
     _loadPlugins();
     _searchController.addListener(_onSearchChanged);
+    
+    // 延迟检查更新
+    Future.delayed(const Duration(seconds: 1), _checkAutoUpdates);
+  }
+
+  Future<void> _checkAutoUpdates() async {
+    try {
+      final updates = await PluginRegistry().checkAllPluginUpdates();
+      if (updates.isNotEmpty && mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => UpdateNotificationDialog(
+            updates: updates,
+            onUpdateNow: () {
+              Navigator.of(context).pop();
+              _showUpdateManagementPage();
+            },
+            onUpdateLater: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Auto update check failed: $e');
+      }
+    }
+  }
+
+  void _showUpdateManagementPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PluginUpdateManagementPage(),
+      ),
+    );
   }
 
   void _onTabChanged() {
@@ -77,6 +119,19 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
         _filteredPlugins = _allPlugins;
         _isLoading = false;
       });
+
+      // 🔧 强制刷新插件元数据以确保显示最新版本
+      await _refreshPluginMetadata(_allPlugins);
+
+      // 🔧 强制重新初始化PluginStatusService以清除缓存
+      await pluginService.initialize();
+
+      // 重新获取更新后的插件列表
+      setState(() {
+        _allPlugins = pluginService.plugins.values.toList();
+        _filteredPlugins = _allPlugins;
+      });
+
       _applyFiltersAndSearch();
     } catch (e) {
       setState(() {
@@ -165,6 +220,11 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.system_update),
+            onPressed: _showUpdateManagementPage,
+            tooltip: '检查更新',
+          ),
+          IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () {
               setState(() {
@@ -180,9 +240,14 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
               tooltip: '清除所有过滤',
             ),
           IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            onPressed: _clearAllUpdateCache,
+            tooltip: '清除所有更新缓存',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadPlugins,
-            tooltip: '刷新插件状态',
+            tooltip: '强制刷新插件列表和版本',
           ),
         ],
       ),
@@ -506,60 +571,7 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     );
   }
 
-  Widget _buildPluginList(int tabIndex) {
-    final plugins = _getPluginsByTab(tabIndex);
 
-    if (plugins.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              tabIndex == 0
-                  ? Icons.extension_outlined
-                  : tabIndex == 1
-                      ? Icons.check_circle_outline
-                      : Icons.disabled_by_default,
-              size: 64,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              tabIndex == 0
-                  ? (_hasActiveFilters() ? '没有匹配的插件' : '未找到插件')
-                  : tabIndex == 1
-                      ? '没有已启用的插件'
-                      : '没有可用的插件',
-              style: const TextStyle(
-                fontSize: 18,
-                color: Colors.grey,
-              ),
-            ),
-            if (_hasActiveFilters() && tabIndex == 0) ...[
-              const SizedBox(height: 8),
-              Text(
-                '尝试调整搜索条件',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      key: PageStorageKey<int>(tabIndex),
-      controller: _scrollController,
-      itemCount: plugins.length,
-      itemBuilder: (context, index) {
-        final plugin = plugins[index];
-        return _buildPluginCard(plugin);
-      },
-    );
-  }
 
   /// 构建 Sliver 版本的插件列表（用于 CustomScrollView）
   Widget _buildPluginListSliver(int tabIndex) {
@@ -612,10 +624,34 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-          final plugin = plugins[index];
+          if (index == 0) {
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.system_update, color: Colors.blue),
+                ),
+                title: const Text('检查插件更新'),
+                subtitle: const Text('查看并管理所有插件的更新'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                onTap: _showUpdateManagementPage,
+              ),
+            );
+          }
+          final plugin = plugins[index - 1];
           return _buildPluginCard(plugin);
         },
-        childCount: plugins.length,
+        childCount: plugins.length + 1,
       ),
     );
   }
@@ -877,6 +913,13 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
         );
       }
     } catch (e) {
+      // 🔧 特定捕获FeatureNotAvailableException
+      if (e.toString().contains('FeatureNotAvailableException') ||
+          e.toString().contains('仅专业版可用')) {
+        await _showUpgradeDialog(plugin);
+        return;
+      }
+
       await PluginErrorHandler.showErrorDialog(
         context,
         error: e,
@@ -1042,6 +1085,66 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
   }
 
 
+  /// 获取插件安装路径
+  String _getPluginInstallPath(String pluginId) {
+    switch (pluginId) {
+      case 'builtin.subtitle':
+        return 'lib/plugins/builtin/subtitle';
+      case 'builtin.audio_effects':
+        return 'lib/plugins/builtin/audio_effects';
+      case 'builtin.video_enhancement':
+        return 'lib/plugins/builtin/video_processing';
+      case 'builtin.theme_manager':
+        return 'lib/plugins/builtin/ui_themes';
+      case 'builtin.metadata_enhancer':
+        return 'lib/plugins/builtin/metadata';
+      case 'com.coreplayer.smb':
+        return 'lib/plugins/commercial/media_server/smb';
+      case 'third_party.youtube':
+        return 'lib/plugins/third_party/examples/youtube_plugin';
+      case 'third_party.bilibili':
+        return 'lib/plugins/third_party/examples/bilibili_plugin';
+      case 'third_party.vlc':
+        return 'lib/plugins/third_party/examples/vlc_plugin';
+      default:
+        return 'lib/plugins/custom/$pluginId';
+    }
+  }
+
+  /// 强制刷新插件元数据
+  Future<void> _refreshPluginMetadata(List<CorePlugin> plugins) async {
+    print('🔄 开始强制刷新插件元数据...');
+
+    final metadataLoader = PluginMetadataLoader();
+    int updatedCount = 0;
+
+    for (final plugin in plugins) {
+      try {
+        final pluginId = plugin.metadata.id;
+        final pluginPath = _getPluginInstallPath(pluginId);
+
+        // 从磁盘读取最新元数据
+        final freshMetadata = await metadataLoader.loadFromFile(pluginPath);
+
+        // 比较版本号
+        if (freshMetadata.version != plugin.metadata.version) {
+          print('🔄 发现版本不一致: $pluginId ${plugin.metadata.version} → ${freshMetadata.version}');
+
+          // 通过 PluginRegistryUpdateExtension 更新元数据
+          final registry = pluginRegistry;
+          if (registry.hasPlugin(pluginId)) {
+            await registry.updateMetadata(pluginId, pluginPath);
+            updatedCount++;
+          }
+        }
+      } catch (e) {
+        print('⚠️ 刷新插件 ${plugin.metadata.id} 元数据失败: $e');
+      }
+    }
+
+    print('✅ 元数据刷新完成，更新了 $updatedCount 个插件');
+  }
+
   void _showMessage(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1050,6 +1153,54 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  
+  /// 清除所有更新缓存
+  Future<void> _clearAllUpdateCache() async {
+    try {
+      final detector = UpdateDetector();
+
+      // 显示加载对话框
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('正在清除缓存...'),
+            ],
+          ),
+        ),
+      );
+
+      // 强制清除所有缓存
+      await detector.forceClearAllUpdateCache();
+
+      // 关闭加载对话框
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // 显示成功消息
+      if (mounted) {
+        _showMessage('已清除所有更新缓存', Colors.green);
+
+        // 重新加载插件列表
+        await _loadPlugins();
+      }
+    } catch (e) {
+      // 关闭加载对话框
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        _showMessage('清除缓存失败: $e', Colors.red);
+      }
+    }
   }
 }
 
@@ -1099,7 +1250,8 @@ class _StatCard extends StatelessWidget {
       ),
     );
   }
-}
+
+  }
 
 class BulletPoint extends StatelessWidget {
   final String text;

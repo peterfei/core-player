@@ -6,6 +6,7 @@ import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugins/media_server/placeholders/media_server_placeholder.dart';
 import '../core/plugin_system/plugins/media_server/smb/smb_plugin.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/plugin_registry.dart';
 import 'plugin_performance_service.dart';
 import 'plugin_lazy_loader.dart';
 
@@ -77,23 +78,57 @@ class PluginStatusService {
       _startMemoryCleanupTimer();
 
       // 加载所有可用插件到显示列表（但不激活它们）
-      final availablePluginIds = _lazyLoader.getAvailablePluginIds();
-      if (kDebugMode) {
-        print('Loading ${availablePluginIds.length} available plugins...');
-      }
+      List<String> availablePluginIds;
 
-      for (final pluginId in availablePluginIds) {
-        try {
-          final plugin = await _lazyLoader.loadPlugin(pluginId);
-          if (plugin != null) {
-            _plugins[pluginId] = plugin;
+      if (EditionConfig.isProEdition) {
+        // 🔧 专业版：从PluginLoader获取已加载的插件
+        final loaderPluginIds = pluginLoader.loadedPluginIds;
+        availablePluginIds = loaderPluginIds;
+        if (kDebugMode) {
+          print('🔧 Pro Edition: Loading ${availablePluginIds.length} plugins from PluginLoader...');
+        }
+
+        // 从PluginLoader的注册表获取插件实例
+        final registry = PluginRegistry();
+        for (final pluginId in availablePluginIds) {
+          try {
+            final plugin = registry.get<CorePlugin>(pluginId);
+            if (plugin != null) {
+              _plugins[pluginId] = plugin;
+              if (kDebugMode) {
+                print('✅ Loaded plugin from registry: $pluginId (${plugin.metadata.name}) v${plugin.metadata.version}');
+              }
+            } else {
+              if (kDebugMode) {
+                print('⚠️ Plugin not found in registry: $pluginId');
+              }
+            }
+          } catch (e) {
             if (kDebugMode) {
-              print('Loaded plugin: $pluginId (${plugin.metadata.name})');
+              print('❌ Failed to load plugin $pluginId from registry: $e');
             }
           }
-        } catch (e) {
-          if (kDebugMode) {
-            print('Failed to load plugin $pluginId: $e');
+        }
+      } else {
+        // 社区版：从PluginLazyLoader获取插件
+        availablePluginIds = _lazyLoader.getAvailablePluginIds();
+        if (kDebugMode) {
+          print('🔧 Community Edition: Loading ${availablePluginIds.length} plugins from LazyLoader...');
+        }
+
+        for (final pluginId in availablePluginIds) {
+          try {
+            final plugin = await _lazyLoader.loadPlugin(pluginId);
+            if (plugin != null) {
+              _plugins[pluginId] = plugin;
+              if (kDebugMode) {
+                print('✅ Loaded plugin from lazy loader: $pluginId (${plugin.metadata.name})');
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              print('❌ Failed to load plugin $pluginId from lazy loader: $e');
+            }
           }
         }
       }
@@ -121,34 +156,73 @@ class PluginStatusService {
     _lazyLoader.unloadUnusedPlugins();
   }
 
-  /// 激活插件（使用懒加载）
+  /// 激活插件（根据版本使用不同的激活方式）
   Future<bool> activatePlugin(String pluginId) async {
     try {
-      // 懒加载插件
-      final plugin = await _lazyLoader.loadPluginWithTimeout(pluginId);
-      if (plugin == null) {
-        return false;
+      print('🔧 Activating plugin: $pluginId');
+
+      CorePlugin? plugin;
+
+      if (EditionConfig.isProEdition) {
+        // 🔧 专业版：从PluginLoader的注册表获取插件并激活
+        final registry = PluginRegistry();
+        plugin = registry.get<CorePlugin>(pluginId);
+
+        if (plugin == null) {
+          print('❌ Plugin not found in registry: $pluginId');
+          _performanceService.recordActivation(pluginId, success: false);
+          return false;
+        }
+
+        print('✅ Found plugin in registry: $pluginId (${plugin.metadata.name})');
+
+        // 确保插件已初始化
+        if (!plugin.isInitialized) {
+          await plugin.initialize();
+        }
+
+        // 使用PluginLoader的激活机制
+        await pluginLoader.activatePlugin(pluginId);
+
+        print('✅ Plugin activated via PluginLoader: $pluginId');
+      } else {
+        // 社区版：使用懒加载激活
+        plugin = await _lazyLoader.loadPluginWithTimeout(pluginId);
+        if (plugin == null) {
+          print('❌ Failed to load plugin: $pluginId');
+          _performanceService.recordActivation(pluginId, success: false);
+          return false;
+        }
+
+        // 添加到已加载插件列表
+        _plugins[pluginId] = plugin;
+
+        // 激活插件
+        if (!plugin.isReady) {
+          await plugin.initialize();
+        }
+        await plugin.activate();
+
+        print('✅ Plugin activated via LazyLoader: $pluginId');
       }
 
-      // 添加到已加载插件列表
-      _plugins[pluginId] = plugin;
-
-      // 激活插件
-      if (!plugin.isReady) {
-        await plugin.initialize();
+      // 更新本地插件缓存
+      if (plugin != null) {
+        _plugins[pluginId] = plugin;
       }
-      await plugin.activate();
 
       // 记录性能指标
       _performanceService.recordActivation(pluginId, success: true);
 
       // 发送状态变化事件
-      _statusController.add(PluginStatusChangeEvent(
-        pluginId: pluginId,
-        plugin: plugin,
-        oldState: PluginState.ready,
-        newState: PluginState.active,
-      ));
+      if (plugin != null) {
+        _statusController.add(PluginStatusChangeEvent(
+          pluginId: pluginId,
+          plugin: plugin,
+          oldState: PluginState.ready,
+          newState: PluginState.active,
+        ));
+      }
 
       return true;
     } catch (e) {
@@ -156,7 +230,7 @@ class PluginStatusService {
       _performanceService.recordActivation(pluginId, success: false);
 
       if (kDebugMode) {
-        print('Failed to activate plugin $pluginId: $e');
+        print('❌ Failed to activate plugin $pluginId: $e');
       }
       return false;
     }
