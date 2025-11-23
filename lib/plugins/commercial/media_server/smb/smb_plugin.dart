@@ -8,7 +8,7 @@ class SMBPlugin extends CorePlugin {
   static final _metadata = PluginMetadata(
     id: 'com.coreplayer.smb',
     name: 'SMB/CIFS 网络共享',
-    version: '1.0.0',
+    version: '1.1.0',
     description: '支持SMB/CIFS网络协议访问共享文件',
     author: 'CorePlayer Team',
     icon: Icons.network_check,
