@@ -9,6 +9,7 @@ import 'format_support_screen.dart';
 import 'video_playback_settings_screen.dart';
 import 'metadata_settings_screen.dart';
 import 'metadata_management_page.dart';
+import 'plugin_manager_screen.dart';
 
 
 class SettingsScreen extends StatelessWidget {
@@ -195,6 +196,20 @@ class SettingsScreen extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const FormatSupportScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.extension),
+            title: const Text('插件管理'),
+            subtitle: const Text('管理和配置应用插件'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PluginManagerScreen(),
                 ),
               );
             },

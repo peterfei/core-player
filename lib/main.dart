@@ -12,6 +12,7 @@ import 'package:yinghe_player/services/settings_service.dart';
 
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
+import 'package:yinghe_player/services/plugin_status_service.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 import 'package:yinghe_player/core/plugin_system/plugin_loader.dart';
@@ -110,6 +111,10 @@ class _MyAppState extends State<MyApp> {
           maxConcurrentLoads: 2,
         ));
         print('Plugin system initialized successfully');
+
+        // 初始化插件状态服务
+        await PluginStatusService().initialize();
+        print('Plugin status service initialized successfully');
       } catch (e) {
         print('Failed to initialize plugin system: $e');
         // 插件系统初始化失败不应该阻止应用启动
