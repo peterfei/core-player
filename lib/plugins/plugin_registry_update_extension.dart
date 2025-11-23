@@ -206,7 +206,7 @@ extension PluginRegistryUpdateExtension on PluginRegistry {
           return Future.value(MetadataEnhancerPlugin());
 
         // 商业插件
-        case 'commercial.smb':
+        case 'com.coreplayer.smb':
           return Future.value(SMBPlugin());
 
         // 第三方插件

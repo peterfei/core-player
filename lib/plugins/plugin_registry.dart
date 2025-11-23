@@ -175,7 +175,7 @@ class PluginRegistry {
   Future<void> _registerCommercialPlugins() async {
     final commercialPlugins = [
       PluginRepositoryInfo(
-        id: 'commercial.smb',
+        id: 'com.coreplayer.smb',
         name: 'SMB网络存储插件',
         version: '1.0.0',
         description: 'SMB/CIFS网络存储协议支持',
@@ -320,7 +320,7 @@ class PluginRegistry {
           return MediaServerPlugin();
 
         // 商业插件
-        case 'commercial.smb':
+        case 'com.coreplayer.smb':
           return SMBPlugin();
 
         // 第三方插件

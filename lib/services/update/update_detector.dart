@@ -5,6 +5,7 @@ import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/update/update_models.dart';
 import '../../config/plugin_update_api_config.dart';
+import 'mock_update_api.dart';
 
 /// 更新检测器
 /// 
@@ -201,8 +202,26 @@ class UpdateDetector {
     String pluginId,
     String currentVersion,
   ) async {
+    // 🔧 开发模式: 使用Mock数据
+    if (MockUpdateApi.enabled) {
+      print('🔧 使用Mock数据检查更新');
+      await Future.delayed(const Duration(milliseconds: 500)); // 模拟网络延迟
+      final mockResult = MockUpdateApi.checkUpdate(
+        pluginId: pluginId,
+        currentVersion: currentVersion,
+      );
+
+      if (mockResult != null) {
+        return mockResult;
+      } else {
+        print('⚠️ Mock数据库中无此插件: $pluginId');
+        return null;
+      }
+    }
+
+    // 🌐 生产模式: 使用真实API
     final url = Uri.parse(PluginUpdateApiConfig.updateCheckUrl(pluginId));
-    
+
     try {
       final response = await http.get(
         url,
@@ -211,7 +230,7 @@ class UpdateDetector {
           'X-Current-Version': currentVersion,
         },
       ).timeout(PluginUpdateApiConfig.timeout);
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         return UpdateInfo.fromJson(data);

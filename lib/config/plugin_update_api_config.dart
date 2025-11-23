@@ -3,7 +3,8 @@
 /// 配置插件更新的API端点和相关设置
 class PluginUpdateApiConfig {
   /// API基础URL
-  static String _baseUrl = 'https://api.coreplayer.app/v1/plugins';
+  // static String _baseUrl = 'https://api.coreplayer.app/v1/plugins';
+  static String _baseUrl = 'http://localhost:8080/v1/plugins';
   static String get baseUrl => _baseUrl;
   
   /// 设置API基础URL (用于测试)
