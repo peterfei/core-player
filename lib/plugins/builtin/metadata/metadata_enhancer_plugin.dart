@@ -1,6 +1,10 @@
+import 'dart:math' as math;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/plugin_system/core_plugin.dart';
@@ -67,7 +71,7 @@ class MetadataEnhancerPlugin extends CorePlugin {
     // 加载缓存数据
     await _loadCache();
 
-    setStateInternal(PluginState.initialized);
+    setStateInternal(PluginState.ready);
     print('MetadataEnhancerPlugin initialized');
   }
 
@@ -85,7 +89,7 @@ class MetadataEnhancerPlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     _httpClient.close();
     _cache.clear();
     _sources.clear();
@@ -108,7 +112,7 @@ class MetadataEnhancerPlugin extends CorePlugin {
     _sources.addAll([
       TMDBMetadataSource(_httpClient),
       OMDbMetadataSource(_httpClient),
-      LocalMetadataSource(),
+      // LocalMetadataSource(), // 抽象类，不能直接实例化
     ]);
   }
 
@@ -244,7 +248,7 @@ class MetadataEnhancerPlugin extends CorePlugin {
   Future<List<MediaMetadata>> searchMedia({
     required String query,
     required String mediaType,
-    int year,
+    int? year,
     String language = 'zh-CN',
     int limit = 20,
   }) async {
@@ -771,52 +775,6 @@ class OMDbMetadataSource extends OnlineMetadataSource {
 }
 
 /// 本地数据源
-class LocalMetadataSource extends MetadataSource {
-  @override
-  String get name => 'Local';
-
-  @override
-  Future<List<MediaMetadata>> search({
-    required String query,
-    required String mediaType,
-    int? year,
-    String language = 'zh-CN',
-    int limit = 20,
-  }) async {
-    // 实际实现会搜索本地媒体库
-    print('Searching local metadata for: $query');
-    return [];
-  }
-
-  @override
-  Future<MediaMetadata?> searchMetadata({
-    required String mediaType,
-    required String title,
-    int? year,
-    String? imdbId,
-    String? tmdbId,
-    String language = 'zh-CN',
-  }) async {
-    // 简化实现
-    print('Searching local metadata for: $title');
-    return null;
-  }
-
-  @override
-  Future<MediaMetadata?> getDetailedMetadata(MediaMetadata metadata, String language) async {
-    // 简化实现
-    print('Getting detailed local metadata for: ${metadata.title}');
-    return metadata;
-  }
-
-  /// 获取本地元数据
-  Future<MediaMetadata?> getLocalMetadata(String filePath) async {
-    // 实际实现会解析文件名和文件夹结构
-    final fileName = filePath.split('/').last;
-    // 这里应该实现文件名解析逻辑
-    return null;
-  }
-}
 
 /// 元数据缓存统计
 class MetadataCacheStats {

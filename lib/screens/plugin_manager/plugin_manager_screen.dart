@@ -4,6 +4,10 @@ import 'package:yinghe_player/core/plugin_system/plugin_registry.dart';
 import 'package:yinghe_player/core/plugin_system/core_plugin.dart';
 import 'package:yinghe_player/screens/plugin_manager/plugin_card.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
+import 'package:yinghe_player/screens/plugin_update_management_page.dart';
+import 'package:yinghe_player/widgets/update/update_notification_dialog.dart';
+import 'package:yinghe_player/plugins/plugin_registry_update_extension.dart';
+import 'package:yinghe_player/core/plugin_system/plugin_interface.dart';
 
 /// 插件管理界面
 class PluginManagerScreen extends StatefulWidget {
@@ -28,6 +32,9 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     _tabController = TabController(length: 3, vsync: this);
     _loadPlugins();
     _searchController.addListener(_onSearchChanged);
+    
+    // 延迟检查更新，以免阻塞UI初始化
+    Future.delayed(const Duration(seconds: 1), _checkAutoUpdates);
   }
 
   @override
@@ -67,6 +74,37 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     }
   }
 
+  Future<void> _checkAutoUpdates() async {
+    try {
+      final updates = await pluginRegistry.checkAllPluginUpdates();
+      if (updates.isNotEmpty && mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => UpdateNotificationDialog(
+            updates: updates,
+            onUpdateNow: () {
+              Navigator.of(context).pop();
+              _showUpdateManagementPage();
+            },
+            onUpdateLater: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      print('Auto update check failed: $e');
+    }
+  }
+
+  void _showUpdateManagementPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PluginUpdateManagementPage(),
+      ),
+    );
+  }
+
   List<CorePlugin> _getPluginsByTab(int tabIndex) {
     if (tabIndex == 0) {
       // All plugins
@@ -96,7 +134,7 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
   }
 
   void _showEditionInfo() {
-    final isCommunityEdition = pluginLoader.config.isCommunityEdition;
+    final isCommunityEdition = EditionConfig.isCommunityEdition;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -187,6 +225,11 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.system_update),
+            onPressed: _showUpdateManagementPage,
+            tooltip: '检查更新',
+          ),
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: _showEditionInfo,
@@ -323,9 +366,34 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: plugins.length,
+      itemCount: plugins.length + 1,
       itemBuilder: (context, index) {
-        final plugin = plugins[index];
+        if (index == 0) {
+          return Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+            ),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.system_update, color: Colors.blue),
+              ),
+              title: const Text('检查插件更新'),
+              subtitle: const Text('查看并管理所有插件的更新'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+              onTap: _showUpdateManagementPage,
+            ),
+          );
+        }
+        
+        final plugin = plugins[index - 1];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: PluginCard(

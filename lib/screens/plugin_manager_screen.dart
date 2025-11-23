@@ -7,7 +7,11 @@ import '../services/plugin_status_service.dart';
 import '../widgets/plugin_error_handler.dart';
 import '../widgets/plugin_performance_dashboard.dart';
 import 'plugin_manager/plugin_filter_model.dart';
-import 'plugin_manager/advanced_search_widget.dart';
+
+import 'package:yinghe_player/widgets/update/update_notification_dialog.dart';
+import 'package:yinghe_player/screens/plugin_update_management_page.dart';
+import 'package:yinghe_player/plugins/plugin_registry_update_extension.dart';
+import 'package:yinghe_player/core/plugin_system/plugin_registry.dart';
 
 class PluginManagerScreen extends StatefulWidget {
   const PluginManagerScreen({super.key});
@@ -37,6 +41,42 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     _tabController.addListener(_onTabChanged);
     _loadPlugins();
     _searchController.addListener(_onSearchChanged);
+    
+    // 延迟检查更新
+    Future.delayed(const Duration(seconds: 1), _checkAutoUpdates);
+  }
+
+  Future<void> _checkAutoUpdates() async {
+    try {
+      final updates = await PluginRegistry().checkAllPluginUpdates();
+      if (updates.isNotEmpty && mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => UpdateNotificationDialog(
+            updates: updates,
+            onUpdateNow: () {
+              Navigator.of(context).pop();
+              _showUpdateManagementPage();
+            },
+            onUpdateLater: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Auto update check failed: $e');
+      }
+    }
+  }
+
+  void _showUpdateManagementPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PluginUpdateManagementPage(),
+      ),
+    );
   }
 
   void _onTabChanged() {
@@ -164,6 +204,11 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.system_update),
+            onPressed: _showUpdateManagementPage,
+            tooltip: '检查更新',
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () {
@@ -506,60 +551,7 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     );
   }
 
-  Widget _buildPluginList(int tabIndex) {
-    final plugins = _getPluginsByTab(tabIndex);
 
-    if (plugins.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              tabIndex == 0
-                  ? Icons.extension_outlined
-                  : tabIndex == 1
-                      ? Icons.check_circle_outline
-                      : Icons.disabled_by_default,
-              size: 64,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              tabIndex == 0
-                  ? (_hasActiveFilters() ? '没有匹配的插件' : '未找到插件')
-                  : tabIndex == 1
-                      ? '没有已启用的插件'
-                      : '没有可用的插件',
-              style: const TextStyle(
-                fontSize: 18,
-                color: Colors.grey,
-              ),
-            ),
-            if (_hasActiveFilters() && tabIndex == 0) ...[
-              const SizedBox(height: 8),
-              Text(
-                '尝试调整搜索条件',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      key: PageStorageKey<int>(tabIndex),
-      controller: _scrollController,
-      itemCount: plugins.length,
-      itemBuilder: (context, index) {
-        final plugin = plugins[index];
-        return _buildPluginCard(plugin);
-      },
-    );
-  }
 
   /// 构建 Sliver 版本的插件列表（用于 CustomScrollView）
   Widget _buildPluginListSliver(int tabIndex) {
@@ -612,10 +604,34 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-          final plugin = plugins[index];
+          if (index == 0) {
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.system_update, color: Colors.blue),
+                ),
+                title: const Text('检查插件更新'),
+                subtitle: const Text('查看并管理所有插件的更新'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                onTap: _showUpdateManagementPage,
+              ),
+            );
+          }
+          final plugin = plugins[index - 1];
           return _buildPluginCard(plugin);
         },
-        childCount: plugins.length,
+        childCount: plugins.length + 1,
       ),
     );
   }

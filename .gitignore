@@ -60,3 +60,15 @@ USER_FRIENDLY_ERROR_HANDLING.md
 ERROR_HANDLING_IMPLEMENTATION.md
 DEBUG_TAB_SWITCHING.md
 PLUGIN_FIXES_SUMMARY.md
+TESTING_GUIDE.md
+mock_server/
+test/e2e/
+test/models/
+test/services/update/
+test_manual/
+test_plugin/
+test_plugin_v1.0.0.zip
+test_plugin_v2.0.0.zip
+analysis.txt
+fix_plugins.sh
+fix_remaining.sh

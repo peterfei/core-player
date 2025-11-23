@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../core_plugin.dart';
-import '../../../plugin_interface.dart';
+import 'package:yinghe_player/core/plugin_system/core_plugin.dart';
+import 'package:yinghe_player/core/plugin_system/plugin_interface.dart';
 
 /// SMB媒体服务器插件
 class SMBPlugin extends CorePlugin {

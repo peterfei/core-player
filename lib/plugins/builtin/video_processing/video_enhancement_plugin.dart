@@ -59,7 +59,7 @@ class VideoEnhancementPlugin extends CorePlugin {
     // 加载默认配置
     await _loadDefaultConfig();
 
-    setStateInternal(PluginState.initialized);
+    setStateInternal(PluginState.ready);
     print('VideoEnhancementPlugin initialized');
   }
 
@@ -77,7 +77,7 @@ class VideoEnhancementPlugin extends CorePlugin {
   }
 
   @override
-  void onDispose() {
+  Future<void> onDispose() async {
     _filterPipeline.clear();
     _processingStats.clear();
     setStateInternal(PluginState.disposed);
@@ -211,7 +211,7 @@ class VideoEnhancementPlugin extends CorePlugin {
   }
 
   /// 启用/禁用所有增强
-  void setEnhancementEnabled(bool enabled) {
+  Future<void> setEnhancementEnabled(bool enabled) async {
     _config = _config.copyWith(enabled: enabled);
     if (!enabled) {
       await _resetEffects();
