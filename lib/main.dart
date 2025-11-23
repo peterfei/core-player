@@ -14,6 +14,7 @@ import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
+import 'package:yinghe_player/core/plugin_system/plugin_loader.dart';
 
 
 void main() async {
@@ -85,11 +86,11 @@ class _MyAppState extends State<MyApp> {
 
       // 初始化影视服务器服务
       await MediaServerService.initialize();
-      
+
       // 初始化媒体库服务
       await MediaLibraryService.init();
       await MetadataStoreService.init();
-      
+
       // 初始化 TMDB 服务
       final tmdbApiKey = await SettingsService.getTMDBApiKey();
       final tmdbAccessToken = await SettingsService.getTMDBAccessToken();
@@ -99,6 +100,20 @@ class _MyAppState extends State<MyApp> {
 
       // 启动代理服务器
       await LocalProxyServer.instance.start();
+
+      // 初始化插件系统
+      try {
+        await initializePluginSystem(config: PluginLoadConfig(
+          autoActivate: false, // 暂时禁用自动激活
+          enableLazyLoading: false,
+          loadTimeout: const Duration(seconds: 10),
+          maxConcurrentLoads: 2,
+        ));
+        print('Plugin system initialized successfully');
+      } catch (e) {
+        print('Failed to initialize plugin system: $e');
+        // 插件系统初始化失败不应该阻止应用启动
+      }
 
       if (mounted) {
         setState(() {
@@ -133,7 +148,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 SizedBox(height: 20),
                 Text(
-                  '正在初始化缓存服务...',
+                  '正在初始化应用和插件系统...',
                   style: AppTextStyles.bodyLarge,
                 ),
               ],
