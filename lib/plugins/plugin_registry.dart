@@ -179,7 +179,7 @@ class PluginRegistry {
       PluginRepositoryInfo(
         id: 'com.coreplayer.smb',
         name: 'SMB网络存储插件',
-        version: '1.2.0',
+        version: '1.0.0',
         description: 'SMB/CIFS网络存储协议支持',
         path: 'commercial/media_server/smb',
         pluginClass: 'SMBPlugin',
@@ -191,7 +191,7 @@ class PluginRegistry {
         dependencies: ['builtin.media_server'],
         minCoreVersion: '1.0.0',
         lastUpdated: DateTime.now(),
-        price: '\$19.99',
+        price: '\0.99',
         licenseType: 'Commercial',
       ),
     ];

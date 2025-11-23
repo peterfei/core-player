@@ -156,37 +156,73 @@ class PluginStatusService {
     _lazyLoader.unloadUnusedPlugins();
   }
 
-  /// 激活插件（使用懒加载）
+  /// 激活插件（根据版本使用不同的激活方式）
   Future<bool> activatePlugin(String pluginId) async {
     try {
       print('🔧 Activating plugin: $pluginId');
 
-      // 懒加载插件
-      final plugin = await _lazyLoader.loadPluginWithTimeout(pluginId);
-      if (plugin == null) {
-        print('❌ Failed to load plugin: $pluginId');
-        return false;
+      CorePlugin? plugin;
+
+      if (EditionConfig.isProEdition) {
+        // 🔧 专业版：从PluginLoader的注册表获取插件并激活
+        final registry = PluginRegistry();
+        plugin = registry.get<CorePlugin>(pluginId);
+
+        if (plugin == null) {
+          print('❌ Plugin not found in registry: $pluginId');
+          _performanceService.recordActivation(pluginId, success: false);
+          return false;
+        }
+
+        print('✅ Found plugin in registry: $pluginId (${plugin.metadata.name})');
+
+        // 确保插件已初始化
+        if (!plugin.isInitialized) {
+          await plugin.initialize();
+        }
+
+        // 使用PluginLoader的激活机制
+        await pluginLoader.activatePlugin(pluginId);
+
+        print('✅ Plugin activated via PluginLoader: $pluginId');
+      } else {
+        // 社区版：使用懒加载激活
+        plugin = await _lazyLoader.loadPluginWithTimeout(pluginId);
+        if (plugin == null) {
+          print('❌ Failed to load plugin: $pluginId');
+          _performanceService.recordActivation(pluginId, success: false);
+          return false;
+        }
+
+        // 添加到已加载插件列表
+        _plugins[pluginId] = plugin;
+
+        // 激活插件
+        if (!plugin.isReady) {
+          await plugin.initialize();
+        }
+        await plugin.activate();
+
+        print('✅ Plugin activated via LazyLoader: $pluginId');
       }
 
-      // 添加到已加载插件列表
-      _plugins[pluginId] = plugin;
-
-      // 激活插件
-      if (!plugin.isReady) {
-        await plugin.initialize();
+      // 更新本地插件缓存
+      if (plugin != null) {
+        _plugins[pluginId] = plugin;
       }
-      await plugin.activate();
 
       // 记录性能指标
       _performanceService.recordActivation(pluginId, success: true);
 
       // 发送状态变化事件
-      _statusController.add(PluginStatusChangeEvent(
-        pluginId: pluginId,
-        plugin: plugin,
-        oldState: PluginState.ready,
-        newState: PluginState.active,
-      ));
+      if (plugin != null) {
+        _statusController.add(PluginStatusChangeEvent(
+          pluginId: pluginId,
+          plugin: plugin,
+          oldState: PluginState.ready,
+          newState: PluginState.active,
+        ));
+      }
 
       return true;
     } catch (e) {
@@ -194,7 +230,7 @@ class PluginStatusService {
       _performanceService.recordActivation(pluginId, success: false);
 
       if (kDebugMode) {
-        print('Failed to activate plugin $pluginId: $e');
+        print('❌ Failed to activate plugin $pluginId: $e');
       }
       return false;
     }
