@@ -4,6 +4,7 @@ import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/core_plugin.dart';
 import '../services/plugin_status_service.dart';
 import '../widgets/plugin_error_handler.dart';
+import '../widgets/plugin_performance_dashboard.dart';
 
 class PluginManagerScreen extends StatefulWidget {
   const PluginManagerScreen({super.key});
@@ -101,6 +102,9 @@ class _PluginManagerScreenState extends State<PluginManagerScreen> {
       children: [
         // 版本信息卡片
         _buildEditionInfo(),
+        const Divider(),
+        // 性能仪表盘
+        const PluginPerformanceDashboard(),
         const Divider(),
         // 插件列表
         Expanded(

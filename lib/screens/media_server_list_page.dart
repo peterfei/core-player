@@ -8,6 +8,7 @@ import '../services/media_library_service.dart';
 import '../services/file_source/file_source.dart';
 import '../services/auto_scraper_service.dart';
 import '../services/settings_service.dart';
+import '../core/plugin_system/plugin_loader.dart';
 import 'add_server_page.dart';
 import 'shared_folder_management_page.dart';
 
@@ -57,8 +58,16 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
     
     if (source == null) {
       if (mounted) {
+        String message = '不支持的服务器类型: ${config.type}';
+
+        // 检查是否是社区版SMB限制
+        if (config.type.toLowerCase() == 'smb' && EditionConfig.isCommunityEdition) {
+          _showUpgradeDialog(context);
+          return;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('不支持的服务器类型: ${config.type}')),
+          SnackBar(content: Text(message)),
         );
       }
       return;
@@ -652,6 +661,86 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showUpgradeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('专业版功能'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.upgrade, size: 48, color: Colors.blue),
+            const SizedBox(height: 16),
+            const Text(
+              'SMB/CIFS 网络共享仅在专业版中可用',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '升级到专业版，解锁以下功能：',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            const Column(
+              children: [
+                _FeatureItem(Icons.share, 'SMB/CIFS 网络共享'),
+                _FeatureItem(Icons.cloud, 'Emby/Jellyfin/Plex 支持'),
+                _FeatureItem(Icons.hd, '4K/8K 超高清播放'),
+                _FeatureItem(Icons.subtitles, '高级字幕支持'),
+                _FeatureItem(Icons.equalizer, '专业音效处理'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '立即升级，享受完整的媒体管理体验！',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('暂时跳过'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: 实现升级按钮功能
+              // 可以使用 url_launcher 包打开升级链接
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('升级功能即将开放')),
+              );
+            },
+            child: const Text('立即升级'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 功能项显示组件
+class _FeatureItem extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _FeatureItem(this.icon, this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.green),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text)),
+        ],
       ),
     );
   }
