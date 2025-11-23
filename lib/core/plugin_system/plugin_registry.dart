@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:meta/meta.dart';
 import 'plugin_interface.dart';
 import 'core_plugin.dart';
+import 'plugin_metadata_loader.dart';
 
 /// 插件注册表
 ///
@@ -429,6 +430,72 @@ class PluginRegistry {
       _log('✅ Plugin activated: $pluginId');
     } finally {
       visited.remove(pluginId);
+    }
+  }
+
+  /// 更新插件元数据
+  ///
+  /// [pluginId] 插件ID
+  /// [pluginPath] 插件路径
+  Future<void> updateMetadata(String pluginId, String pluginPath) async {
+    try {
+      final loader = PluginMetadataLoader();
+      final newMetadata = await loader.loadFromFile(pluginPath);
+
+      // 检查插件是否已注册
+      final existingPlugin = _plugins[pluginId];
+      if (existingPlugin == null) {
+        _log('⚠️ Plugin not found for metadata update: $pluginId');
+        return;
+      }
+
+      // 更新元数据
+      _metadata[pluginId] = newMetadata;
+      _log('✅ Updated metadata for $pluginId to v${newMetadata.version}');
+
+      // 获取当前元数据用于比较
+      final currentMetadata = getMetadata(pluginId);
+      final oldVersion = currentMetadata?.version ?? 'unknown';
+
+      // 发送元数据更新事件
+      _eventController.add(PluginEvent.updated(
+        pluginId,
+        data: {
+          'pluginName': newMetadata.name,
+          'oldVersion': oldVersion,
+          'newVersion': newMetadata.version,
+          'path': pluginPath,
+        },
+      ));
+    } catch (e) {
+      _log('❌ Failed to update metadata for $pluginId: $e');
+      throw PluginRegistryException(
+        'Failed to update metadata',
+        pluginId: pluginId,
+      );
+    }
+  }
+
+  /// 验证插件更新是否成功
+  ///
+  /// [pluginId] 插件ID
+  /// [expectedVersion] 期望的版本号
+  /// 返回是否验证成功
+  Future<bool> verifyPluginUpdate(String pluginId, String expectedVersion) async {
+    try {
+      final currentMetadata = getMetadata(pluginId);
+      if (currentMetadata == null) {
+        _log('❌ Cannot verify update - plugin not found: $pluginId');
+        return false;
+      }
+
+      final isUpdated = currentMetadata.version == expectedVersion;
+      _log('Plugin $pluginId verification: v${currentMetadata.version} (expected: v$expectedVersion) - ${isUpdated ? '✅' : '❌'}');
+
+      return isUpdated;
+    } catch (e) {
+      _log('❌ Failed to verify plugin update for $pluginId: $e');
+      return false;
     }
   }
 

@@ -8,6 +8,7 @@ import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugins/media_server/placeholders/media_server_placeholder.dart';
 import '../core/plugin_system/plugins/media_server/smb/smb_plugin.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/plugin_metadata_loader.dart';
 import 'plugin_performance_service.dart';
 
 /// 插件加载状态
@@ -72,21 +73,21 @@ class PluginLazyLoader {
         return plugin;
       };
     } else {
-      // 专业版媒体服务器插件
-      _pluginFactories['mediaserver'] = () async {
-        final plugin = SMBPlugin();
-        await _performanceService.startMonitoring('mediaserver', plugin);
-        return plugin;
-      };
+      // 🔧 专业版下不使用懒加载器，PluginLoader已经处理了
+      // 专业版媒体服务器插件由 PluginLoader 直接管理
 
-      // 尝试加载商业插件包中的插件
-      try {
-        await _registerCommercialPlugins();
-      } catch (e) {
-        if (kDebugMode) {
-          developer.log('Failed to register commercial plugins: $e');
-        }
+      if (kDebugMode) {
+        developer.log('🔧 Professional Edition: SMB plugins managed by PluginLoader, not LazyLoader');
       }
+
+      // 🔧 社区版不加载商业插件包
+      // try {
+      //   await _registerCommercialPlugins();
+      // } catch (e) {
+      //   if (kDebugMode) {
+      //     developer.log('Failed to register commercial plugins: $e');
+      //   }
+      // }
     }
 
     // 可以在这里注册更多社区版插件
@@ -518,7 +519,7 @@ class _CommercialPluginPlaceholder extends CorePlugin {
   }
 
   @override
-  PluginMetadata get metadata => PluginMetadata(
+  PluginMetadata get staticMetadata => PluginMetadata(
         id: _id,
         name: _name,
         version: '1.0.0',

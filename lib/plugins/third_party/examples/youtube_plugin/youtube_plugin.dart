@@ -65,7 +65,7 @@ class YouTubePlugin extends CorePlugin {
   YouTubePlugin();
 
   @override
-  PluginMetadata get metadata => _metadata;
+  PluginMetadata get staticMetadata => _metadata;
 
   @override
   PluginState get state => _internalState;

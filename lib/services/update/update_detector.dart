@@ -36,7 +36,7 @@ class UpdateDetector {
   }
 
   /// 检查单个插件的更新
-  /// 
+  ///
   /// [pluginId] 插件ID
   /// [currentVersion] 当前版本
   /// [forceRefresh] 是否强制刷新(忽略缓存)
@@ -46,17 +46,13 @@ class UpdateDetector {
     bool forceRefresh = false,
   }) async {
     await initialize();
-    
+
     print('🔍 检查插件更新: $pluginId (当前版本: $currentVersion)');
-    
-    // 检查缓存
-    if (!forceRefresh) {
-      final cached = await _getFromCache(pluginId);
-      if (cached != null) {
-        print('✅ 使用缓存的更新信息');
-        return cached;
-      }
-    }
+
+    // 🔧 强制清除缓存并从API获取最新版本信息
+    await clearPluginCache(pluginId);
+    print('🔧 强制从API获取最新版本信息');
+    forceRefresh = true;
     
     try {
       // 调用API检查更新
@@ -195,6 +191,32 @@ class UpdateDetector {
     print('🧹 更新缓存已清除');
   }
 
+  /// 强制清除所有更新相关缓存
+  Future<void> forceClearAllUpdateCache() async {
+    await initialize();
+    final keys = _prefs?.getKeys() ?? {};
+
+    // 清除所有更新相关缓存
+    for (final key in keys) {
+      if (key.startsWith(_cacheKeyPrefix) || key.startsWith('update_cache_')) {
+        await _prefs?.remove(key);
+      }
+      if (key == _lastCheckKey) {
+        await _prefs?.remove(key);
+      }
+    }
+
+    print('🧹 强制清除所有更新缓存完成');
+  }
+
+  /// 强制清除特定插件的缓存
+  Future<void> clearPluginCache(String pluginId) async {
+    await initialize();
+    final cacheKey = '$_cacheKeyPrefix$pluginId';
+    await _prefs?.remove(cacheKey);
+    print('🧹 已清除插件缓存: $pluginId');
+  }
+
   // ==================== 私有方法 ====================
 
   /// 从API获取更新信息
@@ -223,6 +245,7 @@ class UpdateDetector {
     final url = Uri.parse(PluginUpdateApiConfig.updateCheckUrl(pluginId));
 
     try {
+      print('🌐 请求真实API: $url');
       final response = await http.get(
         url,
         headers: {
@@ -233,20 +256,22 @@ class UpdateDetector {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
+        print('✅ 从API获取到更新信息');
         return UpdateInfo.fromJson(data);
       } else if (response.statusCode == 404) {
-        print('⚠️ 插件不存在: $pluginId');
+        print('⚠️ 插件不存在: $pluginId (404)');
         return null;
       } else {
         print('❌ API返回错误: ${response.statusCode}');
         return null;
       }
     } on TimeoutException {
-      print('❌ 请求超时');
+      print('❌ 请求超时 - API服务器可能未运行');
       return null;
     } catch (e) {
       print('❌ 网络请求失败: $e');
-      rethrow;
+      print('💡 提示: 确保插件更新服务器在 ${PluginUpdateApiConfig.baseUrl} 运行');
+      return null;
     }
   }
 

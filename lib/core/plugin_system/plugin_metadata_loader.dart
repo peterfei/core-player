@@ -1,37 +1,84 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:yaml/yaml.dart';
 import 'package:flutter/material.dart';
 import 'plugin_interface.dart';
 
 /// 插件元数据加载器
-/// 
-/// 从 YAML 配置文件加载插件元数据
+///
+/// 支持 YAML 和 JSON 两种配置文件格式
 class PluginMetadataLoader {
   /// 从文件加载 metadata
-  /// 
+  ///
   /// [pluginPath] 插件目录路径
   /// 返回解析后的 PluginMetadata
   Future<PluginMetadata> loadFromFile(String pluginPath) async {
-    final configFile = File('$pluginPath/plugin.yaml');
-    
-    if (!await configFile.exists()) {
-      throw PluginMetadataLoadException(
-        'Configuration file not found: ${configFile.path}',
-      );
+    // 优先尝试 JSON 格式 (新版本)
+    final jsonFile = File('$pluginPath/plugin.json');
+    if (await jsonFile.exists()) {
+      try {
+        final jsonContent = await jsonFile.readAsString();
+        return parseJson(jsonContent);
+      } catch (e) {
+        print('⚠️ Failed to read JSON config: $e, trying YAML...');
+      }
     }
-    
+
+    // 回退到 YAML 格式 (旧版本)
+    final yamlFile = File('$pluginPath/plugin.yaml');
+    if (await yamlFile.exists()) {
+      try {
+        final yamlContent = await yamlFile.readAsString();
+        return parseYaml(yamlContent);
+      } catch (e) {
+        throw PluginMetadataLoadException(
+          'Failed to read YAML configuration file: $e',
+        );
+      }
+    }
+
+    // 如果都不存在，抛出异常
+    throw PluginMetadataLoadException(
+      'Configuration file not found: tried plugin.json and plugin.yaml in $pluginPath',
+    );
+  }
+  
+  /// 从 JSON 字符串解析 metadata
+  ///
+  /// [jsonContent] JSON 格式的配置内容
+  /// 返回解析后的 PluginMetadata
+  PluginMetadata parseJson(String jsonContent) {
     try {
-      final yamlContent = await configFile.readAsString();
-      return parseYaml(yamlContent);
+      final Map<String, dynamic> doc = json.decode(jsonContent);
+
+      // 验证必需字段
+      _validateRequiredFieldsJson(doc);
+
+      return PluginMetadata(
+        id: doc['id'] as String,
+        name: doc['name'] as String,
+        version: doc['version'] as String,
+        description: doc['description'] as String,
+        author: doc['author'] as String? ?? 'Unknown',
+        icon: _parseIcon(doc['icon'] as String?),
+        capabilities: _parseStringList(doc['capabilities']),
+        homepage: doc['homepage'] as String?,
+        repository: doc['repository'] as String?,
+        license: _parseLicense(doc['license'] as String?),
+        permissions: _parsePermissions(doc['permissions']),
+        dependencies: _parseStringList(doc['dependencies']),
+        minCoreVersion: doc['minAppVersion'] as String? ?? doc['minCoreVersion'] as String? ?? '1.0.0',
+        maxCoreVersion: doc['maxAppVersion'] as String?,
+      );
     } catch (e) {
       throw PluginMetadataLoadException(
-        'Failed to read configuration file: $e',
+        'Failed to parse JSON configuration: $e',
       );
     }
   }
-  
+
   /// 从 YAML 字符串解析 metadata
-  /// 
+  ///
   /// [yamlContent] YAML 格式的配置内容
   /// 返回解析后的 PluginMetadata
   PluginMetadata parseYaml(String yamlContent) {
@@ -83,6 +130,28 @@ class PluginMetadataLoader {
       );
     }
   }
+
+  /// 验证 JSON 必需字段
+  void _validateRequiredFieldsJson(Map<String, dynamic> doc) {
+    final requiredFields = ['id', 'name', 'version', 'description'];
+
+    for (final field in requiredFields) {
+      if (!doc.containsKey(field) || doc[field] == null) {
+        throw PluginMetadataLoadException(
+          'Missing required field: $field',
+        );
+      }
+    }
+
+    // 验证版本号格式
+    final version = doc['version'] as String;
+    final versionPattern = RegExp(r'^\d+\.\d+\.\d+$');
+    if (!versionPattern.hasMatch(version)) {
+      throw PluginMetadataLoadException(
+        'Invalid version format: $version. Expected format: x.y.z',
+      );
+    }
+  }
   
   /// 解析图标
   IconData _parseIcon(String? iconName) {
@@ -115,16 +184,25 @@ class PluginMetadataLoader {
   /// 解析权限列表
   List<PluginPermission> _parsePermissions(dynamic value) {
     final stringList = _parseStringList(value);
-    return stringList.map((str) {
+    final permissions = <PluginPermission>[];
+    final availablePermissions = PluginPermission.values.map((p) => p.name).join(', ');
+
+    for (final str in stringList) {
       try {
-        return PluginPermission.values.firstWhere(
+        final permission = PluginPermission.values.firstWhere(
           (p) => p.name.toLowerCase() == str.toLowerCase(),
         );
+        permissions.add(permission);
       } catch (e) {
-        print('⚠️ Unknown permission: $str, using network as default');
-        return PluginPermission.network;
+        print('⚠️ Unknown permission: $str');
+        print('   Available permissions: $availablePermissions');
+        print('   Using network permission as fallback');
+        permissions.add(PluginPermission.network);
       }
-    }).toList();
+    }
+
+    print('✅ Parsed ${permissions.length} permissions: ${permissions.map((p) => p.name).join(', ')}');
+    return permissions;
   }
   
   /// 解析许可证类型

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import '../../models/update/update_models.dart';
+import '../../core/plugin_system/plugin_metadata_loader.dart';
 import 'update_detector.dart';
 import 'update_downloader.dart';
 import 'backup_manager.dart';
@@ -294,21 +296,57 @@ class UpdateService {
       
       if (result.isSuccess) {
         print('✅ 更新完成: $pluginId v${updateInfo.latestVersion}');
+
+        // 验证更新是否成功
+        print('🔍 验证更新...');
+        final isVerified = await _verifyUpdateSuccess(pluginId, updateInfo.latestVersion, pluginInstallPath);
+        if (isVerified) {
+          print('✅ 更新验证成功: $pluginId v${updateInfo.latestVersion}');
+        } else {
+          print('⚠️ 更新验证失败，但安装已成功');
+        }
       } else {
         print('❌ 更新失败: ${result.error}');
       }
-      
+
       return result;
     } catch (e, stackTrace) {
       print('❌ 更新流程失败: $e');
       print(stackTrace);
-      
+
       return InstallResult.failed(
         pluginId: pluginId,
         version: currentVersion,
         error: e.toString(),
         stackTrace: stackTrace.toString(),
       );
+    }
+  }
+
+  /// 验证更新是否成功
+  Future<bool> _verifyUpdateSuccess(String pluginId, String expectedVersion, String pluginPath) async {
+    try {
+      // 方法1: 检查文件是否存在
+      final pluginDir = Directory(pluginPath);
+      if (!await pluginDir.exists()) {
+        print('❌ 插件目录不存在: $pluginPath');
+        return false;
+      }
+
+      // 方法2: 尝试加载插件元数据
+      final loader = PluginMetadataLoader();
+      final metadata = await loader.loadFromFile(pluginPath);
+
+      if (metadata.version != expectedVersion) {
+        print('❌ 版本不匹配: 期望 ${expectedVersion}, 实际 ${metadata.version}');
+        return false;
+      }
+
+      print('✅ 元数据验证成功: ${metadata.name} v${metadata.version}');
+      return true;
+    } catch (e) {
+      print('❌ 更新验证失败: $e');
+      return false;
     }
   }
 

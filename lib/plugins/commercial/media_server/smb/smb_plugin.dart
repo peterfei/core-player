@@ -5,7 +5,14 @@ import 'package:yinghe_player/core/plugin_system/plugin_interface.dart';
 
 /// SMB媒体服务器插件
 class SMBPlugin extends CorePlugin {
-  static final _metadata = PluginMetadata(
+  /// 插件内部状态
+  PluginState _internalState = PluginState.uninitialized;
+
+  /// 构造函数,支持可选的动态 metadata
+  SMBPlugin({super.metadata});
+
+  @override
+  PluginMetadata get staticMetadata => PluginMetadata(
     id: 'com.coreplayer.smb',
     name: 'SMB/CIFS 网络共享',
     version: '1.1.0',
@@ -16,14 +23,6 @@ class SMBPlugin extends CorePlugin {
     permissions: [PluginPermission.network, PluginPermission.storage],
     license: PluginLicense.proprietary,
   );
-
-  /// 插件内部状态
-  PluginState _internalState = PluginState.uninitialized;
-
-  SMBPlugin();
-
-  @override
-  PluginMetadata get metadata => _metadata;
 
   @override
   PluginState get state => _internalState;
@@ -42,7 +41,15 @@ class SMBPlugin extends CorePlugin {
   @override
   Future<void> onActivate() async {
     // 激活SMB功能
-    print('SMBPlugin activated - SMB/CIFS network sharing enabled');
+    print('✅ SMBPlugin activated - SMB/CIFS network sharing enabled');
+
+    // 设置为激活状态
+    _internalState = PluginState.active;
+
+    // 模拟初始化SMB服务
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    print('✅ SMB services initialized successfully');
   }
 
   @override

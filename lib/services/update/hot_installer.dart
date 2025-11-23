@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:archive/archive_io.dart';
 import '../../models/update/update_models.dart';
+import '../../core/plugin_system/plugin_metadata_loader.dart';
 import 'backup_manager.dart';
 
 /// 热更新安装器
@@ -278,8 +279,14 @@ class HotInstaller {
 
   /// 获取当前版本
   Future<String> _getCurrentVersion(String pluginPath) async {
-    // TODO: 从插件配置文件读取版本号
-    // 这里返回默认值,实际应该从plugin.yaml或类似文件读取
-    return '0.0.0';
+    try {
+      final loader = PluginMetadataLoader();
+      final metadata = await loader.loadFromFile(pluginPath);
+      return metadata.version;
+    } catch (e) {
+      print('⚠️ 无法从配置文件读取版本号: $e');
+      // 如果读取失败,返回默认版本
+      return '0.0.0';
+    }
   }
 }

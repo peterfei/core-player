@@ -141,8 +141,23 @@ class PluginSandbox {
 
 /// 核心插件接口
 abstract class CorePlugin {
-  /// 插件元数据
-  PluginMetadata get metadata;
+  /// 动态元数据（从配置文件加载）
+  PluginMetadata? _dynamicMetadata;
+
+  /// 构造函数,支持可选的动态 metadata
+  CorePlugin({PluginMetadata? metadata}) : _dynamicMetadata = metadata;
+
+  /// 插件元数据 - 优先使用动态 metadata，否则使用静态默认值
+  PluginMetadata get metadata => _dynamicMetadata ?? staticMetadata;
+
+  /// 静态元数据（子类实现的默认值）
+  @protected
+  PluginMetadata get staticMetadata;
+
+  /// 更新元数据（用于热更新）
+  void updateMetadata(PluginMetadata newMetadata) {
+    _dynamicMetadata = newMetadata;
+  }
 
   /// 当前状态
   PluginState get state;
@@ -385,7 +400,7 @@ class LazyPlugin extends CorePlugin {
   bool _loaded = false;
   PluginState _internalState = PluginState.uninitialized;
 
-  LazyPlugin(this._loader);
+  LazyPlugin(this._loader) : super();
 
   Future<CorePlugin> _ensureLoaded() async {
     if (!_loaded) {
@@ -396,7 +411,7 @@ class LazyPlugin extends CorePlugin {
   }
 
   @override
-  PluginMetadata get metadata => PluginMetadata(
+  PluginMetadata get staticMetadata => PluginMetadata(
     id: 'lazy.wrapper',
     name: 'Lazy Loading Plugin',
     version: '1.0.0',

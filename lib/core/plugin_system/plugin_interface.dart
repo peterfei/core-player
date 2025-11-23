@@ -17,6 +17,8 @@ enum PluginLicense {
 enum PluginPermission {
   network('Network Access'),
   storage('Storage Access'),
+  fileSystem('File System Access'),
+  systemInfo('System Information'),
   camera('Camera Access'),
   microphone('Microphone Access'),
   location('Location Access'),
@@ -199,6 +201,7 @@ enum PluginEventType {
   unregistered,  // 注销
   activated,     // 激活
   deactivated,   // 停用
+  updated,       // 更新
   error,         // 错误
   disposed,      // 释放
 }
@@ -242,6 +245,13 @@ class PluginEvent {
     pluginId: pluginId,
     type: PluginEventType.deactivated,
     timestamp: DateTime.now(),
+  );
+
+  factory PluginEvent.updated(String pluginId, {Map<String, dynamic>? data}) => PluginEvent._(
+    pluginId: pluginId,
+    type: PluginEventType.updated,
+    timestamp: DateTime.now(),
+    data: data,
   );
 
   factory PluginEvent.error(String pluginId, String error, {Map<String, dynamic>? data}) => PluginEvent._(

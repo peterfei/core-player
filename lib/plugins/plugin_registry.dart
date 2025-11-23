@@ -5,7 +5,6 @@ import 'core/plugin_system/plugin_manager.dart';
 import 'core/plugin_system/core_plugin.dart';
 
 // 内置插件
-import 'builtin/base/media_server_plugin.dart';
 import 'builtin/subtitle/subtitle_plugin.dart';
 import 'builtin/audio_effects/audio_effects_plugin.dart';
 import 'builtin/video_processing/video_enhancement_plugin.dart';
@@ -57,6 +56,9 @@ class PluginRegistry {
 
       // 初始化插件仓库
       await _repository.initialize();
+
+      // 初始化更新服务
+      await initializeUpdateService();
 
       print('Plugin system initialized successfully');
     } catch (e) {
@@ -177,7 +179,7 @@ class PluginRegistry {
       PluginRepositoryInfo(
         id: 'com.coreplayer.smb',
         name: 'SMB网络存储插件',
-        version: '1.0.0',
+        version: '1.2.0',
         description: 'SMB/CIFS网络存储协议支持',
         path: 'commercial/media_server/smb',
         pluginClass: 'SMBPlugin',
@@ -317,7 +319,7 @@ class PluginRegistry {
         case 'builtin.metadata_enhancer':
           return MetadataEnhancerPlugin();
         case 'builtin.media_server':
-          return MediaServerPlugin();
+          return MediaServerPlaceholderPlugin();
 
         // 商业插件
         case 'com.coreplayer.smb':
