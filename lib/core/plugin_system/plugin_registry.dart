@@ -476,6 +476,39 @@ class PluginRegistry {
     }
   }
 
+  void updateMetadataDirectly(String pluginId, PluginMetadata newMetadata) {
+    try {
+      // 检查插件是否已注册
+      final existingPlugin = _plugins[pluginId];
+      if (existingPlugin == null) {
+        _log('⚠️ Plugin not found for metadata update: $pluginId');
+        return;
+      }
+
+      final oldVersion = _metadata[pluginId]?.version ?? 'unknown';
+
+      // 更新注册表中的元数据
+      _metadata[pluginId] = newMetadata;
+      
+      // 🔧 关键:同时更新插件实例的元数据,这样UI才能显示新版本
+      existingPlugin.updateMetadata(newMetadata);
+      
+      _log('✅ Updated metadata for $pluginId: v$oldVersion → v${newMetadata.version}');
+
+      // 发送元数据更新事件
+      _eventController.add(PluginEvent.updated(
+        pluginId,
+        data: {
+          'pluginName': newMetadata.name,
+          'oldVersion': oldVersion,
+          'newVersion': newMetadata.version,
+        },
+      ));
+    } catch (e) {
+      _log('❌ Failed to update metadata for $pluginId: $e');
+    }
+  }
+
   /// 验证插件更新是否成功
   ///
   /// [pluginId] 插件ID

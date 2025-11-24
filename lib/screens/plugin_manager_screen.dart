@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
@@ -38,6 +40,9 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
   PluginDisplayConfig _displayConfig = const PluginDisplayConfig();
   bool _isSearchExpanded = false;
   final ScrollController _scrollController = ScrollController();
+  
+  // 🔥 插件事件订阅
+  StreamSubscription<PluginEvent>? _pluginEventSubscription;
 
   @override
   void initState() {
@@ -47,6 +52,17 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
     _loadPlugins();
     _searchController.addListener(_onSearchChanged);
     
+    // 🔥 订阅插件事件,当元数据更新时刷新UI
+    _pluginEventSubscription = PluginRegistry().events.listen((event) {
+      if (event.type == PluginEventType.updated) {
+        if (kDebugMode) {
+          print('🔄 插件元数据更新事件: ${event.pluginId}');
+        }
+        // 重新加载插件列表
+        _loadPlugins();
+      }
+    });
+
     // 延迟检查更新
     Future.delayed(const Duration(seconds: 1), _checkAutoUpdates);
   }
@@ -81,7 +97,10 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
       MaterialPageRoute(
         builder: (context) => const PluginUpdateManagementPage(),
       ),
-    );
+    ).then((_) {
+      // 从更新页面返回时刷新插件列表
+      _loadPlugins();
+    });
   }
 
   void _onTabChanged() {
@@ -229,6 +248,8 @@ void _showSuccess(String title, String message) {
 
   @override
   void dispose() {
+    // 取消事件订阅
+    _pluginEventSubscription?.cancel();
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _searchController.removeListener(_onSearchChanged);
@@ -1243,7 +1264,23 @@ void _showSuccess(String title, String message) {
       case 'builtin.metadata_enhancer':
         return 'lib/plugins/builtin/metadata';
       case 'com.coreplayer.smb':
-        return 'lib/plugins/commercial/media_server/smb';
+        return 'lib/core/plugin_system/plugins/media_server/smb';
+      case 'com.coreplayer.ftp':
+        return 'lib/core/plugin_system/plugins/media_server/ftp';
+      case 'com.coreplayer.nfs':
+        return 'lib/core/plugin_system/plugins/media_server/nfs';
+      
+      // HEVC 插件来自 core-player-pro-plugins 包
+      // 使用相对于项目根目录的路径
+      case 'coreplayer.pro.decoder.hevc':
+        // 获取当前项目根目录
+        final currentDir = Directory.current.path;
+        // 假设 core-player-pro-plugins 和 vidhub 在同一父目录下
+        final pluginPath = currentDir.contains('vidhub')
+            ? currentDir.replaceFirst('vidhub', 'core-player-pro-plugins')
+            : currentDir;
+        return '$pluginPath/lib/src/advanced_decoder';
+      
       case 'third_party.youtube':
         return 'lib/plugins/third_party/examples/youtube_plugin';
       case 'third_party.bilibili':
@@ -1263,8 +1300,15 @@ void _showSuccess(String title, String message) {
     int updatedCount = 0;
 
     for (final plugin in plugins) {
+      final pluginId = plugin.metadata.id;
+      
+      // 🔧 特殊处理: HEVC 插件是内置的,且已通过热更新机制更新了内存元数据
+      // 不要尝试从文件读取,因为在沙盒环境中可能无法访问源码目录
+      if (pluginId == 'coreplayer.pro.decoder.hevc') {
+        continue;
+      }
+
       try {
-        final pluginId = plugin.metadata.id;
         final pluginPath = _getPluginInstallPath(pluginId);
 
         // 从磁盘读取最新元数据

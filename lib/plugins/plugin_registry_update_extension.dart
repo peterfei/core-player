@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
 import '../services/update/update_services.dart';
 import '../models/update/update_models.dart';
 import 'package:yinghe_player/core/plugin_system/plugin_registry.dart';
@@ -165,6 +167,69 @@ extension PluginRegistryUpdateExtension on PluginRegistry {
       );
     }
     
+    // 🔧 特殊处理: HEVC 插件是编译到应用中的,不需要安装,只需要更新元数据
+    if (pluginId == 'coreplayer.pro.decoder.hevc') {
+      print('⚠️ HEVC 插件是内置插件,跳过安装流程,仅更新元数据');
+      
+      // 检查更新
+      onProgress?.call('checking', 0.5);
+      final updateInfo = await checkPluginUpdate(pluginId);
+      
+      if (updateInfo == null || !updateInfo.hasUpdate) {
+        print('✅ HEVC 插件已是最新版本');
+        return InstallResult.success(
+          pluginId: pluginId,
+          version: pluginInfo.version,
+        );
+      }
+      
+      // 更新元数据
+      onProgress?.call('updating', 0.8);
+      try {
+        // HEVC 插件的元数据直接从最新版本号创建,不从文件读取
+        final newMetadata = PluginMetadata(
+          id: pluginId,
+          name: 'HEVC/H.265 高级解码器 + MKV支持',
+          version: updateInfo.latestVersion,
+          description: '专业级HEVC/H.265视频解码器，支持硬件加速、4K/8K分辨率、HDR内容和完整的MKV容器支持',
+          author: 'CorePlayer Pro Team',
+          icon: Icons.high_quality,
+          capabilities: [
+            'video.decode.hevc',
+            'video.decode.h265',
+            'video.hardware_acceleration',
+            'video.hdr',
+            'container.mkv',
+            'container.matroska',
+          ],
+          permissions: [
+            PluginPermission.network,
+            PluginPermission.storage,
+          ],
+          license: PluginLicense.proprietary,
+          homepage: 'https://coreplayer.pro/plugins/hevc',
+        );
+        
+        // 直接更新元数据,不从文件加载
+        updateMetadataDirectly(pluginId, newMetadata);
+        print('✅ HEVC 插件元数据已更新到 ${updateInfo.latestVersion}');
+        
+        onProgress?.call('completed', 1.0);
+        return InstallResult.success(
+          pluginId: pluginId,
+          version: updateInfo.latestVersion,
+        );
+      } catch (e) {
+        print('❌ HEVC 插件元数据更新失败: $e');
+        return InstallResult.failed(
+          pluginId: pluginId,
+          version: pluginInfo.version,
+          error: '元数据更新失败: $e',
+        );
+      }
+    }
+    
+    // 其他插件使用正常的更新流程
     final pluginInstallPath = _getPluginInstallPath(pluginId);
     
     return await _updateService.performFullUpdate(
@@ -235,6 +300,15 @@ extension PluginRegistryUpdateExtension on PluginRegistry {
         return 'lib/plugins/commercial/media_server/ftp';
       case 'com.coreplayer.nfs':
         return 'lib/plugins/commercial/media_server/nfs';
+      
+      // 解码器插件 (从 core-player-pro-plugins 包)
+      // 使用相对于项目根目录的路径
+      case 'coreplayer.pro.decoder.hevc':
+        final currentDir = Directory.current.path;
+        final pluginPath = currentDir.contains('vidhub')
+            ? currentDir.replaceFirst('vidhub', 'core-player-pro-plugins')
+            : currentDir;
+        return '$pluginPath/lib/src/advanced_decoder';
 
       // 第三方插件
       case 'third_party.youtube':
@@ -299,6 +373,13 @@ extension PluginRegistryUpdateExtension on PluginRegistry {
           return Future.value(BilibiliPlugin());
         case 'third_party.vlc':
           return Future.value(VLCPlugin());
+        
+        // 解码器插件 (从 core-player-pro-plugins 包)
+        case 'coreplayer.pro.decoder.hevc':
+          // HEVC 插件已在 PluginLoader 中加载,这里返回 null
+          // 因为它不需要重新创建实例,只需要刷新元数据
+          print('⚠️ HEVC 插件由 PluginLoader 管理,跳过重新创建');
+          return null;
 
         default:
           print('Unknown plugin: $pluginId');

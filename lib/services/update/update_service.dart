@@ -6,6 +6,7 @@ import 'update_detector.dart';
 import 'update_downloader.dart';
 import 'backup_manager.dart';
 import 'hot_installer.dart';
+import '../../core/plugin_system/plugin_registry.dart';
 
 /// 更新服务
 /// 
@@ -296,6 +297,15 @@ class UpdateService {
       
       if (result.isSuccess) {
         print('✅ 更新完成: $pluginId v${updateInfo.latestVersion}');
+
+        // 刷新插件元数据,让UI显示新版本
+        print('🔄 刷新插件元数据...');
+        try {
+          await pluginRegistry.updateMetadata(pluginId, pluginInstallPath);
+          print('✅ 元数据已刷新,UI将显示新版本');
+        } catch (e) {
+          print('⚠️ 元数据刷新失败: $e (不影响更新结果)');
+        }
 
         // 验证更新是否成功
         print('🔍 验证更新...');
