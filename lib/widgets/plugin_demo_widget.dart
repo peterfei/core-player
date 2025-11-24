@@ -36,9 +36,9 @@ class _PluginDemoWidgetState extends State<PluginDemoWidget> {
 
       // 创建和激活一些示例插件
       final pluginIds = [
-        'builtin.subtitle',
-        'builtin.audio_effects',
-        'builtin.theme_manager',
+        'coreplayer.subtitle',
+        'coreplayer.audio_effects',
+        'coreplayer.theme_manager',
         'third_party.youtube',
         'third_party.bilibili',
       ];

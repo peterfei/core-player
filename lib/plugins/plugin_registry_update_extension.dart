@@ -282,13 +282,13 @@ extension PluginRegistryUpdateExtension on PluginRegistry {
     // 根据插件ID返回正确的路径
     switch (pluginId) {
       // 内置插件
-      case 'builtin.subtitle':
+      case 'coreplayer.subtitle':
         return 'lib/plugins/builtin/subtitle';
-      case 'builtin.audio_effects':
+      case 'coreplayer.audio_effects':
         return 'lib/plugins/builtin/audio_effects';
       case 'builtin.video_enhancement':
         return 'lib/plugins/builtin/video_processing';
-      case 'builtin.theme_manager':
+      case 'coreplayer.theme_manager':
         return 'lib/plugins/builtin/ui_themes';
       case 'builtin.metadata_enhancer':
         return 'lib/plugins/builtin/metadata';
@@ -351,13 +351,13 @@ extension PluginRegistryUpdateExtension on PluginRegistry {
       // 使用动态 metadata 创建插件
       switch (pluginId) {
         // 内置插件
-        case 'builtin.subtitle':
+        case 'coreplayer.subtitle':
           return Future.value(SubtitlePlugin());
-        case 'builtin.audio_effects':
+        case 'coreplayer.audio_effects':
           return Future.value(AudioEffectsPlugin());
         case 'builtin.video_enhancement':
           return Future.value(VideoEnhancementPlugin());
-        case 'builtin.theme_manager':
+        case 'coreplayer.theme_manager':
           return Future.value(ThemePlugin());
         case 'builtin.metadata_enhancer':
           return Future.value(MetadataEnhancerPlugin());

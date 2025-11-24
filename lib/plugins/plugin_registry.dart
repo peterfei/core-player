@@ -71,7 +71,7 @@ class PluginRegistry {
   Future<void> _registerBuiltinPlugins() async {
     final builtinPlugins = [
       PluginRepositoryInfo(
-        id: 'builtin.subtitle',
+        id: 'coreplayer.subtitle',
         name: '字幕插件',
         version: '1.0.0',
         description: '多格式字幕支持和显示功能',
@@ -87,7 +87,7 @@ class PluginRegistry {
         lastUpdated: DateTime.now(),
       ),
       PluginRepositoryInfo(
-        id: 'builtin.audio_effects',
+        id: 'coreplayer.audio_effects',
         name: '音频效果插件',
         version: '1.0.0',
         description: '专业音频处理和效果功能',
@@ -119,7 +119,7 @@ class PluginRegistry {
         lastUpdated: DateTime.now(),
       ),
       PluginRepositoryInfo(
-        id: 'builtin.theme_manager',
+        id: 'coreplayer.theme_manager',
         name: '主题管理插件',
         version: '1.0.0',
         description: 'UI主题管理和个性化定制',
@@ -292,13 +292,13 @@ class PluginRegistry {
     try {
       switch (pluginInfo.id) {
         // 内置插件
-        case 'builtin.subtitle':
+        case 'coreplayer.subtitle':
           return SubtitlePlugin();
-        case 'builtin.audio_effects':
+        case 'coreplayer.audio_effects':
           return AudioEffectsPlugin();
         case 'builtin.video_enhancement':
           return VideoEnhancementPlugin();
-        case 'builtin.theme_manager':
+        case 'coreplayer.theme_manager':
           return ThemePlugin();
         case 'builtin.metadata_enhancer':
           return MetadataEnhancerPlugin();

@@ -75,23 +75,23 @@ class PluginLazyLoader {
       }
 
       // 字幕插件 - 已实现
-      _pluginFactories['builtin.subtitle'] = () async {
+      _pluginFactories['coreplayer.subtitle'] = () async {
         final plugin = SubtitlePlugin();
-        await _performanceService.startMonitoring('builtin.subtitle', plugin);
+        await _performanceService.startMonitoring('coreplayer.subtitle', plugin);
         return plugin;
       };
 
       // 音频效果插件 - 已实现
-      _pluginFactories['builtin.audio_effects'] = () async {
+      _pluginFactories['coreplayer.audio_effects'] = () async {
         final plugin = AudioEffectsPlugin();
-        await _performanceService.startMonitoring('builtin.audio_effects', plugin);
+        await _performanceService.startMonitoring('coreplayer.audio_effects', plugin);
         return plugin;
       };
 
       // 主题管理插件 - 已实现
-      _pluginFactories['builtin.theme_manager'] = () async {
+      _pluginFactories['coreplayer.theme_manager'] = () async {
         final plugin = ThemePlugin();
-        await _performanceService.startMonitoring('builtin.theme_manager', plugin);
+        await _performanceService.startMonitoring('coreplayer.theme_manager', plugin);
         return plugin;
       };
     } else {

@@ -369,7 +369,8 @@ class PluginLoader {
   List<CorePlugin> _getCommunityEditionPlugins() {
     // 🔥 移除媒体服务器占位符 - 社区版不再有默认的媒体服务器功能
     // 用户需要通过插件管理器安装相应的媒体服务器插件包
-    return [];
+    return [
+    ];
   }
 
   List<CorePlugin> _getProEditionPlugins() {
