@@ -261,7 +261,7 @@ if (EditionConfig.isCommunityEdition) {
 }
 ```
 
-```
+
 
 ### 技术栈
 - **框架**: Flutter 3.38.1
@@ -479,8 +479,10 @@ if (EditionConfig.isCommunityEdition) {
 
 ---
 
-<div align="center">
 
+
+
+<div align="center">
 **酷影播放器 CorePlayer** - 酷炫影音，畅享无限
 
 *极致播放，智能管理，跨界体验*

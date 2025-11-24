@@ -73,3 +73,8 @@ analysis.txt
 fix_plugins.sh
 fix_remaining.sh
 API_FIELDS_MAPPING.md
+CLAUDE.md
+AGENTS.md
+PLUGIN_SYSTEM_DEMO.md
+PLUGIN_SYSTEM_SUMMARY.md
+
