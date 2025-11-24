@@ -1,11 +1,32 @@
 import 'dart:io';
 import 'package:yinghe_player/models/codec_info.dart';
 
-/// A service to detect system-supported codecs.
+/// 系统编解码器检测服务
 ///
-/// Since media_kit does not provide a direct API to query all available decoders,
-/// this service returns a curated list of codecs commonly supported by the
-/// underlying engine (mpv/ffmpeg) on different platforms.
+/// 🔥 插件基础设施服务 - 供插件使用
+///
+/// 检测系统支持的编解码器。由于 media_kit 没有提供直接查询所有可用解码器的 API，
+/// 此服务返回底层引擎 (mpv/ffmpeg) 在不同平台上通常支持的编解码器列表。
+///
+/// 这是一个基础设施服务，供插件（如 HEVC 高级解码器插件包）使用来了解系统编解码器能力。
+///
+/// 检测的编解码器：
+/// - 视频: H.264, HEVC/H.265, VP9, AV1, MPEG4
+/// - 音频: AAC, MP3, FLAC, Opus, Vorbis, AC3
+/// - 硬件加速: 根据平台自动检测支持情况
+///
+/// 插件使用示例：
+/// ```dart
+/// final detector = SystemCodecDetectorService();
+/// final codecs = await detector.detectSupportedCodecs();
+///
+/// final hevcCodecs = codecs.where((c) =>
+///   c.type == CodecType.video && c.codec == 'hevc');
+///
+/// if (hevcCodecs.isNotEmpty && hevcCodecs.first.isHardwareAccelerated) {
+///   // 系统支持 HEVC 硬件解码
+/// }
+/// ```
 class SystemCodecDetectorService {
   /// Detects the list of supported video and audio codecs based on the platform.
   Future<List<CodecInfo>> detectSupportedCodecs() async {

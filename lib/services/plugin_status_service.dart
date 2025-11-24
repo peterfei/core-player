@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/plugin_system/core_plugin.dart';
 import '../core/plugin_system/plugin_interface.dart';
-import '../core/plugin_system/plugins/media_server/placeholders/media_server_placeholder.dart';
 import '../core/plugin_system/plugins/media_server/smb/smb_plugin.dart';
 import '../core/plugin_system/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
@@ -78,40 +77,26 @@ class PluginStatusService {
       _startMemoryCleanupTimer();
 
       // 加载所有可用插件到显示列表（但不激活它们）
-      List<String> availablePluginIds;
-
       if (EditionConfig.isProEdition) {
-        // 🔧 专业版：从PluginLoader获取已加载的插件
-        final loaderPluginIds = pluginLoader.loadedPluginIds;
-        availablePluginIds = loaderPluginIds;
+        // 🔧 专业版：从PluginRegistry获取所有已注册的插件（包括动态加载的）
+        final registry = PluginRegistry();
+        final allPlugins = registry.listAll();
+        
         if (kDebugMode) {
-          print('🔧 Pro Edition: Loading ${availablePluginIds.length} plugins from PluginLoader...');
+          print('🔧 Pro Edition: Loading ${allPlugins.length} plugins from PluginRegistry...');
         }
 
-        // 从PluginLoader的注册表获取插件实例
-        final registry = PluginRegistry();
-        for (final pluginId in availablePluginIds) {
-          try {
-            final plugin = registry.get<CorePlugin>(pluginId);
-            if (plugin != null) {
-              _plugins[pluginId] = plugin;
-              if (kDebugMode) {
-                print('✅ Loaded plugin from registry: $pluginId (${plugin.metadata.name}) v${plugin.metadata.version}');
-              }
-            } else {
-              if (kDebugMode) {
-                print('⚠️ Plugin not found in registry: $pluginId');
-              }
-            }
-          } catch (e) {
-            if (kDebugMode) {
-              print('❌ Failed to load plugin $pluginId from registry: $e');
-            }
+        // 将所有插件添加到显示列表
+        for (final plugin in allPlugins) {
+          final pluginId = plugin.metadata.id;
+          _plugins[pluginId] = plugin;
+          if (kDebugMode) {
+            print('✅ Loaded plugin from registry: $pluginId (${plugin.metadata.name}) v${plugin.metadata.version}');
           }
         }
       } else {
         // 社区版：从PluginLazyLoader获取插件
-        availablePluginIds = _lazyLoader.getAvailablePluginIds();
+        final availablePluginIds = _lazyLoader.getAvailablePluginIds();
         if (kDebugMode) {
           print('🔧 Community Edition: Loading ${availablePluginIds.length} plugins from LazyLoader...');
         }

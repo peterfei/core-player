@@ -150,22 +150,6 @@ class PluginRegistry {
         minCoreVersion: '1.0.0',
         lastUpdated: DateTime.now(),
       ),
-      PluginRepositoryInfo(
-        id: 'builtin.media_server',
-        name: '媒体服务器插件',
-        version: '1.0.0',
-        description: '媒体服务器连接和基础功能',
-        path: 'builtin/base',
-        pluginClass: 'MediaServerPlugin',
-        repositoryType: PluginRepositoryType.builtin,
-        isCommunityEdition: true,
-        author: 'CorePlayer Team',
-        category: 'network',
-        tags: ['media', 'server', 'network'],
-        dependencies: [],
-        minCoreVersion: '1.0.0',
-        lastUpdated: DateTime.now(),
-      ),
     ];
 
     for (final pluginInfo in builtinPlugins) {
@@ -318,8 +302,9 @@ class PluginRegistry {
           return ThemePlugin();
         case 'builtin.metadata_enhancer':
           return MetadataEnhancerPlugin();
-        case 'builtin.media_server':
-          return MediaServerPlaceholderPlugin();
+        // 🔥 移除媒体服务器占位符 - 不再内置
+        // case 'builtin.media_server':
+        //   return MediaServerPlaceholderPlugin();
 
         // 商业插件
         case 'com.coreplayer.smb':
@@ -394,16 +379,16 @@ class PluginRegistry {
     return PluginRegistryStats(
       totalRegistered: _registeredPlugins.length,
       builtinCount: _registeredPlugins.values
-          .where((plugin) => plugin.metadata.id.startsWith('builtin.'))
+          .where((plugin) => plugin != null && plugin.metadata.id.startsWith('builtin.'))
           .length,
       commercialCount: _registeredPlugins.values
-          .where((plugin) => plugin.metadata.id.startsWith('commercial.'))
+          .where((plugin) => plugin != null && plugin.metadata.id.startsWith('commercial.'))
           .length,
       thirdPartyCount: _registeredPlugins.values
-          .where((plugin) => plugin.metadata.id.startsWith('third_party.'))
+          .where((plugin) => plugin != null && plugin.metadata.id.startsWith('third_party.'))
           .length,
       activeCount: _registeredPlugins.values
-          .where((plugin) => plugin.state == PluginState.active)
+          .where((plugin) => plugin != null && plugin.state == PluginState.active)
           .length,
     );
   }

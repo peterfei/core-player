@@ -5,10 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/plugin_system/core_plugin.dart';
 import '../core/plugin_system/plugin_interface.dart';
-import '../core/plugin_system/plugins/media_server/placeholders/media_server_placeholder.dart';
-import '../core/plugin_system/plugins/media_server/smb/smb_plugin.dart';
+
+// 已实现的内置插件
+import '../plugins/builtin/subtitle/subtitle_plugin.dart';
+import '../plugins/builtin/audio_effects/audio_effects_plugin.dart';
+import '../plugins/builtin/ui_themes/theme_plugin.dart';
+
 import '../core/plugin_system/plugin_loader.dart';
-import '../core/plugin_system/plugin_metadata_loader.dart';
 import 'plugin_performance_service.dart';
 
 /// 插件加载状态
@@ -65,34 +68,38 @@ class PluginLazyLoader {
 
   /// 注册插件工厂函数
   Future<void> _registerPluginFactories() async {
-    // 媒体服务器插件
     if (EditionConfig.isCommunityEdition) {
-      _pluginFactories['mediaserver'] = () async {
-        final plugin = MediaServerPlaceholderPlugin();
-        await _performanceService.startMonitoring('mediaserver', plugin);
+      // 🔧 社区版：只注册已实现的插件
+      if (kDebugMode) {
+        developer.log('🔧 Community Edition: Registering 3 plugin factories');
+      }
+
+      // 字幕插件 - 已实现
+      _pluginFactories['builtin.subtitle'] = () async {
+        final plugin = SubtitlePlugin();
+        await _performanceService.startMonitoring('builtin.subtitle', plugin);
+        return plugin;
+      };
+
+      // 音频效果插件 - 已实现
+      _pluginFactories['builtin.audio_effects'] = () async {
+        final plugin = AudioEffectsPlugin();
+        await _performanceService.startMonitoring('builtin.audio_effects', plugin);
+        return plugin;
+      };
+
+      // 主题管理插件 - 已实现
+      _pluginFactories['builtin.theme_manager'] = () async {
+        final plugin = ThemePlugin();
+        await _performanceService.startMonitoring('builtin.theme_manager', plugin);
         return plugin;
       };
     } else {
-      // 🔧 专业版下不使用懒加载器，PluginLoader已经处理了
-      // 专业版媒体服务器插件由 PluginLoader 直接管理
-
+      // 🔧 专业版：不使用懒加载器，由PluginLoader直接管理
       if (kDebugMode) {
-        developer.log('🔧 Professional Edition: SMB plugins managed by PluginLoader, not LazyLoader');
+        developer.log('🔧 Professional Edition: Plugins managed by PluginLoader');
       }
-
-      // 🔧 社区版不加载商业插件包
-      // try {
-      //   await _registerCommercialPlugins();
-      // } catch (e) {
-      //   if (kDebugMode) {
-      //     developer.log('Failed to register commercial plugins: $e');
-      //   }
-      // }
     }
-
-    // 可以在这里注册更多社区版插件
-    // _pluginFactories['decoder'] = () async => DecoderPlugin();
-    // _pluginFactories['subtitle'] = () async => SubtitlePlugin();
   }
 
   /// 注册商业插件包中的插件
@@ -334,9 +341,9 @@ class PluginLazyLoader {
   /// 开始关键插件预加载
   void _startPreloading() {
     // 预加载关键插件
-    Timer(const Duration(milliseconds: 500), () {
-      preloadPlugin('mediaserver');
-    });
+    // Timer(const Duration(milliseconds: 500), () {
+    //   preloadPlugin('mediaserver');
+    // });
   }
 
   /// 获取插件状态

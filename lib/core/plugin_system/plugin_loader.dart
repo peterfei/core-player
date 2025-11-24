@@ -9,7 +9,6 @@ import 'plugin_interface.dart';
 import 'core_plugin.dart';
 import 'plugin_registry.dart';
 import 'media_server_plugin.dart';
-import 'plugins/media_server/placeholders/media_server_placeholder.dart';
 import 'plugins/media_server/smb/smb_plugin.dart';
 
 /// 应用版本配置
@@ -374,9 +373,9 @@ class PluginLoader {
 
   /// 社区版插件列表
   List<CorePlugin> _getCommunityEditionPlugins() {
-    return [
-      MediaServerPlaceholderPlugin(),
-    ];
+    // 🔥 移除媒体服务器占位符 - 社区版不再有默认的媒体服务器功能
+    // 用户需要通过插件管理器安装相应的媒体服务器插件包
+    return [];
   }
 
   /// 专业版插件列表

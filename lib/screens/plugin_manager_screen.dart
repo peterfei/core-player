@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as path;
 import '../core/plugin_system/plugin_loader.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/core_plugin.dart';
 import '../core/plugin_system/plugin_metadata_loader.dart';
+import '../core/plugin_system/plugin_package_loader.dart';
 import '../services/plugin_status_service.dart';
 import '../widgets/plugin_error_handler.dart';
 import '../widgets/plugin_performance_dashboard.dart';
@@ -88,6 +91,141 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
       // 强制重建所有 tab 的内容
     });
   }
+
+  /// 🔥 新增：从插件包安装插件
+Future<void> _installFromPackage() async {
+  try {
+    // 选择插件包文件
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['tar', 'gz'],
+      dialogTitle: '选择插件包文件',
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final packagePath = result.files.first.path;
+    if (packagePath == null) {
+      _showError('无法获取插件包文件路径');
+      return;
+    }
+
+    // 显示安装进度对话框
+    _showInstallationDialog(packagePath);
+  } catch (e) {
+    _showError('选择插件包失败: $e');
+  }
+}
+
+/// 显示安装进度对话框
+void _showInstallationDialog(String packagePath) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      title: const Text('安装插件包'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text('正在安装插件包...\n${path.basename(packagePath)}'),
+        ],
+      ),
+    ),
+  );
+
+  // 在后台执行安装
+  _installPackageInBackground(packagePath);
+}
+
+/// 后台安装插件包
+Future<void> _installPackageInBackground(String packagePath) async {
+  try {
+    // 获取当前版本信息
+    final isProfessionalEdition = await _getCurrentEditionType();
+
+    // 加载插件包
+    final metadata = await PluginPackageLoader.instance.loadFromPackage(
+      packagePath,
+      isProfessionalEdition: isProfessionalEdition,
+    );
+
+    // 检查插件兼容性
+    if (!metadata.isAvailableForEdition(isProfessionalEdition)) {
+      throw Exception('插件不可用于当前版本');
+    }
+
+    // TODO: 注册插件到插件注册表
+    // await PluginRegistry().registerFromPackage(packagePath, metadata);
+
+    // 关闭进度对话框
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+
+    // 显示成功消息
+    _showSuccess('插件安装成功', '${metadata.name} v${metadata.version} 已成功安装');
+
+    // 刷新插件列表
+    _loadPlugins();
+  } catch (e) {
+    // 关闭进度对话框
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+
+    // 显示错误消息
+    _showError('插件安装失败: $e');
+  }
+}
+
+/// 获取当前应用版本类型
+Future<bool> _getCurrentEditionType() async {
+  // TODO: 从应用配置中获取当前版本信息
+  // 暂时返回 false（社区版）
+  return false;
+}
+
+/// 显示错误消息
+void _showError(String message) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 5),
+    ),
+  );
+}
+
+/// 显示成功消息
+void _showSuccess(String title, String message) {
+  if (!mounted) return;
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.green),
+          const SizedBox(width: 8),
+          Text(title),
+        ],
+      ),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('确定'),
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   void dispose() {
@@ -219,6 +357,12 @@ class _PluginManagerScreenState extends State<PluginManagerScreen>
           ],
         ),
         actions: [
+          // 🔥 新增：从插件包安装
+          IconButton(
+            icon: const Icon(Icons.file_upload),
+            onPressed: _installFromPackage,
+            tooltip: '从插件包安装',
+          ),
           IconButton(
             icon: const Icon(Icons.system_update),
             onPressed: _showUpdateManagementPage,

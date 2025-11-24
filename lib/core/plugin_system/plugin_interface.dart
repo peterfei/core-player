@@ -1,5 +1,15 @@
 import 'package:flutter/material.dart';
 
+/// 插件版本类型
+enum PluginEdition {
+  community('Community Edition'),
+  professional('Professional Edition'),
+  both('Both Editions');
+
+  const PluginEdition(this.displayName);
+  final String displayName;
+}
+
 /// 插件许可证类型
 enum PluginLicense {
   mit('MIT'),
@@ -41,7 +51,13 @@ class PluginMetadata {
   final List<String> capabilities; // 能力标签
   final String? homepage; // 主页URL
   final String? repository; // 代码仓库
-  final PluginLicense license; // 许可证信息
+
+  // 🔥 新增：插件版本支持和双许可证
+  final PluginEdition edition; // 插件版本类型（社区版/专业版/两者）
+  final PluginLicense? communityLicense; // 社区版许可证
+  final PluginLicense? professionalLicense; // 专业版许可证
+  final PluginLicense license; // 向后兼容的单一许可证（edition != both 时使用）
+
   final List<PluginPermission> permissions; // 所需权限
   final List<String> dependencies; // 插件依赖
   final String? minCoreVersion; // 最低核心版本要求
@@ -57,7 +73,10 @@ class PluginMetadata {
     this.capabilities = const [],
     this.homepage,
     this.repository,
-    this.license = PluginLicense.proprietary,
+    this.edition = PluginEdition.professional, // 向后兼容：默认专业版
+    this.communityLicense,
+    this.professionalLicense,
+    this.license = PluginLicense.proprietary, // 向后兼容
     this.permissions = const [],
     this.dependencies = const [],
     this.minCoreVersion,
@@ -75,7 +94,13 @@ class PluginMetadata {
       capabilities: List<String>.from(json['capabilities'] ?? []),
       homepage: json['homepage'] as String?,
       repository: json['repository'] as String?,
-      license: _parseLicense(json['license'] as String?),
+
+      // 🔥 新增：解析双许可证字段
+      edition: _parseEdition(json['edition'] as String?),
+      communityLicense: _parseLicense(json['communityLicense'] as String?),
+      professionalLicense: _parseLicense(json['professionalLicense'] as String?),
+      license: _parseLicense(json['license'] as String?), // 向后兼容
+
       permissions: _parsePermissions(List<String>.from(json['permissions'] ?? [])),
       dependencies: List<String>.from(json['dependencies'] ?? []),
       minCoreVersion: json['minCoreVersion'] as String?,
@@ -94,7 +119,13 @@ class PluginMetadata {
       'capabilities': capabilities,
       'homepage': homepage,
       'repository': repository,
-      'license': license.name,
+
+      // 🔥 新增：序列化双许可证字段
+      'edition': edition.name,
+      'communityLicense': communityLicense?.name,
+      'professionalLicense': professionalLicense?.name,
+      'license': license.name, // 向后兼容
+
       'permissions': permissions.map((p) => p.name).toList(),
       'dependencies': dependencies,
       'minCoreVersion': minCoreVersion,
@@ -111,6 +142,31 @@ class PluginMetadata {
       return false;
     }
     return true;
+  }
+
+  /// 🔥 新增：获取当前版本的许可证
+  PluginLicense getCurrentLicense(bool isProfessionalEdition) {
+    if (edition == PluginEdition.both) {
+      // 双版本插件：根据当前版本返回对应许可证
+      return isProfessionalEdition
+          ? (professionalLicense ?? PluginLicense.unknown)
+          : (communityLicense ?? PluginLicense.unknown);
+    } else {
+      // 单版本插件：返回默认许可证
+      return license;
+    }
+  }
+
+  /// 🔥 新增：检查插件是否可在指定版本使用
+  bool isAvailableForEdition(bool isProfessionalEdition) {
+    switch (edition) {
+      case PluginEdition.community:
+        return !isProfessionalEdition;
+      case PluginEdition.professional:
+        return isProfessionalEdition;
+      case PluginEdition.both:
+        return true; // 双版本插件都可用
+    }
   }
 
   /// 版本号比较
@@ -136,6 +192,14 @@ class PluginMetadata {
     } catch (e) {
       return Icons.extension;
     }
+  }
+
+  static PluginEdition _parseEdition(String? editionString) {
+    if (editionString == null) return PluginEdition.professional; // 向后兼容
+    return PluginEdition.values.firstWhere(
+      (edition) => edition.name.toLowerCase() == editionString.toLowerCase(),
+      orElse: () => PluginEdition.professional, // 向后兼容
+    );
   }
 
   static PluginLicense _parseLicense(String? licenseString) {

@@ -17,6 +17,7 @@ import 'package:yinghe_player/services/global_error_handler.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 import 'package:yinghe_player/core/plugin_system/plugin_loader.dart';
+import 'package:yinghe_player/core/plugin_system/config_migration.dart';
 
 
 void main() async {
@@ -105,6 +106,22 @@ class _MyAppState extends State<MyApp> {
 
       // 启动代理服务器
       await LocalProxyServer.instance.start();
+
+      // 🔥 执行配置迁移（在插件系统初始化之前）
+      try {
+        final migration = ConfigMigration.instance;
+        if (await migration.needsMigration()) {
+          final result = await migration.performMigration();
+          if (result.success) {
+            print('Configuration migration completed successfully');
+          } else {
+            print('Configuration migration failed: ${result.error}');
+          }
+        }
+      } catch (e) {
+        print('Configuration migration error: $e');
+        // 配置迁移失败不应该阻止应用启动
+      }
 
       // 初始化插件系统
       try {

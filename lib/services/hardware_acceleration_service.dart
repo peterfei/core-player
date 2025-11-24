@@ -6,7 +6,30 @@ import 'package:media_kit/media_kit.dart';
 import '../models/hardware_acceleration_config.dart';
 
 /// 硬件加速服务
-/// 负责检测、启用和管理硬件加速
+///
+/// 🔥 插件基础设施服务 - 供插件使用
+///
+/// 负责检测、启用和管理硬件加速。这是一个基础设施服务，供插件使用。
+/// HEVC 高级解码器插件包会复用这个服务来获取硬件加速能力。
+///
+/// 功能：
+/// - 检测平台硬件加速能力 (VideoToolbox, DXVA2, VAAPI, MediaCodec)
+/// - 支持的编解码器硬件加速检测 (H.264, HEVC, VP9, AV1)
+/// - 硬件加速配置和管理
+/// - 事件通知机制
+///
+/// 插件使用示例：
+/// ```dart
+/// final hwService = HardwareAccelerationService.instance;
+/// await hwService.initialize();
+///
+/// if (hwService.isHardwareAccelerationSupported) {
+///   final config = await hwService.getRecommendedConfig();
+///   if (config.supportedCodecs['hevc'] == true) {
+///     // 启用 HEVC 硬件解码
+///   }
+/// }
+/// ```
 class HardwareAccelerationService {
   static HardwareAccelerationService? _instance;
   static HardwareAccelerationService get instance {
