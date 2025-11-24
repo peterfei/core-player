@@ -10,6 +10,7 @@ import 'core_plugin.dart';
 import 'plugin_registry.dart';
 import 'media_server_plugin.dart';
 import 'plugins/media_server/smb/smb_plugin.dart';
+import 'package:coreplayer_pro_plugins/coreplayer_pro_plugins.dart' as cpp;
 
 /// 应用版本配置
 class EditionConfig {
@@ -334,14 +335,7 @@ class PluginLoader {
       final plugins = _getBuiltInPlugins();
       final semaphore = _createSemaphore(_config.maxConcurrentLoads);
 
-      final futures = plugins.map((plugin) async {
-        await semaphore.acquire();
-        try {
-          await _loadPlugin(plugin);
-        } finally {
-          semaphore.release();
-        }
-      });
+      final futures = plugins.map((plugin) => _loadPluginWithSemaphore(plugin, semaphore));
 
       await Future.wait(futures);
 
@@ -378,10 +372,15 @@ class PluginLoader {
     return [];
   }
 
-  /// 专业版插件列表
   List<CorePlugin> _getProEditionPlugins() {
     return [
       SMBPlugin(),
+
+      // 解码器插件（从 core-player-pro-plugins）
+      cpp.HEVCDecoderPlugin(),
+      // cpp.VP9DecoderPlugin(), // TODO: 修复类型定义后启用
+      // cpp.AV1DecoderPlugin(), // TODO: 修复类型定义后启用
+      
       // 未来可以添加 Emby、Jellyfin 等插件
     ];
   }
@@ -440,7 +439,13 @@ class PluginLoader {
     // 根据版本激活相应的默认插件
     final defaultPlugins = EditionConfig.isCommunityEdition
         ? ['com.coreplayer.mediaserver.placeholder']
-        : ['com.coreplayer.smb', 'com.coreplayer.emby', 'com.coreplayer.jellyfin'];
+        : [
+            'com.coreplayer.smb',
+            // 解码器插件
+            'coreplayer.pro.decoder.hevc',
+            // 'coreplayer.pro.decoder.vp9', // TODO: 修复类型定义后启用
+            // 'coreplayer.pro.decoder.av1', // TODO: 修复类型定义后启用
+          ];
 
     for (final pluginId in defaultPlugins) {
       final plugin = _registry.get<CorePlugin>(pluginId);
@@ -493,6 +498,16 @@ class PluginLoader {
       await prefs.setStringList('recent_plugins', recentPlugins);
     } catch (e) {
       _log('Warning: Failed to update recent plugins: $e');
+    }
+  }
+
+  /// 使用信号量加载插件
+  Future<void> _loadPluginWithSemaphore(CorePlugin plugin, dynamic semaphore) async {
+    await semaphore.acquire();
+    try {
+      await _loadPlugin(plugin);
+    } finally {
+      semaphore.release();
     }
   }
 }

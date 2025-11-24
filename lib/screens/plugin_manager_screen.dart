@@ -1024,7 +1024,7 @@ void _showSuccess(String title, String message) {
             icon: const Icon(Icons.build_circle_outlined),
             label: const Text('测试'),
           ),
-        if (plugin.buildSettingsScreen() != null)
+        if (plugin.buildSettingsScreen(context) != null)
           OutlinedButton.icon(
             onPressed: () => _openPluginSettings(plugin),
             icon: const Icon(Icons.settings),
@@ -1214,7 +1214,7 @@ void _showSuccess(String title, String message) {
   }
 
   Future<void> _openPluginSettings(CorePlugin plugin) async {
-    final settingsWidget = plugin.buildSettingsScreen();
+    final settingsWidget = plugin.buildSettingsScreen(context);
     if (settingsWidget != null) {
       Navigator.push(
         context,

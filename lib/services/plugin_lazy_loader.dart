@@ -573,7 +573,7 @@ class _CommercialPluginPlaceholder extends CorePlugin {
   }
 
   @override
-  Widget? buildSettingsScreen() {
+  Widget? buildSettingsScreen(BuildContext context) {
     // 商业插件的设置界面
     return null;
   }
