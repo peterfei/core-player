@@ -84,6 +84,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _handleSidebarItemSelected(int index) {
+    // 处理"关于"按钮点击 (index == -1)
+    if (index == -1) {
+      _showAboutDialog();
+      return;
+    }
+
     setState(() {
       _selectedSidebarIndex = index;
     });
@@ -92,6 +98,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (index == 0) {
       _loadData();
     }
+  }
+
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'CorePlayer',
+      applicationVersion: '1.0.0',
+      applicationLegalese: '© 2025 CorePlayer By Peterfei',
+      applicationIcon: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary,
+              Color(0xFF0066CC),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+        ),
+        child: const Icon(
+          Icons.play_arrow,
+          color: Colors.white,
+          size: 32,
+        ),
+      ),
+      children: [
+        const SizedBox(height: 16),
+        const Text(
+          'CorePlayer 是一个现代化的视频播放器，支持多种格式和网络流媒体播放。',
+          style: TextStyle(fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          '基于 Flutter 和 media_kit 构建，提供极致的播放体验。',
+          style: TextStyle(fontSize: 14),
+        ),
+      ],
+    );
   }
 
   void _toggleSidebar() {
