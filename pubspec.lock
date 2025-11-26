@@ -223,7 +223,7 @@ packages:
       path: "../core-player-pro-plugins"
       relative: true
     source: path
-    version: "1.0.1"
+    version: "1.0.11+11"
   cross_file:
     dependency: transitive
     description:

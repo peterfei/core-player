@@ -1,7 +1,12 @@
 allprojects {
     repositories {
+        // Use official repositories first for better compatibility
         google()
         mavenCentral()
+
+        // Aliyun mirrors as fallback
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
     }
 }
 
