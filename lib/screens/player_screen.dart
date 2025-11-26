@@ -1512,8 +1512,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
           watchCount: existingHistory.watchCount + 1,
         );
       } else if (!existingHistory.isCompleted) {
-        // 如果有未看完的记录，询问用户是否从上次位置继续
-        _showResumeDialog(existingHistory);
+        // 如果有未看完的记录，自动从上次位置继续
+        print('🔄 自动恢复播放: ${existingHistory.formattedProgress}');
+        
+        // 自动跳转
+        _seekTo(Duration(seconds: existingHistory.currentPosition));
+        
+        // 显示提示
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已为您恢复到上次观看位置 (${existingHistory.formattedProgress})'),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: '从头播放',
+                onPressed: () {
+                  _seekTo(Duration.zero);
+                },
+              ),
+            ),
+          );
+        }
+        
         _startHistoryTimer();
         return;
       } else {
@@ -1611,34 +1632,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
-  // 显示继续播放对话框
-  void _showResumeDialog(PlaybackHistory history) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('继续播放'),
-        content: Text(
-          '检测到您上次观看此视频到 ${history.formattedProgress}，\n'
-          '是否从上次位置继续观看？',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _seekTo(Duration(seconds: history.currentPosition));
-            },
-            child: const Text('继续'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('重新开始'),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // 开始定时保存播放进度
   void _startHistoryTimer() {
