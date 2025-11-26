@@ -108,6 +108,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // 全局释放状态控制（静态变量，所有实例共享）
   static bool _isPlayerScreenDisposing = false;
+  
+  // ScaffoldMessengerState reference for safe disposal
+  ScaffoldMessengerState? _scaffoldMessenger;
 
   // 超高清视频支持相关服务
   VideoInfo? _currentVideoInfo;
@@ -122,6 +125,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
   NotificationType _hwAccelNotificationType = NotificationType.info;
 
   late String _cacheKey; // 新增：缓存和历史记录的唯一键
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Save reference to ScaffoldMessenger for safe use in dispose
+    _scaffoldMessenger = ScaffoldMessenger.of(context);
+  }
 
   // 初始化播放器和服务
   Future<void> _initializePlayerAndServices() async {
@@ -317,7 +327,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _startPerformanceMonitoring() {
     // 延迟启动性能监控，等视频开始播放
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted && !_isPlaying) return; // 如果已经停止播放，不启动监控
+      if ((mounted && !_isPlaying) || _isPlayerScreenDisposing) return; // 如果已经停止播放或正在销毁，不启动监控
 
       try {
         PerformanceMonitorService.instance
@@ -333,7 +343,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _performanceSubscription =
             PerformanceMonitorService.instance.metricsStream.listen(
           (metrics) {
-            if (mounted) {
+            if (mounted && !_isPlayerScreenDisposing) {
               // 性能警告日志
               if (metrics.isPoorPerformance) {
                 print(
@@ -904,7 +914,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       // 监听缓冲状态
       _bufferingSubscription = player.stream.buffering.listen((isBuffering) {
-        if (mounted) {
+        if (mounted && !_isPlayerScreenDisposing) {
           final wasBuffering = _isBuffering;
           setState(() {
             _isBuffering = isBuffering;
@@ -929,7 +939,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       // 监听缓冲进度
       _bufferSubscription = player.stream.buffer.listen((buffer) {
-        if (mounted && _totalDuration.inMilliseconds > 0) {
+        if (mounted && _totalDuration.inMilliseconds > 0 && !_isPlayerScreenDisposing) {
           // 计算缓冲进度和时长
           final progress =
               (buffer.inMilliseconds / _totalDuration.inMilliseconds) * 100;
@@ -1277,7 +1287,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // 监听网络状态变化
     _networkStatsSubscription =
         _bandwidthMonitor.networkStatsStream.listen((stats) {
-      if (mounted) {
+      if (mounted && !_isPlayerScreenDisposing) {
         setState(() {
           _currentNetworkStats = stats;
         });
@@ -3703,18 +3713,47 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
+    // 清除可能存在的SnackBar (使用保存的引用)
+    _scaffoldMessenger?.hideCurrentSnackBar();
+
     print('🧹 开始清理播放器资源...');
 
     // 第1步：立即设置全局释放状态（最高优先级，防止新操作开始）
     _isPlayerScreenDisposing = true;
 
-    // 第2步：立即取消 Timer（防止新的回调触发）
+    // 第2步：立即取消所有订阅和定时器（防止UI更新）
     _cancelThumbnailGeneration();
-
-    // 第3步：强制取消所有进行中的缩略图操作
     NetworkThumbnailService.forceCancelAllOperations();
+    
+    _performanceSubscription?.cancel();
+    _hwAccelSubscription?.cancel();
+    _controlsTimer?.cancel();
+    _historyTimer?.cancel();
+    _connectivitySubscription?.cancel();
+    _networkStatsSubscription?.cancel();
+    _bufferProgressTimer?.cancel();
+    _globalBufferMonitor?.cancel();
+    _downloadProgressSubscription?.cancel();
 
-    // 第4步：立即暂停播放器（但不释放，给异步操作缓冲时间）
+    _playingSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    _volumeSubscription?.cancel();
+    _bufferingSubscription?.cancel();
+    _bufferSubscription?.cancel();
+    _subtitleContentSubscription?.cancel();
+    _errorSubscription?.cancel();
+    _logSubscription?.cancel();
+    
+    // 停止服务
+    _stopPerformanceMonitoring();
+    if (_isNetworkVideo) {
+      _bandwidthMonitor.stopMonitoring();
+    }
+
+    print('🧹 订阅和定时器已取消');
+
+    // 第3步：立即暂停播放器（但不释放，给异步操作缓冲时间）
     try {
       if (player.state.playing) {
         player.pause();
@@ -3724,42 +3763,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
       print('⚠️ 暂停播放器时出错: $e');
     }
 
-    // 第5步：延迟清理，给异步操作足够时间响应强制取消
-    Future.delayed(Duration(milliseconds: 100), () async {
+    // 第4步：延迟释放播放器实例
+    Future.delayed(const Duration(milliseconds: 100), () async {
       try {
-        print('🧹 延迟清理：开始其他资源清理...');
+        print('🧹 延迟清理：开始释放播放器...');
 
         // 等待确保所有缩略图操作都已完成或被取消
-        await Future.delayed(Duration(milliseconds: 50));
-
-        // 停止超高清视频支持服务
-        _stopPerformanceMonitoring();
-        _hwAccelSubscription?.cancel();
-        print('🧹 硬件加速事件监听器已取消');
-
-        _controlsTimer?.cancel();
-        _historyTimer?.cancel();
-        _connectivitySubscription?.cancel();
-        _networkStatsSubscription?.cancel();
-        _bufferProgressTimer?.cancel();
-        _globalBufferMonitor?.cancel();
-        _downloadProgressSubscription?.cancel();
-
-        // 取消播放器监听器
-        _playingSubscription?.cancel();
-        _positionSubscription?.cancel();
-        _durationSubscription?.cancel();
-        _volumeSubscription?.cancel();
-        _bufferingSubscription?.cancel();
-        _bufferSubscription?.cancel();
-        _subtitleContentSubscription?.cancel();
-        _errorSubscription?.cancel();
-        _logSubscription?.cancel();
-
-        // 停止带宽监控
-        if (_isNetworkVideo) {
-          _bandwidthMonitor.stopMonitoring();
-        }
+        await Future.delayed(const Duration(milliseconds: 50));
 
         // 保存最终播放进度
         _saveProgress();
@@ -3778,11 +3788,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
           MacOSBookmarkService.stopAccessingSecurityScopedResource(_videoPath);
         }
 
-        print('🧹 其他资源清理完成，开始释放播放器...');
-
         // 最后安全地释放播放器
         try {
-          player.dispose();
+          await player.dispose();
           print('✅ 播放器已安全释放');
         } catch (e) {
           print('❌ 释放播放器时出错: $e');
