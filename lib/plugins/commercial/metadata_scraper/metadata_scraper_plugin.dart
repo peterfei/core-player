@@ -23,10 +23,13 @@ class MetadataScraperPlugin extends CorePlugin {
   // 保留旧的逻辑实例用于辅助功能（如集数刮削）
   late final MetadataScraperLogic _legacyLogic;
 
-  MetadataScraperPlugin({super.metadata});
+  // 动态元数据支持
+  PluginMetadata? _dynamicMetadata;
+
+  MetadataScraperPlugin({PluginMetadata? metadata}) : _dynamicMetadata = metadata;
 
   @override
-  PluginMetadata get staticMetadata => _impl.metadata;
+  PluginMetadata get staticMetadata => _dynamicMetadata ?? _impl.metadata;
 
   @override
   PluginState get state => _impl.state;
@@ -39,6 +42,7 @@ class MetadataScraperPlugin extends CorePlugin {
   @override
   Future<void> onInitialize() async {
     _legacyLogic = MetadataScraperLogic();
+    // 允许传入的 metadata 覆盖 _impl 的 metadata，但逻辑仍然委托给 _impl
     await _impl.onInitialize();
   }
 
