@@ -426,8 +426,59 @@ class AppTheme {
     );
   }
 
-  /// 获取轻量主题 (用于测试)
-  static ThemeData get lightTheme {
+    /// 赛博霓虹主题 (深色)
+    static ThemeData get neonCyberTheme {
+      return ThemeData.dark().copyWith(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF00E5FF), // Cyan Neon
+          secondary: Color(0xFFFF4081), // Pink Neon
+          background: Color(0xFF121212),
+          surface: Color(0xFF1E1E1E),
+          onBackground: Colors.white,
+          onSurface: Colors.white,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF121212),
+          foregroundColor: Color(0xFF00E5FF),
+        ),
+        cardTheme: const CardThemeData(
+          color: Color(0xFF2C2C2C),
+          elevation: 4,
+          shadowColor: Color(0xFF00E5FF),
+        ),
+      );
+    }
+  
+    /// 北欧极简主题 (浅色)
+    static ThemeData get nordicLightTheme {
+      return ThemeData.light().copyWith(
+        useMaterial3: true,
+        brightness: Brightness.light,
+        colorScheme: const ColorScheme.light(
+          primary: Color(0xFF455A64), // Slate Grey
+          secondary: Color(0xFF90A4AE), // Light Blue Grey
+          background: Color(0xFFF5F7FA), // Very Light Grey
+          surface: Colors.white,
+          onBackground: Color(0xFF263238),
+          onSurface: Color(0xFF263238),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF455A64),
+          elevation: 0,
+        ),
+        cardTheme: const CardThemeData(
+          color: Colors.white,
+          elevation: 1,
+          shadowColor: Color(0xFFCFD8DC),
+        ),
+      );
+    }
+  
+    /// 获取轻量主题 (用于测试)
+    static ThemeData get lightTheme {
     return ThemeData.light().copyWith(
       useMaterial3: true,
       // 这里可以定义轻量主题，如果需要的话

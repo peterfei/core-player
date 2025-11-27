@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
@@ -14,11 +15,13 @@ import 'package:yinghe_player/services/subtitle_download_init.dart';
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
 import 'package:yinghe_player/services/plugin_status_service.dart';
+import 'package:yinghe_player/services/plugin_lazy_loader.dart';
 import 'package:yinghe_player/services/global_error_handler.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 import 'package:yinghe_player/core/plugin_system/plugin_loader.dart';
 import 'package:yinghe_player/core/plugin_system/config_migration.dart';
+import 'package:yinghe_player/plugins/builtin/ui_themes/theme_plugin.dart';
 
 
 void main() async {
@@ -71,11 +74,19 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   bool _initialized = false;
   String? _error;
+  ThemeData _currentTheme = AppTheme.darkTheme;
+  StreamSubscription? _themeSubscription;
 
   @override
   void initState() {
     super.initState();
     _initializeServices();
+  }
+
+  @override
+  void dispose() {
+    _themeSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeServices() async {
@@ -141,6 +152,9 @@ class _MyAppState extends State<MyApp> {
         // 初始化字幕下载插件
         await initializeSubtitleDownloadPlugins();
         print('Subtitle download plugins initialized successfully');
+
+        // 监听主题变更
+        _setupThemeListener();
       } catch (e) {
         print('Failed to initialize plugin system: $e');
         // 插件系统初始化失败不应该阻止应用启动
@@ -162,6 +176,35 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  void _setupThemeListener() {
+    try {
+      // 从懒加载器获取主题插件
+      final themePlugin = PluginLazyLoader().getPlugin('coreplayer.theme_manager');
+      if (themePlugin != null && themePlugin is ThemePlugin) {
+        // 设置初始主题
+        if (themePlugin.currentTheme != null) {
+          setState(() {
+            _currentTheme = themePlugin.currentTheme!;
+          });
+        }
+
+        // 监听主题变更
+        _themeSubscription = themePlugin.themeStream.listen((event) {
+          if (mounted) {
+            setState(() {
+              _currentTheme = event.theme.themeData;
+            });
+            print('Theme updated to: ${event.theme.name}');
+          }
+        });
+
+        print('Theme listener setup successfully');
+      }
+    } catch (e) {
+      print('Failed to setup theme listener: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget childWidget;
@@ -169,7 +212,7 @@ class _MyAppState extends State<MyApp> {
     if (!_initialized) {
       childWidget = MaterialApp(
         title: 'CorePlayer',
-        theme: AppTheme.darkTheme,
+        theme: _currentTheme,
         home: const Scaffold(
           backgroundColor: AppColors.background,
           body: Center(
@@ -192,7 +235,7 @@ class _MyAppState extends State<MyApp> {
     } else {
       childWidget = MaterialApp(
         title: 'CorePlayer',
-        theme: AppTheme.darkTheme,
+        theme: _currentTheme,
         home: _error != null
             ? Scaffold(
                 backgroundColor: AppColors.background,

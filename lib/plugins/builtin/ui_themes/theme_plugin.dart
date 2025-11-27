@@ -8,17 +8,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../../../core/plugin_system/core_plugin.dart';
 import '../../../core/plugin_system/plugin_interface.dart';
+import '../../../theme/app_theme.dart';
 
 /// 主题管理插件
-///
-/// 功能：
-/// - 多套预定义主题
-/// - 自定义主题创建
-/// - 主题导入导出
-/// - 实时主题切换
-/// - 字体和颜色管理
-/// - 深色/浅色模式
-/// - 动态主题元素
 class ThemePlugin extends CorePlugin {
   static final _metadata = PluginMetadata(
     id: 'coreplayer.theme_manager',
@@ -38,10 +30,10 @@ class ThemePlugin extends CorePlugin {
   ThemeData? _currentTheme;
 
   /// 预定义主题集合
-  final Map<String, AppTheme> _builtinThemes = {};
+  final Map<String, PluginTheme> _builtinThemes = {};
 
   /// 自定义主题集合
-  final Map<String, AppTheme> _customThemes = {};
+  final Map<String, PluginTheme> _customThemes = {};
 
   /// 当前应用主题信息
   AppThemeInfo _currentThemeInfo = const AppThemeInfo(
@@ -116,7 +108,7 @@ class ThemePlugin extends CorePlugin {
   /// 加载内置主题
   Future<void> _loadBuiltinThemes() async {
     _builtinThemes.addAll({
-      'default': AppTheme(
+      'default': PluginTheme(
         id: 'default',
         name: 'Default Theme',
         description: 'CorePlayer 默认主题',
@@ -129,7 +121,7 @@ class ThemePlugin extends CorePlugin {
         },
         isDark: true,
       ),
-      'light': AppTheme(
+      'light': PluginTheme(
         id: 'light',
         name: 'Light Theme',
         description: '明亮色调主题',
@@ -142,7 +134,7 @@ class ThemePlugin extends CorePlugin {
         },
         isDark: false,
       ),
-      'midnight_blue': AppTheme(
+      'midnight_blue': PluginTheme(
         id: 'midnight_blue',
         name: 'Midnight Blue',
         description: '深夜蓝色主题',
@@ -155,7 +147,7 @@ class ThemePlugin extends CorePlugin {
         },
         isDark: true,
       ),
-      'forest_green': AppTheme(
+      'forest_green': PluginTheme(
         id: 'forest_green',
         name: 'Forest Green',
         description: '森林绿色主题',
@@ -168,7 +160,7 @@ class ThemePlugin extends CorePlugin {
         },
         isDark: true,
       ),
-      'sunset_orange': AppTheme(
+      'sunset_orange': PluginTheme(
         id: 'sunset_orange',
         name: 'Sunset Orange',
         description: '日落橙色主题',
@@ -180,6 +172,32 @@ class ThemePlugin extends CorePlugin {
           'surface': Color(0xFF5D4037),
         },
         isDark: true,
+      ),
+      'neon_cyber': PluginTheme(
+        id: 'neon_cyber',
+        name: 'Neon Cyber',
+        description: '赛博霓虹风格',
+        themeData: AppTheme.neonCyberTheme,
+        previewColors: {
+          'primary': Color(0xFF00E5FF),
+          'secondary': Color(0xFFFF4081),
+          'background': Color(0xFF121212),
+          'surface': Color(0xFF1E1E1E),
+        },
+        isDark: true,
+      ),
+      'nordic_light': PluginTheme(
+        id: 'nordic_light',
+        name: 'Nordic Light',
+        description: '北欧极简风格',
+        themeData: AppTheme.nordicLightTheme,
+        previewColors: {
+          'primary': Color(0xFF455A64),
+          'secondary': Color(0xFF90A4AE),
+          'background': Color(0xFFF5F7FA),
+          'surface': Colors.white,
+        },
+        isDark: false,
       ),
     });
   }
@@ -201,7 +219,7 @@ class ThemePlugin extends CorePlugin {
 
   /// 应用主题
   Future<void> applyTheme(String themeId) async {
-    AppTheme? theme;
+    PluginTheme? theme;
 
     // 优先查找自定义主题
     theme = _customThemes[themeId];
@@ -232,18 +250,18 @@ class ThemePlugin extends CorePlugin {
   }
 
   /// 获取所有可用主题
-  List<AppTheme> getAvailableThemes() {
-    final themes = <AppTheme>[];
+  List<PluginTheme> getAvailableThemes() {
+    final themes = <PluginTheme>[];
     themes.addAll(_builtinThemes.values);
     themes.addAll(_customThemes.values);
     return themes;
   }
 
   /// 获取内置主题
-  Map<String, AppTheme> get getBuiltinThemes => Map.unmodifiable(_builtinThemes);
+  Map<String, PluginTheme> get getBuiltinThemes => Map.unmodifiable(_builtinThemes);
 
   /// 获取自定义主题
-  Map<String, AppTheme> get getCustomThemes => Map.unmodifiable(_customThemes);
+  Map<String, PluginTheme> get getCustomThemes => Map.unmodifiable(_customThemes);
 
   /// 创建自定义主题
   String createCustomTheme({
@@ -266,7 +284,7 @@ class ThemePlugin extends CorePlugin {
       fontFamily: fontFamily,
     );
 
-    final theme = AppTheme(
+    final theme = PluginTheme(
       id: themeId,
       name: name,
       description: description,
@@ -287,7 +305,7 @@ class ThemePlugin extends CorePlugin {
   }
 
   /// 更新自定义主题
-  Future<void> updateCustomTheme(String themeId, AppTheme updatedTheme) async {
+  Future<void> updateCustomTheme(String themeId, PluginTheme updatedTheme) async {
     if (!_customThemes.containsKey(themeId)) {
       throw Exception('Custom theme not found: $themeId');
     }
@@ -337,7 +355,7 @@ class ThemePlugin extends CorePlugin {
 
   /// 导出主题
   Future<Map<String, dynamic>> exportTheme(String themeId) async {
-    AppTheme? theme;
+    PluginTheme? theme;
     theme = _customThemes[themeId];
     theme ??= _builtinThemes[themeId];
 
@@ -360,7 +378,7 @@ class ThemePlugin extends CorePlugin {
         throw Exception('Invalid theme data');
       }
 
-      final theme = AppTheme.fromJson(themeJson);
+      final theme = PluginTheme.fromJson(themeJson);
 
       // 检查主题ID是否冲突
       var newId = theme.id;
@@ -568,7 +586,7 @@ class ThemePlugin extends CorePlugin {
 }
 
 /// 应用主题
-class AppTheme {
+class PluginTheme {
   final String id;
   final String name;
   final String description;
@@ -580,7 +598,7 @@ class AppTheme {
   final DateTime? updatedAt;
   final DateTime? importedAt;
 
-  const AppTheme({
+  const PluginTheme({
     required this.id,
     required this.name,
     required this.description,
@@ -593,7 +611,7 @@ class AppTheme {
     this.importedAt,
   });
 
-  AppTheme copyWith({
+  PluginTheme copyWith({
     String? id,
     String? name,
     String? description,
@@ -605,7 +623,7 @@ class AppTheme {
     DateTime? updatedAt,
     DateTime? importedAt,
   }) {
-    return AppTheme(
+    return PluginTheme(
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
@@ -635,8 +653,8 @@ class AppTheme {
     };
   }
 
-  factory AppTheme.fromJson(Map<String, dynamic> json) {
-    return AppTheme(
+  factory PluginTheme.fromJson(Map<String, dynamic> json) {
+    return PluginTheme(
       id: json['id'],
       name: json['name'],
       description: json['description'],
@@ -680,7 +698,7 @@ class AppThemeInfo {
 /// 主题变更事件
 class ThemeChangeEvent {
   final String themeId;
-  final AppTheme theme;
+  final PluginTheme theme;
   final DateTime timestamp;
 
   const ThemeChangeEvent({

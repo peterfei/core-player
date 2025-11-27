@@ -11,6 +11,7 @@ import 'video_playback_settings_screen.dart';
 import 'metadata_settings_screen.dart';
 import 'metadata_management_page.dart';
 import 'plugin_manager_screen.dart';
+import 'theme_settings_screen.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -29,11 +30,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
-          const ListTile(
-            leading: Icon(Icons.color_lens),
-            title: Text('外观设置'),
-            subtitle: Text('更改应用的外观和感觉'),
-            enabled: false,
+          ListTile(
+            leading: const Icon(Icons.color_lens),
+            title: const Text('外观设置'),
+            subtitle: const Text('更改应用的外观和感觉'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ThemeSettingsScreen(),
+                ),
+              );
+            },
           ),
           const ListTile(
             leading: Icon(Icons.notifications),
