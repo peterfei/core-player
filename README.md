@@ -26,26 +26,30 @@
 
 ## 📦 版本说明
 
+我们采用**双版本策略**，以满足不同用户的需求。通过 `EDITION` 编译标志进行区分。
+
 ### 社区版 (Community Edition)
+面向个人用户和开源社区，提供纯粹的本地播放体验。
 - ✅ 基础本地视频播放
 - ✅ 网络视频播放和缓存
 - ✅ 播放历史和断点续播
 - ✅ 字幕加载和自定义
-- ✅ 媒体库管理
-- ⚠️ **SMB/NAS 功能需升级到专业版**
+- ✅ 媒体库管理 (本地文件)
+- ⚠️ **高级网络功能 (SMB/NAS) 需升级到专业版**
 
 ### 专业版 (Professional Edition)
-- ✅ **社区版所有功能**
-- ✅ **SMB/CIFS** 网络共享访问
+面向发烧友和企业用户，提供完整的家庭影院解决方案。
+- ✅ **包含社区版所有功能**
+- ✅ **SMB/CIFS** 网络共享访问 (NAS/Windows共享)
+- ✅ **自动元数据刮削** (海报墙、剧集信息自动匹配)
 - ✅ **FTP/SFTP** 安全文件传输
 - ✅ **NFS** 网络文件系统支持
 - ✅ **WebDAV** 协议支持
-- ✅ **HEVC/H.265** 专业解码器
+- ✅ **HEVC/H.265** 专业解码器 (软硬解优化)
 - ✅ **AI 智能字幕**
 - ✅ **多设备同步**
-- ✅ **更多高级功能**
 
-> 💡 **提示**: 在社区版中尝试使用 SMB 功能时，将显示友好的升级提示对话框，引导用户了解专业版功能。
+> 💡 **提示**: 在社区版中尝试使用 SMB 或元数据刮削功能时，系统会自动屏蔽相关入口或显示友好的升级提示。
 
 ## ✨ 核心特性
 
@@ -56,6 +60,12 @@
 - ✅ **智能硬件加速** - 自动启用 VideoToolbox、DXVA2、VAAPI 等
 - ✅ **HDR 视频支持** - HDR10、HLG 等高动态范围格式
 - ✅ **完整播放控制** - 播放/暂停、进度调节、音量控制、全屏模式
+
+### 🖼️ 智能海报墙 (专业版)
+- ✅ **自动刮削** - 扫描视频时自动从 TMDB 获取海报、背景图和简介
+- ✅ **智能识别** - 自动解析文件名中的剧集信息 (S01E01)
+- ✅ **精美展示** - 告别冰冷的文件列表，享受 Netflix 般的浏览体验
+- ✅ **后台运行** - 静默处理，不打扰前台操作
 
 ### 🌐 网络功能
 - ✅ **网络视频播放** - 支持 HTTP/HTTPS 直链播放
@@ -72,7 +82,6 @@
 - 🔒 **Plex 集成** - Plex 服务器内容播放 **(专业版)**
 - ✅ **服务器管理** - 添加、编辑、删除多个媒体服务器
 - ✅ **远程缩略图** - 自动获取和缓存视频封面
-- ✅ **版本限制提示** - 社区版尝试访问 SMB 时显示友好的升级对话框
 
 ### 📝 字幕功能
 - ✅ **多格式字幕** - 支持 SRT、ASS、SSA、VTT 等格式
@@ -131,21 +140,20 @@ flutter run -d linux     # Linux桌面
 ```
 
 ### 构建发布版本
+
+**构建社区版 (Community Edition):**
 ```bash
-# Web版本
-flutter build web
+flutter build macos --release
+```
 
-# 桌面版本
-flutter build windows
-flutter build macos
-flutter build linux
-
-# 移动版本
-flutter build apk
-flutter build ios
+**构建专业版 (Professional Edition):**
+```bash
+flutter build macos --release --dart-define=EDITION=pro
 ```
 
 ## 🏗️ 项目架构
+
+CorePlayer 采用先进的插件化架构，将核心播放功能与商业增值功能彻底解耦。
 
 ### 核心目录结构
 
@@ -153,274 +161,52 @@ flutter build ios
 lib/
 ├── main.dart                              # 应用入口
 │
-├── core/                                  # 核心系统
-│   ├── plugin_system/                     # 插件系统 ⭐
-│   │   ├── plugin_loader.dart             # 插件加载器（版本控制）
-│   │   ├── plugin_registry.dart           # 插件注册表
-│   │   ├── plugin_interface.dart          # 插件接口定义
-│   │   ├── core_plugin.dart               # 核心插件基类
-│   │   ├── media_server_plugin.dart       # 媒体服务器插件接口
-│   │   └── plugins/                       # 插件实现
-│   │       ├── builtin/                   # 内置插件（社区版+专业版）
-│   │       │   ├── subtitle/              # 字幕插件
-│   │       │   ├── audio_effects/         # 音频效果
-│   │       │   └── video_processing/      # 视频处理
-│   │       ├── media_server/              # 媒体服务器插件
-│   │       │   ├── placeholders/          # 占位符（社区版）
-│   │       │   └── smb/                   # SMB插件（专业版）🔒
-│   │       └── third_party/               # 第三方插件（可选）
-│   └── edition/
-│       └── edition_config.dart            # 版本配置（Community/Pro）
+├── core/                                  # 核心系统 (The Core)
+│   ├── plugin_system/                     # 🔌 插件系统引擎 ⭐
+│   │   ├── plugin_loader.dart             # 插件加载器 (负责版本控制)
+│   │   ├── plugin_registry.dart           # 插件注册中心
+│   │   ├── core_plugin.dart               # 插件基类
+│   │   ├── edition_config.dart            # 版本配置 (Community/Pro)
+│   │   └── plugins/                       # 核心插件接口
+│   └── ...
 │
-├── screens/                               # 界面层
-│   ├── home_screen.dart                   # 主界面（侧边栏导航）
-│   ├── player_screen.dart                 # 播放器界面
-│   ├── series_detail_page.dart            # 剧集详情页 ⭐
-│   ├── playback_history_screen.dart       # 播放历史
-│   ├── media_library_screen.dart          # 媒体库
-│   ├── media_server_list_page.dart        # 媒体服务器列表
-│   ├── plugin_manager_screen.dart         # 插件管理 ⭐
-│   └── settings_screen.dart               # 设置界面
+├── plugins/                               # 🧩 插件仓库
+│   ├── builtin/                           # 内置插件 (所有版本可用)
+│   │   ├── subtitle/                      # 字幕支持
+│   │   ├── audio_effects/                 # 音频效果
+│   │   └── metadata/                      # 基础元数据接口
+│   │
+│   ├── commercial/                        # 商业插件 (Adapter层 - 仅专业版激活) 🔒
+│   │   ├── media_server/
+│   │   │   └── smb/                       # SMB 协议适配器
+│   │   └── metadata_scraper/              # 自动刮削适配器
+│   │       └── metadata_scraper_plugin.dart # 桥接私有库实现
+│   │
+│   └── third_party/                       # 第三方插件示例
 │
-├── services/                              # 业务逻辑层
-│   ├── local_proxy_server.dart            # 本地代理服务器 ⭐
-│   ├── file_source_factory.dart           # 文件源工厂（版本控制）⭐
-│   ├── media_server_service.dart          # 媒体服务器管理
-│   ├── network_stream_service.dart        # 网络流服务
-│   ├── video_cache_service.dart           # 视频缓存服务
-│   ├── subtitle_service.dart              # 字幕服务
-│   ├── history_service.dart               # 历史记录服务
-│   ├── plugin_status_service.dart         # 插件状态服务 ⭐
-│   └── file_source/                       # 文件源实现
-│       ├── smb_file_source.dart           # SMB 文件源（专业版）🔒
-│       └── smb_connection_pool.dart       # SMB 连接池（专业版）🔒
-│
-├── widgets/                               # UI组件
-│   ├── upgrade_dialog.dart                # 升级对话框（统一组件）⭐
-│   ├── modern_video_card.dart             # 现代化视频卡片
-│   ├── modern_sidebar.dart                # 侧边栏导航
-│   ├── episode_card.dart                  # 剧集卡片
-│   ├── buffering_indicator.dart           # 缓冲指示器
-│   └── subtitle_selector.dart             # 字幕选择器
-│
-└── models/                                # 数据模型
-    ├── media_server_config.dart           # 媒体服务器配置
-    ├── episode.dart                       # 剧集模型
-    ├── series.dart                        # 系列模型
-    ├── playback_history.dart              # 播放历史模型
-    ├── stream_info.dart                   # 流信息模型
-    └── subtitle_config.dart               # 字幕配置
+├── services/                              # 业务服务层
+│   ├── metadata_scraper_service.dart      # 刮削服务 Facade (自动降级) ⭐
+│   ├── file_source_factory.dart           # 文件源工厂 (SMB/Local路由) ⭐
+│   └── ...
 ```
 
-> ⭐ 表示关键模块 | 🔒 表示专业版功能
+> **架构亮点**:
+> 1.  🛡️ **安全隔离**: 核心商业算法与敏感协议栈置于外部私有库，主仓库仅保留适配器接口。
+> 2.  🔌 **动态插件**: 支持运行时插件热更新与动态加载，实现功能模块的即插即用。
+> 3.  🧩 **优雅降级**: 商业插件在社区版环境中自动静默禁用，确保基础功能稳定运行且无侵入性。
 
-### 架构分层
+### 外部依赖结构 (Pro Only 🔒)
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              展示层 (Presentation)                   │
-│   PlayerScreen | SeriesDetail | PluginManager       │
-└─────────────────────────────────────────────────────┘
-                         ↓↑
-┌─────────────────────────────────────────────────────┐
-│            业务逻辑层 (Business Logic)               │
-│   LocalProxyServer | FileSourceFactory | Services   │
-└─────────────────────────────────────────────────────┘
-                         ↓↑
-┌─────────────────────────────────────────────────────┐
-│              插件系统层 (Plugin System)              │
-│   内置插件 | 商业插件(Pro) | 第三方插件              │
-└─────────────────────────────────────────────────────┘
-                         ↓↑
-┌─────────────────────────────────────────────────────┐
-│             数据访问层 (Data Access)                 │
-│   本地存储 | 网络请求 | 文件系统 | SMB协议(Pro)      │
-└─────────────────────────────────────────────────────┘
+~/project/core-player-pro-plugins/         # 🔒 私有插件库
+├── lib/
+│   ├── src/
+│   │   ├── media_server/
+│   │   │   ├── smb/                       # SMB 完整协议实现
+│   │   │   └── metadata/                  # 智能刮削核心逻辑
+│   │   └── advanced_decoder/              # HEVC/AV1 高级解码器
+│   └── coreplayer_pro_plugins.dart        # 导出接口
 ```
-
-### 版本差异化实现
-
-**编译时配置**:
-```bash
-# 社区版（默认）
-flutter build macos
-
-# 专业版
-flutter build macos --dart-define=EDITION=pro
-```
-
-**运行时检查**:
-```dart
-// lib/core/plugin_system/plugin_loader.dart
-if (EditionConfig.isCommunityEdition) {
-  // 社区版：加载基础插件，限制高级功能
-  return _getCommunityEditionPlugins();
-} else {
-  // 专业版：加载所有插件
-  return _getProEditionPlugins();
-}
-```
-
-
-
-### 技术栈
-- **框架**: Flutter 3.38.1
-- **视频引擎**: media_kit + media_kit_video (基于 MPV)
-- **网络请求**: http, dio
-- **本地代理**: shelf (HTTP 服务器)
-- **文件选择**: file_picker
-- **缓存管理**: hive, sqflite
-- **状态管理**: Provider + StatefulWidget
-- **UI框架**: Material Design 3
-- **字幕处理**: charset_converter
-- **SMB协议**: dart_smb
-- **插件系统**: 自定义插件架构（三层仓库结构）
-
-## 🎯 使用说明
-
-### 本地视频播放
-1. **添加视频**: 点击主界面右下角的 `+` 按钮
-2. **播放控制**: 点击播放器中央的大播放/暂停按钮
-3. **进度调节**: 拖拽底部的进度条
-4. **音量控制**: 点击右上角的音量图标
-5. **全屏播放**: 点击右上角的全屏图标
-
-### 网络视频播放
-1. **输入URL**: 点击主界面"网络视频"按钮
-2. **粘贴链接**: 输入HTTP/HTTPS或HLS(m3u8)链接
-3. **自动缓存**: 播放时自动缓存，再次观看秒开
-4. **URL历史**: 快速访问最近播放的网络视频
-
-### 媒体服务器
-1. **添加服务器**: 进入"影视服务器"→"添加服务器"
-2. **选择类型**: SMB共享、Emby、Jellyfin或Plex
-3. **输入信息**: 填写服务器地址、用户名、密码等
-4. **浏览媒体**: 扫描完成后浏览和播放服务器视频
-
-### 字幕功能
-1. **自动加载**: 播放视频时自动匹配同名字幕文件
-2. **手动选择**: 点击字幕按钮→"加载外部字幕"
-3. **切换字幕**: 点击字幕按钮选择字幕轨道
-4. **调节延迟**: 使用同步控制按钮(±100ms/±500ms)
-5. **自定义样式**: 在设置中调节字幕字体、颜色、位置
-
-### 播放历史
-1. **查看历史**: 点击侧边栏"播放历史"
-2. **继续观看**: 点击历史记录项从上次位置继续
-3. **搜索视频**: 在搜索框中输入关键词快速查找
-4. **智能过滤**: 按观看状态、时间范围筛选
-5. **批量管理**: 长按进入多选模式，批量删除
-
-### 性能监控
-1. **视频信息**: 右键点击视频 → "视频信息"
-2. **性能监控**: 右键点击视频 → "查看性能信息"
-3. **性能覆盖层**: 右键点击视频 → "切换性能覆盖层"
-4. **质量设置**: 在设置中选择播放质量模式
-
-## 🛣️ 产品路线
-
-### ✅ 已完成功能 (v0.8)
-- ✅ **基础播放功能** - 本地视频播放、全屏、进度控制
-- ✅ **播放历史系统** - 智能记录、断点续播、搜索过滤
-- ✅ **超高清支持** - 4K/8K、硬件加速、性能监控
-- ✅ **网络流媒体** - HTTP/HLS 播放、智能缓存
-- ✅ **字幕系统** - 多格式、自定义样式、同步调节
-- ✅ **媒体服务器集成** - SMB/Emby/Jellyfin/Plex
-- ✅ **现代化UI** - 深色主题、侧边栏、响应式布局
-
-### ✅ 已完成功能 (v0.9 - 插件系统 & 版本分离)
-- ✅ **插件架构** - 实现新版插件系统初始架构
-- ✅ **三层仓库结构** - 内置、商业、第三方插件仓库
-- ✅ **插件生命周期管理** - 完整的插件安装、更新、卸载流程
-- ✅ **插件注册和管理系统** - 强大的插件注册和管理功能
-- ✅ **插件中心** - 插件浏览、安装、管理界面（修复tabs切换）
-- ✅ **SMB支持优化** - 修复添加服务器页面SMB类型显示问题
-- ✅ **版本差异化** - 社区版与专业版功能分离
-- ✅ **SMB 访问限制** - 社区版尝试播放 SMB 视频时显示友好的升级提示
-- ✅ **统一升级对话框** - 提取可复用的 UpgradeDialog 组件
-
-### 🔄 进行中 (v0.10)
-- 🔄 **网络缓冲优化** - 自适应缓冲、带宽监控
-- 🔄 **macOS 沙盒优化** - Security-Scoped Bookmarks
-
-### 🎯 近期计划 (v1.0 - 正式发布)
-- [ ] **播放列表管理** - 创建、编辑、导入/导出播放列表
-- [ ] **播放速度调节** - 0.25x - 4.0x 变速播放
-- [ ] **画面调节** - 比例、裁剪、旋转、翻转
-- [ ] **截图和录制** - 高质量截图、片段录制
-
-### 🚀 中期目标 (v1.5)
-- [ ] **在线字幕下载** - 自动搜索和下载字幕
-- [ ] **视频转码** - 格式转换、压缩优化
-- [ ] **DLNA/Chromecast** - 投屏到电视
-- [ ] **WebDAV 支持** - WebDAV 服务器集成
-
-### 🌟 长期愿景 (v2.0)
-- [ ] **AI 功能** - 智能推荐、场景识别
-- [ ] **云端同步** - 多设备播放进度同步
-- [ ] **社交功能** - 观影记录分享
-- [ ] **直播支持** - RTMP/RTSP 直播流
-
-## 📹 支持格式
-
-### 容器格式
-- ✅ **MP4** - 完全支持，硬件加速
-- ✅ **MKV** - 完全支持，多音轨字幕
-- ✅ **AVI** - 完全支持
-- ✅ **MOV** - 完全支持，硬件加速
-- ✅ **WebM** - 完全支持
-- ✅ **FLV** - 基本支持
-- ✅ **WMV** - 基本支持
-
-### 视频编解码器
-- ✅ **H.264/AVC** - 完全支持，硬件加速
-- ✅ **HEVC/H.265** - 完全支持，硬件加速
-- ✅ **VP9** - 完全支持，硬件加速
-- ✅ **AV1** - 支持，部分硬件加速
-- ✅ **MPEG-2** - 支持
-- ✅ **MPEG-4** - 支持
-- ✅ **WMV2/3** - 支持
-- ✅ **DivX/XviD** - 支持
-
-### 音频编解码器
-- ✅ **AAC** - 完全支持
-- ✅ **MP3** - 完全支持
-- ✅ **AC3/Dolby Digital** - 支持
-- ✅ **DTS** - 支持
-- ✅ **FLAC** - 支持
-- ✅ **Opus** - 支持
-- ✅ **Vorbis** - 支持
-
-### 字幕格式
-- ✅ **SRT** - 完全支持
-- ✅ **ASS/SSA** - 完全支持，高级样式
-- ✅ **VTT** - 支持
-- ✅ **内嵌字幕** - 支持 MKV 内嵌字幕
-
-### 流媒体协议
-- ✅ **HTTP/HTTPS** - 直链播放
-- ✅ **HLS (m3u8)** - 自适应流
-- ✅ **SMB** - 网络共享文件夹（通过本地代理）
-
-### 分辨率支持
-- ✅ **720p (HD)** - 完全支持
-- ✅ **1080p (Full HD)** - 完全支持，硬件加速
-- ✅ **1440p (2K)** - 支持，硬件加速
-- ✅ **2160p (4K UHD)** - 支持，硬件加速
-- ✅ **4320p (8K UHD)** - 支持，高性能设备硬件加速
-
-### HDR支持
-- ✅ **HDR10** - 支持
-- ✅ **HLG** - 支持
-- ⚠️ **Dolby Vision** - 部分支持
-
-### 平台硬件加速
-- ✅ **macOS**: VideoToolbox
-- ✅ **Windows**: DXVA2/D3D11VA
-- ✅ **Linux**: VAAPI/VDPAU
-- ✅ **Android**: MediaCodec
-- ✅ **iOS**: VideoToolbox
-- ⚠️ **Web**: 依赖浏览器支持
 
 ## 🤝 贡献指南
 
@@ -433,13 +219,6 @@ if (EditionConfig.isCommunityEdition) {
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 打开一个 Pull Request
 
-### 代码规范
-- 遵循 Flutter 官方代码规范
-- 保持代码简洁、可读性强
-- 添加必要的注释说明
-- 确保跨平台兼容性
-- 编写单元测试和集成测试
-
 ## 📝 许可证
 
 本项目采用**双重许可**模式：
@@ -447,13 +226,13 @@ if (EditionConfig.isCommunityEdition) {
 ### 社区版 (Community Edition)
 - **许可证**: MIT License
 - **使用范围**: 个人学习、开源项目、非商业用途
-- **功能限制**: 不包含 SMB/NAS、Emby、Jellyfin 等媒体服务器功能
+- **功能限制**: 不包含 SMB/NAS、自动刮削等高级功能
 - **源代码**: 完全开源，可自由修改和分发
 
 ### 专业版 (Professional Edition)
 - **许可证**: 商业许可 (查看 [LICENSE_COMMERCIAL.md](LICENSE_COMMERCIAL.md))
 - **使用范围**: 商业使用、企业部署
-- **功能**: 包含所有高级功能（SMB、媒体服务器集成、AI 字幕等）
+- **功能**: 包含所有高级功能（SMB、海报墙、AI 字幕等）
 - **支持**: 提供技术支持和定制服务
 - **获取方式**: 联系作者获取授权
 
@@ -478,9 +257,6 @@ if (EditionConfig.isCommunityEdition) {
 - 🐛 Issues: [项目Issues页面](https://github.com/peterfei/core-player/issues)
 
 ---
-
-
-
 
 <div align="center">
 **酷影播放器 CorePlayer** - 酷炫影音，畅享无限
