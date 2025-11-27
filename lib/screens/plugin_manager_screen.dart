@@ -13,6 +13,7 @@ import '../services/plugin_status_service.dart';
 import '../widgets/plugin_error_handler.dart';
 import '../widgets/plugin_performance_dashboard.dart';
 import 'plugin_manager/plugin_filter_model.dart';
+import '../core/plugin_system/edition_config.dart';
 
 import 'package:yinghe_player/widgets/update/update_notification_dialog.dart';
 import 'package:yinghe_player/screens/plugin_update_management_page.dart';

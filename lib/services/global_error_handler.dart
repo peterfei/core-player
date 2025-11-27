@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 
 /// 全局错误处理服务
 ///

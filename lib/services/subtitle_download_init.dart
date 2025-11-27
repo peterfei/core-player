@@ -5,6 +5,7 @@ import '../services/subtitle_download_manager.dart';
 import '../plugins/builtin/subtitle/local_subtitle_plugin.dart';
 import '../plugins/builtin/subtitle/online_subtitle_placeholder.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import 'package:yinghe_player/core/plugin_system/edition_config.dart';
 import '../plugins/pro/subtitle/opensubtitles_adapter.dart';
 import '../plugins/pro/subtitle/subhd_adapter.dart';
 

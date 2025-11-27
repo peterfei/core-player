@@ -9,6 +9,7 @@ import '../services/file_source/file_source.dart';
 import '../services/auto_scraper_service.dart';
 import '../services/settings_service.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 import 'add_server_page.dart';
 import 'shared_folder_management_page.dart';
 
