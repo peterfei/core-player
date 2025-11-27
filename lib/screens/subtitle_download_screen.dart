@@ -30,6 +30,10 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
   bool _isLoading = false;
   String? _error;
   Map<String, bool> _downloadingStatus = {};
+  
+  // 插件选择相关
+  List<SubtitleDownloadPlugin> _availablePlugins = [];
+  String? _selectedPluginId;
 
   @override
   void initState() {
@@ -37,6 +41,10 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     print('📱 SubtitleDownloadScreen initState');
     print('   Video title: ${widget.videoTitle}');
     print('   Video path: ${widget.videoPath}');
+    
+    // 初始化插件列表
+    _availablePlugins = _downloadManager.availablePlugins;
+    _selectedPluginId = _downloadManager.activePlugin?.staticMetadata.id;
     
     _searchController.text = widget.videoTitle;
     _availableLanguages = _downloadManager.getSupportedLanguages();
@@ -47,6 +55,8 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
 
     print('   Initial _isLoading: $_isLoading');
     print('   Search query: ${_searchController.text}');
+    print('   Available plugins: ${_availablePlugins.length}');
+    print('   Active plugin: $_selectedPluginId');
     
     // 自动搜索
     _searchSubtitles();
@@ -167,6 +177,101 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     );
   }
 
+  /// 构建插件选择器
+  Widget _buildPluginSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[700]!),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.source, color: Colors.grey, size: 20),
+          const SizedBox(width: 8),
+          const Text(
+            '字幕源:',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedPluginId,
+                dropdownColor: Colors.grey[850],
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                items: _availablePlugins.map((plugin) {
+                  final isPro = plugin.staticMetadata.license == PluginLicense.proprietary;
+                  return DropdownMenuItem<String>(
+                    value: plugin.staticMetadata.id,
+                    child: Row(
+                      children: [
+                        Icon(
+                          plugin.icon,
+                          size: 18,
+                          color: isPro ? Colors.amber : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(plugin.displayName),
+                        if (isPro) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.workspace_premium,
+                            size: 14,
+                            color: Colors.amber,
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: _isLoading ? null : (String? newPluginId) {
+                  if (newPluginId != null && newPluginId != _selectedPluginId) {
+                    _switchPlugin(newPluginId);
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 切换插件
+  void _switchPlugin(String pluginId) {
+    print('🔄 Switching to plugin: $pluginId');
+    
+    try {
+      final success = _downloadManager.setActivePlugin(pluginId);
+      if (success) {
+        setState(() {
+          _selectedPluginId = pluginId;
+          _availableLanguages = _downloadManager.getSupportedLanguages();
+          // 重新选择语言
+          _selectedLanguage = _availableLanguages.firstWhere(
+            (lang) => lang.code == 'zh',
+            orElse: () => _availableLanguages.isNotEmpty 
+                ? _availableLanguages.first 
+                : SubtitleLanguage(code: 'zh', name: '简体中文'),
+          );
+        });
+        
+        // 切换后自动重新搜索
+        if (_searchController.text.trim().isNotEmpty) {
+          _searchSubtitles();
+        }
+        
+        print('✅ Plugin switched successfully');
+      }
+    } catch (e) {
+      print('❌ Failed to switch plugin: $e');
+      _showError('切换字幕源失败: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -198,6 +303,10 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          // 插件选择器
+          _buildPluginSelector(),
+          const SizedBox(height: 12),
+          
           // 搜索输入框
           TextField(
             controller: _searchController,

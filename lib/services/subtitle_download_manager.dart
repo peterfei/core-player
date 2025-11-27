@@ -87,6 +87,12 @@ class SubtitleDownloadManager {
     }
   }
 
+  /// 获取所有可用插件列表
+  List<SubtitleDownloadPlugin> get availablePlugins => List.unmodifiable(_plugins);
+
+  /// 获取当前活跃插件
+  SubtitleDownloadPlugin? get activePlugin => _activePlugin;
+
   /// 获取所有可用插件
   List<SubtitleDownloadPlugin> getAvailablePlugins() {
     return List.unmodifiable(_plugins);

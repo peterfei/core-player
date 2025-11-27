@@ -8,7 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:charset_converter/charset_converter.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 import '../models/subtitle_config.dart';
-import 'subtitle_download_service.dart';
+import 'subtitle_download_manager.dart';
 
 /// 字幕服务
 /// 提供字幕加载、解析、样式设置等功能
@@ -847,8 +847,8 @@ class SubtitleService {
   }
 
   /// 获取字幕下载服务
-  SubtitleDownloadService get downloadService =>
-      SubtitleDownloadService.instance;
+  SubtitleDownloadManager get downloadService =>
+      SubtitleDownloadManager.instance;
 
   /// 检测字幕格式
   String _detectSubtitleFormat(String filePath) {
