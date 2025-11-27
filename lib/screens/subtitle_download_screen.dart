@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/subtitle_download_service.dart';
-import '../services/subtitle_service.dart';
+import '../services/subtitle_download_manager.dart';
+import '../core/plugin_system/subtitle_download_plugin.dart';
+import '../core/plugin_system/plugin_interface.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 
 /// 字幕下载界面
@@ -19,9 +20,8 @@ class SubtitleDownloadScreen extends StatefulWidget {
 }
 
 class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
-  final SubtitleDownloadService _downloadService =
-      SubtitleDownloadService.instance;
-  final SubtitleService _subtitleService = SubtitleService.instance;
+  final SubtitleDownloadManager _downloadManager =
+      SubtitleDownloadManager.instance;
   final TextEditingController _searchController = TextEditingController();
 
   List<SubtitleSearchResult> _searchResults = [];
@@ -30,17 +30,34 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
   bool _isLoading = false;
   String? _error;
   Map<String, bool> _downloadingStatus = {};
+  
+  // 插件选择相关
+  List<SubtitleDownloadPlugin> _availablePlugins = [];
+  String? _selectedPluginId;
 
   @override
   void initState() {
     super.initState();
+    print('📱 SubtitleDownloadScreen initState');
+    print('   Video title: ${widget.videoTitle}');
+    print('   Video path: ${widget.videoPath}');
+    
+    // 初始化插件列表
+    _availablePlugins = _downloadManager.availablePlugins;
+    _selectedPluginId = _downloadManager.activePlugin?.staticMetadata.id;
+    
     _searchController.text = widget.videoTitle;
-    _availableLanguages = _downloadService.getSupportedLanguages();
+    _availableLanguages = _downloadManager.getSupportedLanguages();
     _selectedLanguage = _availableLanguages.firstWhere(
       (lang) => lang.code == 'zh',
       orElse: () => _availableLanguages.first,
     );
 
+    print('   Initial _isLoading: $_isLoading');
+    print('   Search query: ${_searchController.text}');
+    print('   Available plugins: ${_availablePlugins.length}');
+    print('   Active plugin: $_selectedPluginId');
+    
     // 自动搜索
     _searchSubtitles();
   }
@@ -52,29 +69,47 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
   }
 
   Future<void> _searchSubtitles() async {
+    print('🔍 _searchSubtitles called with query: "${_searchController.text.trim()}"');
+    
     if (_searchController.text.trim().isEmpty) {
+      print('⚠️ Search query is empty, returning');
       return;
     }
 
+    print('📝 Setting state: _isLoading=true');
     setState(() {
       _isLoading = true;
       _error = null;
       _searchResults = [];
     });
+    print('✅ State set successfully');
 
     try {
-      final results = await _downloadService.searchSubtitles(
+      print('🌐 Calling _downloadManager.searchSubtitles...');
+      final results = await _downloadManager.searchSubtitles(
         query: _searchController.text.trim(),
         language: _selectedLanguage?.code,
       );
+      print('📦 Received ${results.length} results from manager');
 
       if (mounted) {
         setState(() {
           _searchResults = results;
           _isLoading = false;
         });
+        print('✅ Results displayed');
+      }
+    } on FeatureNotAvailableException catch (e) {
+      print('⚠️ Caught FeatureNotAvailableException: ${e.message}');
+      // 捕获升级提示异常
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showUpgradeDialog(e.message, e.upgradeUrl);
       }
     } catch (e) {
+      print('❌ Caught exception: $e');
       if (mounted) {
         setState(() {
           _error = '搜索失败: $e';
@@ -95,7 +130,7 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     });
 
     try {
-      final subtitlePath = await _downloadService.downloadSubtitle(
+      final subtitlePath = await _downloadManager.downloadSubtitle(
         result,
         widget.videoPath!,
       );
@@ -142,6 +177,101 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     );
   }
 
+  /// 构建插件选择器
+  Widget _buildPluginSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[700]!),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.source, color: Colors.grey, size: 20),
+          const SizedBox(width: 8),
+          const Text(
+            '字幕源:',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedPluginId,
+                dropdownColor: Colors.grey[850],
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                items: _availablePlugins.map((plugin) {
+                  final isPro = plugin.staticMetadata.license == PluginLicense.proprietary;
+                  return DropdownMenuItem<String>(
+                    value: plugin.staticMetadata.id,
+                    child: Row(
+                      children: [
+                        Icon(
+                          plugin.icon,
+                          size: 18,
+                          color: isPro ? Colors.amber : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(plugin.displayName),
+                        if (isPro) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.workspace_premium,
+                            size: 14,
+                            color: Colors.amber,
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: _isLoading ? null : (String? newPluginId) {
+                  if (newPluginId != null && newPluginId != _selectedPluginId) {
+                    _switchPlugin(newPluginId);
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 切换插件
+  void _switchPlugin(String pluginId) {
+    print('🔄 Switching to plugin: $pluginId');
+    
+    try {
+      final success = _downloadManager.setActivePlugin(pluginId);
+      if (success) {
+        setState(() {
+          _selectedPluginId = pluginId;
+          _availableLanguages = _downloadManager.getSupportedLanguages();
+          // 重新选择语言
+          _selectedLanguage = _availableLanguages.firstWhere(
+            (lang) => lang.code == 'zh',
+            orElse: () => _availableLanguages.isNotEmpty 
+                ? _availableLanguages.first 
+                : SubtitleLanguage(code: 'zh', name: '简体中文'),
+          );
+        });
+        
+        // 切换后自动重新搜索
+        if (_searchController.text.trim().isNotEmpty) {
+          _searchSubtitles();
+        }
+        
+        print('✅ Plugin switched successfully');
+      }
+    } catch (e) {
+      print('❌ Failed to switch plugin: $e');
+      _showError('切换字幕源失败: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,6 +303,10 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          // 插件选择器
+          _buildPluginSelector(),
+          const SizedBox(height: 12),
+          
           // 搜索输入框
           TextField(
             controller: _searchController,
@@ -184,7 +318,14 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.search),
-                onPressed: _isLoading ? null : _searchSubtitles,
+                onPressed: () {
+                  print('🔘 Search button clicked! _isLoading=$_isLoading');
+                  if (!_isLoading) {
+                    _searchSubtitles();
+                  } else {
+                    print('⚠️ Button disabled because _isLoading=true');
+                  }
+                },
               ),
             ),
             onSubmitted: (_) => _searchSubtitles(),
@@ -454,5 +595,44 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     } else {
       return '刚刚';
     }
+  }
+
+  /// 显示升级对话框
+  void _showUpgradeDialog(String message, String? upgradeUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('专业版功能'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Text(message),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('稍后再说'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: 打开升级页面
+              if (upgradeUrl != null) {
+                print('Opening upgrade URL: $upgradeUrl');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+            ),
+            child: Text('了解专业版'),
+          ),
+        ],
+      ),
+    );
   }
 }

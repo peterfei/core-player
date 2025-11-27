@@ -9,6 +9,7 @@ import 'package:yinghe_player/services/media_library_service.dart';
 import 'package:yinghe_player/services/metadata_store_service.dart';
 import 'package:yinghe_player/services/tmdb_service.dart';
 import 'package:yinghe_player/services/settings_service.dart';
+import 'package:yinghe_player/services/subtitle_download_init.dart';
 
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
@@ -136,6 +137,10 @@ class _MyAppState extends State<MyApp> {
         // 初始化插件状态服务
         await PluginStatusService().initialize();
         print('Plugin status service initialized successfully');
+
+        // 初始化字幕下载插件
+        await initializeSubtitleDownloadPlugins();
+        print('Subtitle download plugins initialized successfully');
       } catch (e) {
         print('Failed to initialize plugin system: $e');
         // 插件系统初始化失败不应该阻止应用启动
