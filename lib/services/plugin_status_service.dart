@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import '../core/plugin_system/core_plugin.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugins/media_server/smb/smb_plugin.dart';
-import '../core/plugin_system/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
+import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 import 'plugin_performance_service.dart';
 import 'plugin_lazy_loader.dart';
 

@@ -13,6 +13,7 @@ import '../services/plugin_status_service.dart';
 import '../widgets/plugin_error_handler.dart';
 import '../widgets/plugin_performance_dashboard.dart';
 import 'plugin_manager/plugin_filter_model.dart';
+import '../core/plugin_system/edition_config.dart';
 
 import 'package:yinghe_player/widgets/update/update_notification_dialog.dart';
 import 'package:yinghe_player/screens/plugin_update_management_page.dart';
@@ -1263,6 +1264,8 @@ void _showSuccess(String title, String message) {
         return 'lib/plugins/builtin/ui_themes';
       case 'builtin.metadata_enhancer':
         return 'lib/plugins/builtin/metadata';
+      case 'com.coreplayer.metadata_scraper':
+        return 'lib/plugins/commercial/metadata_scraper';
       case 'com.coreplayer.smb':
         return 'lib/core/plugin_system/plugins/media_server/smb';
       case 'com.coreplayer.ftp':
@@ -1304,7 +1307,9 @@ void _showSuccess(String title, String message) {
       
       // 🔧 特殊处理: HEVC 插件是内置的,且已通过热更新机制更新了内存元数据
       // 不要尝试从文件读取,因为在沙盒环境中可能无法访问源码目录
-      if (pluginId == 'coreplayer.pro.decoder.hevc') {
+      // 同样处理 metadata_scraper 插件，因为它是代码实现的 adapter，没有独立的 plugin.json
+      if (pluginId == 'coreplayer.pro.decoder.hevc' || 
+          pluginId == 'com.coreplayer.metadata_scraper') {
         continue;
       }
 

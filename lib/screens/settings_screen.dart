@@ -4,6 +4,7 @@ import '../services/thumbnail_service.dart';
 import '../services/settings_service.dart';
 import '../services/video_cache_service.dart';
 import '../models/cache_entry.dart';
+import '../core/plugin_system/edition_config.dart';
 import 'cache_management_screen.dart';
 import 'format_support_screen.dart';
 import 'video_playback_settings_screen.dart';
@@ -12,9 +13,14 @@ import 'metadata_management_page.dart';
 import 'plugin_manager_screen.dart';
 
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -88,23 +94,23 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
-          FutureBuilder<bool>(
-            future: SettingsService.getAutoScrapeEnabled(),
-            builder: (context, snapshot) {
-              final autoScrapeEnabled = snapshot.data ?? true;
-              return SwitchListTile(
-                secondary: const Icon(Icons.auto_fix_high),
-                title: const Text('自动刮削元数据'),
-                subtitle: const Text('扫描视频后自动从 TMDB 获取元数据'),
-                value: autoScrapeEnabled,
-                onChanged: (value) async {
-                  await SettingsService.setAutoScrapeEnabled(value);
-                  // Force rebuild
-                  (context as Element).markNeedsBuild();
-                },
-              );
-            },
-          ),
+          if (EditionConfig.isProEdition)
+            FutureBuilder<bool>(
+              future: SettingsService.getAutoScrapeEnabled(),
+              builder: (context, snapshot) {
+                final autoScrapeEnabled = snapshot.data ?? true;
+                return SwitchListTile(
+                  secondary: const Icon(Icons.auto_fix_high),
+                  title: const Text('自动刮削元数据'),
+                  subtitle: const Text('扫描视频后自动从 TMDB 获取元数据'),
+                  value: autoScrapeEnabled,
+                  onChanged: (value) async {
+                    await SettingsService.setAutoScrapeEnabled(value);
+                    setState(() {}); // Trigger rebuild to refresh future
+                  },
+                );
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.folder),
             title: const Text('缓存管理'),

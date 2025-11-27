@@ -13,6 +13,7 @@ import '../widgets/smart_image.dart';
 import '../services/local_proxy_server.dart';
 import '../services/media_server_service.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 import '../widgets/upgrade_dialog.dart';
 import 'player_screen.dart';
 

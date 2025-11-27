@@ -1,5 +1,6 @@
 import '../models/media_server_config.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 import 'file_source/file_source.dart';
 import 'file_source/smb_file_source.dart';
 

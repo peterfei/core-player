@@ -9,6 +9,7 @@ import '../services/media_scanner_service.dart';
 import '../services/media_library_service.dart';
 import '../services/file_source/file_source.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 import '../services/auto_scraper_service.dart';
 import '../services/settings_service.dart';
 

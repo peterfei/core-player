@@ -10,30 +10,9 @@ import 'core_plugin.dart';
 import 'plugin_registry.dart';
 import 'media_server_plugin.dart';
 import 'plugins/media_server/smb/smb_plugin.dart';
+import '../../plugins/commercial/metadata_scraper/metadata_scraper_plugin.dart';
 import 'package:coreplayer_pro_plugins/coreplayer_pro_plugins.dart' as cpp;
-
-/// 应用版本配置
-class EditionConfig {
-  static const String community = 'community';
-  static const String pro = 'pro';
-
-  static String get currentEdition {
-    const edition = String.fromEnvironment('EDITION', defaultValue: community);
-
-    // 🔧 调试输出当前版本
-    print('🏷️ Current Edition: $edition (Environment: ${const String.fromEnvironment('EDITION')})');
-
-    return edition;
-  }
-
-  static bool get isCommunityEdition => currentEdition == community;
-  static bool get isProEdition => currentEdition == pro || currentEdition == 'prod';
-
-  /// 检查特定版本是否可用
-  static bool isEditionAvailable(String edition) {
-    return currentEdition == edition;
-  }
-}
+import 'edition_config.dart';
 
 /// 插件加载配置
 class PluginLoadConfig {
@@ -376,6 +355,7 @@ class PluginLoader {
   List<CorePlugin> _getProEditionPlugins() {
     return [
       SMBPlugin(),
+      MetadataScraperPlugin(),
 
       // 解码器插件（从 core-player-pro-plugins）
       cpp.HEVCDecoderPlugin(),
@@ -442,6 +422,7 @@ class PluginLoader {
         ? ['com.coreplayer.mediaserver.placeholder']
         : [
             'com.coreplayer.smb',
+            'com.coreplayer.metadata_scraper',
             // 解码器插件
             'coreplayer.pro.decoder.hevc',
             // 'coreplayer.pro.decoder.vp9', // TODO: 修复类型定义后启用

@@ -3,11 +3,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'core_plugin.dart';
 import 'plugin_interface.dart';
-import '../plugins/builtin/subtitle/subtitle_plugin.dart';
-import '../plugins/builtin/audio_effects/audio_effects_plugin.dart';
-import '../plugins/builtin/video_processing/video_enhancement_plugin.dart';
-import '../plugins/builtin/metadata/metadata_enhancer_plugin.dart';
-import '../plugins/builtin/ui_themes/theme_plugin.dart';
+import 'edition_config.dart';
+import '../../plugins/builtin/subtitle/subtitle_plugin.dart';
+import '../../plugins/builtin/audio_effects/audio_effects_plugin.dart';
+import '../../plugins/builtin/video_processing/video_enhancement_plugin.dart';
+import '../../plugins/builtin/metadata/metadata_enhancer_plugin.dart';
+import '../../plugins/builtin/ui_themes/theme_plugin.dart';
 
 /// 插件仓库类型
 enum PluginRepositoryType {

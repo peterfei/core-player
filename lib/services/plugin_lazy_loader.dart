@@ -12,6 +12,7 @@ import '../plugins/builtin/audio_effects/audio_effects_plugin.dart';
 import '../plugins/builtin/ui_themes/theme_plugin.dart';
 
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 import 'plugin_performance_service.dart';
 
 /// 插件加载状态

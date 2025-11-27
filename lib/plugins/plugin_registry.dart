@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'core/plugin_system/plugin_interface.dart';
-import 'core/plugin_system/plugin_repository.dart';
-import 'core/plugin_system/plugin_manager.dart';
-import 'core/plugin_system/core_plugin.dart';
+import '../core/plugin_system/plugin_interface.dart';
+import '../core/plugin_system/plugin_repository.dart';
+import '../core/plugin_system/plugin_manager.dart';
+import '../core/plugin_system/core_plugin.dart';
 
 // 内置插件
 import 'builtin/subtitle/subtitle_plugin.dart';
@@ -13,6 +13,7 @@ import 'builtin/metadata/metadata_enhancer_plugin.dart';
 
 // 商业插件
 import 'commercial/media_server/smb/smb_plugin.dart';
+import 'commercial/metadata_scraper/metadata_scraper_plugin.dart';
 
 // 第三方插件示例
 import 'third_party/examples/youtube_plugin/youtube_plugin.dart';
@@ -178,6 +179,24 @@ class PluginRegistry {
         price: '\0.99',
         licenseType: 'Commercial',
       ),
+      PluginRepositoryInfo(
+        id: 'com.coreplayer.metadata_scraper',
+        name: '自动元数据刮削',
+        version: '1.0.0',
+        description: '自动从TMDB等源刮削视频的元数据信息',
+        path: 'commercial/metadata_scraper',
+        pluginClass: 'MetadataScraperPlugin',
+        repositoryType: PluginRepositoryType.commercial,
+        isCommunityEdition: false,
+        author: 'CorePlayer Team',
+        category: 'media',
+        tags: ['metadata', 'scraper', 'tmdb'],
+        dependencies: [],
+        minCoreVersion: '1.0.0',
+        lastUpdated: DateTime.now(),
+        price: '\0.99',
+        licenseType: 'Commercial',
+      ),
     ];
 
     for (final pluginInfo in commercialPlugins) {
@@ -309,6 +328,8 @@ class PluginRegistry {
         // 商业插件
         case 'com.coreplayer.smb':
           return SMBPlugin();
+        case 'com.coreplayer.metadata_scraper':
+          return MetadataScraperPlugin();
 
         // 第三方插件
         case 'third_party.youtube':

@@ -50,6 +50,7 @@ import '../models/episode.dart';
 import '../services/media_server_service.dart';
 import '../services/file_source_factory.dart';
 import '../core/plugin_system/plugin_loader.dart';
+import '../core/plugin_system/edition_config.dart';
 
 class PlayerScreen extends StatefulWidget {
   final File? videoFile;
