@@ -251,7 +251,7 @@ class MetadataScraperLogic {
       // 8. 刮削集数信息和封面
       debugPrint('');
       debugPrint('🎬 步骤8: 刮削集数信息');
-      final scrapedEpisodesCount = await _scrapeEpisodesForSeries(
+      final scrapedEpisodesCount = await scrapeEpisodesForSeries(
         series,
         tmdbId,
         details['number_of_seasons'] as int?,
@@ -291,7 +291,7 @@ class MetadataScraperLogic {
   }
 
   /// 为剧集刮削所有集数的信息
-  Future<int> _scrapeEpisodesForSeries(
+  Future<int> scrapeEpisodesForSeries(
     Series series,
     int tmdbId,
     int? numberOfSeasons, {
@@ -305,7 +305,7 @@ class MetadataScraperLogic {
 
     try {
       // 获取该剧集的所有集数
-      final allVideos = await _getVideosForSeries(series);
+      final allVideos = await getVideosForSeries(series);
       
       debugPrint('   找到 ${allVideos.length} 个视频文件');
 
@@ -398,7 +398,7 @@ class MetadataScraperLogic {
   }
 
   /// 获取剧集的所有视频文件（Episode对象）
-  Future<List<Episode>> _getVideosForSeries(Series series) async {
+  Future<List<Episode>> getVideosForSeries(Series series) async {
     try {
       // 从 MediaLibraryService 获取所有视频
       final allVideos = MediaLibraryService.getAllVideos();
