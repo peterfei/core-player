@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/subtitle_download_service.dart';
-import '../services/subtitle_service.dart';
+import '../services/subtitle_download_manager.dart';
+import '../core/plugin_system/subtitle_download_plugin.dart';
+import '../core/plugin_system/plugin_interface.dart';
 import '../models/subtitle_track.dart' as subtitle_models;
 
 /// 字幕下载界面
@@ -19,9 +20,8 @@ class SubtitleDownloadScreen extends StatefulWidget {
 }
 
 class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
-  final SubtitleDownloadService _downloadService =
-      SubtitleDownloadService.instance;
-  final SubtitleService _subtitleService = SubtitleService.instance;
+  final SubtitleDownloadManager _downloadManager =
+      SubtitleDownloadManager.instance;
   final TextEditingController _searchController = TextEditingController();
 
   List<SubtitleSearchResult> _searchResults = [];
@@ -34,13 +34,20 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
   @override
   void initState() {
     super.initState();
+    print('📱 SubtitleDownloadScreen initState');
+    print('   Video title: ${widget.videoTitle}');
+    print('   Video path: ${widget.videoPath}');
+    
     _searchController.text = widget.videoTitle;
-    _availableLanguages = _downloadService.getSupportedLanguages();
+    _availableLanguages = _downloadManager.getSupportedLanguages();
     _selectedLanguage = _availableLanguages.firstWhere(
       (lang) => lang.code == 'zh',
       orElse: () => _availableLanguages.first,
     );
 
+    print('   Initial _isLoading: $_isLoading');
+    print('   Search query: ${_searchController.text}');
+    
     // 自动搜索
     _searchSubtitles();
   }
@@ -52,29 +59,47 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
   }
 
   Future<void> _searchSubtitles() async {
+    print('🔍 _searchSubtitles called with query: "${_searchController.text.trim()}"');
+    
     if (_searchController.text.trim().isEmpty) {
+      print('⚠️ Search query is empty, returning');
       return;
     }
 
+    print('📝 Setting state: _isLoading=true');
     setState(() {
       _isLoading = true;
       _error = null;
       _searchResults = [];
     });
+    print('✅ State set successfully');
 
     try {
-      final results = await _downloadService.searchSubtitles(
+      print('🌐 Calling _downloadManager.searchSubtitles...');
+      final results = await _downloadManager.searchSubtitles(
         query: _searchController.text.trim(),
         language: _selectedLanguage?.code,
       );
+      print('📦 Received ${results.length} results from manager');
 
       if (mounted) {
         setState(() {
           _searchResults = results;
           _isLoading = false;
         });
+        print('✅ Results displayed');
+      }
+    } on FeatureNotAvailableException catch (e) {
+      print('⚠️ Caught FeatureNotAvailableException: ${e.message}');
+      // 捕获升级提示异常
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showUpgradeDialog(e.message, e.upgradeUrl);
       }
     } catch (e) {
+      print('❌ Caught exception: $e');
       if (mounted) {
         setState(() {
           _error = '搜索失败: $e';
@@ -95,7 +120,7 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     });
 
     try {
-      final subtitlePath = await _downloadService.downloadSubtitle(
+      final subtitlePath = await _downloadManager.downloadSubtitle(
         result,
         widget.videoPath!,
       );
@@ -184,7 +209,14 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.search),
-                onPressed: _isLoading ? null : _searchSubtitles,
+                onPressed: () {
+                  print('🔘 Search button clicked! _isLoading=$_isLoading');
+                  if (!_isLoading) {
+                    _searchSubtitles();
+                  } else {
+                    print('⚠️ Button disabled because _isLoading=true');
+                  }
+                },
               ),
             ),
             onSubmitted: (_) => _searchSubtitles(),
@@ -454,5 +486,44 @@ class _SubtitleDownloadScreenState extends State<SubtitleDownloadScreen> {
     } else {
       return '刚刚';
     }
+  }
+
+  /// 显示升级对话框
+  void _showUpgradeDialog(String message, String? upgradeUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('专业版功能'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Text(message),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('稍后再说'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: 打开升级页面
+              if (upgradeUrl != null) {
+                print('Opening upgrade URL: $upgradeUrl');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+            ),
+            child: Text('了解专业版'),
+          ),
+        ],
+      ),
+    );
   }
 }
