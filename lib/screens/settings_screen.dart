@@ -67,34 +67,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.movie_filter),
-            title: const Text('元数据设置'),
-            subtitle: const Text('配置 TMDB API Key 以获取在线元数据'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MetadataSettingsScreen(),
-                ),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.manage_search),
-            title: const Text('元数据管理'),
-            subtitle: const Text('查看和管理已刮削的元数据'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MetadataManagementPage(),
-                ),
-              );
-            },
-          ),
-          if (EditionConfig.isProEdition)
+          if (EditionConfig.isProEdition) ...[
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.movie_filter),
+              title: const Text('元数据设置'),
+              subtitle: const Text('配置 TMDB API Key 以获取在线元数据'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MetadataSettingsScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.manage_search),
+              title: const Text('元数据管理'),
+              subtitle: const Text('查看和管理已刮削的元数据'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MetadataManagementPage(),
+                  ),
+                );
+              },
+            ),
             FutureBuilder<bool>(
               future: SettingsService.getAutoScrapeEnabled(),
               builder: (context, snapshot) {
@@ -111,6 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               },
             ),
+          ],
           ListTile(
             leading: const Icon(Icons.folder),
             title: const Text('缓存管理'),
