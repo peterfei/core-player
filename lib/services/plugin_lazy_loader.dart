@@ -69,6 +69,14 @@ class PluginLazyLoader {
 
   /// 注册插件工厂函数
   Future<void> _registerPluginFactories() async {
+    // 注册核心插件（所有版本均可用）
+    // 主题管理插件 - 已实现
+    _pluginFactories['coreplayer.theme_manager'] = () async {
+      final plugin = ThemePlugin();
+      await _performanceService.startMonitoring('coreplayer.theme_manager', plugin);
+      return plugin;
+    };
+
     if (EditionConfig.isCommunityEdition) {
       // 🔧 社区版：只注册已实现的插件
       if (kDebugMode) {
@@ -86,13 +94,6 @@ class PluginLazyLoader {
       _pluginFactories['coreplayer.audio_effects'] = () async {
         final plugin = AudioEffectsPlugin();
         await _performanceService.startMonitoring('coreplayer.audio_effects', plugin);
-        return plugin;
-      };
-
-      // 主题管理插件 - 已实现
-      _pluginFactories['coreplayer.theme_manager'] = () async {
-        final plugin = ThemePlugin();
-        await _performanceService.startMonitoring('coreplayer.theme_manager', plugin);
         return plugin;
       };
     } else {

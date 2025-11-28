@@ -200,14 +200,6 @@ class _MyAppState extends State<MyApp> {
 
       if (corePlugin != null && corePlugin is ThemePlugin) {
         final themePlugin = corePlugin;
-        // 激活插件(如果需要)
-        if (themePlugin.state != PluginState.active) {
-          if (kDebugMode) {
-            print('Activating ThemePlugin...');
-          }
-          await themePlugin.activate();
-        }
-
         // 等待插件初始化完成（轮询状态）
         // 确保 onInitialize 中的主题加载逻辑已执行
         if (kDebugMode) {
@@ -231,6 +223,14 @@ class _MyAppState extends State<MyApp> {
              print('ThemePlugin initialization failed with error state');
            }
            // Fallback or handle error if needed, currently we just proceed or log
+        }
+
+        // 激活插件(如果需要)
+        if (themePlugin.state != PluginState.active) {
+          if (kDebugMode) {
+            print('Activating ThemePlugin...');
+          }
+          await themePlugin.activate();
         }
 
         // 设置初始主题
