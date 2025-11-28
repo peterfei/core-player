@@ -2,33 +2,128 @@ import 'package:path/path.dart' as p;
 import '../models/series.dart';
 import '../models/episode.dart';
 import 'media_library_service.dart';
+import 'metadata_store_service.dart';
 
 /// 剧集服务
 /// 负责从扫描的视频中识别和分组剧集
 class SeriesService {
+  /// 处理视频列表，分组为剧集并保存到媒体库
+  static Future<void> processAndSaveSeries(List<ScannedVideo> videos) async {
+    // Clear old series data
+    await MediaLibraryService.clearSeriesInfo();
+
+    // 1. Group videos
+    final domainSeriesList = groupVideosBySeries(videos);
+    
+    // 2. Convert to ScannedSeries
+    final scannedSeriesList = domainSeriesList.map((s) => ScannedSeries(
+      id: s.id,
+      name: s.name,
+      folderPath: s.folderPath,
+      episodeCount: s.episodeCount,
+      addedAt: s.addedAt,
+    )).toList();
+    
+    // 3. Save ScannedSeries
+    await MediaLibraryService.saveSeries(scannedSeriesList);
+    
+    // 4. Create and Save ScannedEpisodes
+    final allScannedEpisodes = <ScannedEpisode>[];
+    for (var series in domainSeriesList) {
+       final episodes = getEpisodesForSeries(series, videos);
+       final scannedEpisodes = episodes.map((e) => ScannedEpisode(
+         id: e.id,
+         seriesId: e.seriesId,
+         name: e.name,
+         path: e.path,
+         size: e.size,
+         episodeNumber: e.episodeNumber,
+         addedAt: e.addedAt,
+         sourceId: e.sourceId,
+       )).toList();
+       allScannedEpisodes.addAll(scannedEpisodes);
+    }
+    await MediaLibraryService.saveEpisodes(allScannedEpisodes);
+  }
+
+  /// 获取所有已保存的剧集（转换为领域模型）
+  static Future<List<Series>> getAllSavedSeries() async {
+    final scannedSeries = MediaLibraryService.getAllSeries();
+    return scannedSeries.map((s) => Series(
+      id: s.id,
+      name: s.name,
+      folderPath: s.folderPath,
+      episodeCount: s.episodeCount,
+      addedAt: s.addedAt,
+    )).toList();
+  }
+  
+  /// 获取已保存的剧集集数（转换为领域模型）
+  static Future<List<Episode>> getSavedEpisodesForSeries(String seriesId) async {
+    final scannedEpisodes = MediaLibraryService.getEpisodesForSeries(seriesId);
+    return scannedEpisodes.map((e) => Episode(
+      id: e.id,
+      seriesId: e.seriesId,
+      name: e.name,
+      path: e.path,
+      size: e.size,
+      episodeNumber: e.episodeNumber,
+      addedAt: e.addedAt,
+      sourceId: e.sourceId,
+    )).toList();
+  }
+
   /// 从扫描的视频列表中分组出剧集
   static List<Series> groupVideosBySeries(List<ScannedVideo> videos) {
-    // 按文件夹路径分组
-    final Map<String, List<ScannedVideo>> folderGroups = {};
+    // 按清洗后的剧集名称分组
+    final Map<String, List<ScannedVideo>> nameGroups = {};
+    // 记录每个组涉及的所有文件夹路径
+    final Map<String, Set<String>> nameToPathsMap = {};
     
     for (var video in videos) {
       final folderPath = _extractFolderPath(video.path);
-      if (!folderGroups.containsKey(folderPath)) {
-        folderGroups[folderPath] = [];
+      final folderName = p.basename(folderPath);
+      
+      // 清洗文件夹名称作为分组键
+      String seriesName = cleanSeriesName(folderName);
+      if (seriesName.isEmpty) {
+        seriesName = folderName; // 回退到原始文件夹名
       }
-      folderGroups[folderPath]!.add(video);
+      
+      if (!nameGroups.containsKey(seriesName)) {
+        nameGroups[seriesName] = [];
+        nameToPathsMap[seriesName] = {};
+      }
+      nameGroups[seriesName]!.add(video);
+      nameToPathsMap[seriesName]!.add(folderPath);
     }
     
-    // 将每个文件夹组转换为 Series 对象
+    // 转换为 Series 对象
     final seriesList = <Series>[];
-    for (var entry in folderGroups.entries) {
-      final folderPath = entry.key;
+    for (var entry in nameGroups.entries) {
+      final seriesName = entry.key;
       final episodeCount = entry.value.length;
+      final folderPaths = nameToPathsMap[seriesName]!;
       
-      // 只有包含多个视频的文件夹才创建剧集
-      // 单个视频的文件夹归入"未分类"
-      if (episodeCount > 1) {
-        seriesList.add(Series.fromPath(folderPath, episodeCount));
+      // 确定主路径：优先选择有元数据的路径，否则选第一个
+      String mainFolderPath = folderPaths.first;
+      for (final path in folderPaths) {
+        if (MetadataStoreService.isScraped(path)) {
+          mainFolderPath = path;
+          break;
+        }
+      }
+      
+      if (episodeCount > 0) {
+        // 使用清洗后的名称创建 Series
+        // ID 使用名称的哈希，以确保跨文件夹合并后的唯一性
+        seriesList.add(Series(
+          id: seriesName.hashCode.toString(),
+          name: seriesName,
+          folderPath: mainFolderPath, // 使用选定的主路径（可能有元数据）
+          episodeCount: episodeCount,
+          addedAt: entry.value.first.addedAt ?? DateTime.now(),
+        ));
       }
     }
     
@@ -43,10 +138,15 @@ class SeriesService {
     Series series,
     List<ScannedVideo> allVideos,
   ) {
-    // 筛选出属于该剧集的视频
+    // 筛选出属于该剧集的视频 (通过清洗后的名称匹配)
     final seriesVideos = allVideos.where((video) {
       final folderPath = _extractFolderPath(video.path);
-      return folderPath == series.folderPath;
+      final folderName = p.basename(folderPath);
+      
+      String cleanName = cleanSeriesName(folderName);
+      if (cleanName.isEmpty) cleanName = folderName;
+      
+      return cleanName == series.name;
     }).toList();
     
     // 转换为 Episode 对象
@@ -72,6 +172,45 @@ class SeriesService {
     });
     
     return episodes;
+  }
+
+  /// 清洗剧集名称，用于分组
+  static String cleanSeriesName(String name) {
+    var title = name;
+
+    // 1. 移除方括号内容
+    title = title.replaceAll(RegExp(r'[\[【\(].*?[\]】\)]'), '');
+
+    // 2. 部分标准化分隔符 (仅替换 . 和 _，保留 - 以便后续匹配集数范围)
+    title = title.replaceAll(RegExp(r'[._]'), ' ');
+
+    // 3. 移除技术参数
+    title = title.replaceAll(RegExp(r'\b(1080p|2160p|720p|4K|8K|WEB-DL|BluRay|HDR|DV|HEVC|x264|x265|AAC|AC3).*', caseSensitive: false), '');
+
+    // 4. 移除季数标识
+    title = title.replaceAll(RegExp(r'第\s*[一二三四五六七八九十]+\s*季'), '');
+    title = title.replaceAll(RegExp(r'\bSeason\s*\d+\b', caseSensitive: false), '');
+    title = title.replaceAll(RegExp(r'\bS\d+\b', caseSensitive: false), '');
+
+    // 5. 移除集数标识
+    // 支持 "第01-04集", "第1集"
+    title = title.replaceAll(RegExp(r'第\s*\d+(?:\s*-\s*\d+)?\s*集'), '');
+    // 支持 "EP01", "E01-04", "ep1"
+    title = title.replaceAll(RegExp(r'\bE[Pp]?\d+(?:-\d+)?\b', caseSensitive: false), '');
+
+    // 6. 最后处理剩余的连字符和多余空格
+    title = title.replaceAll('-', ' ');
+    title = title.replaceAll(RegExp(r'\s+'), ' ');
+    
+    // 7. 特殊处理：移除中文字符之间的空格
+    // 解决 "盗墓笔记.重启" (变成 "盗墓笔记 重启") 和 "盗墓笔记重启" 不匹配的问题
+    // 策略：如果是 中文+空格+中文，则移除空格
+    title = title.replaceAllMapped(
+      RegExp(r'([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])'),
+      (match) => '${match.group(1)}${match.group(2)}',
+    );
+
+    return title.trim();
   }
 
   /// 从文件名解析集数编号
