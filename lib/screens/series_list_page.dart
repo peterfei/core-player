@@ -33,11 +33,17 @@ class _SeriesListPageState extends State<SeriesListPage> {
     });
 
     try {
-      // 获取所有扫描的视频
-      final allVideos = MediaLibraryService.getAllVideos();
+      // 1. 尝试获取已持久化的剧集数据
+      var seriesList = await SeriesService.getAllSavedSeries();
       
-      // 分组剧集
-      final seriesList = SeriesService.groupVideosBySeries(allVideos);
+      // 2. 如果持久化数据为空（首次运行或被清除），则实时计算
+      if (seriesList.isEmpty) {
+        final allVideos = MediaLibraryService.getAllVideos();
+        if (allVideos.isNotEmpty) {
+           // 实时分组用于显示，不强制立即保存（保存操作通常在扫描时触发）
+           seriesList = SeriesService.groupVideosBySeries(allVideos);
+        }
+      }
       
       if (mounted) {
         setState(() {

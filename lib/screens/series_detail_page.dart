@@ -89,11 +89,14 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
     });
 
     try {
-      // 获取所有扫描的视频
-      final allVideos = MediaLibraryService.getAllVideos();
+      // 1. 尝试获取已持久化的集数数据
+      var episodes = await SeriesService.getSavedEpisodesForSeries(widget.series.id);
       
-      // 获取该剧集的集数
-      final episodes = SeriesService.getEpisodesForSeries(widget.series, allVideos);
+      // 2. 如果持久化数据为空，则实时计算
+      if (episodes.isEmpty) {
+        final allVideos = MediaLibraryService.getAllVideos();
+        episodes = SeriesService.getEpisodesForSeries(widget.series, allVideos);
+      }
       
       if (mounted) {
         setState(() {

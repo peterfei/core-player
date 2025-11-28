@@ -12,6 +12,7 @@ import '../core/plugin_system/plugin_loader.dart';
 import '../core/plugin_system/edition_config.dart';
 import '../services/auto_scraper_service.dart';
 import '../services/settings_service.dart';
+import '../services/series_service.dart';
 
 class AddServerPage extends StatefulWidget {
   final String serverType;
@@ -323,6 +324,10 @@ class _AddServerPageState extends State<AddServerPage> {
       )).toList();
       
       await MediaLibraryService.addVideos(scannedVideos);
+      
+      // Update Series Grouping
+      final allVideos = MediaLibraryService.getAllVideos();
+      await SeriesService.processAndSaveSeries(allVideos);
 
       if (mounted) {
         Navigator.of(context).pop(); // 关闭扫描进度对话框
