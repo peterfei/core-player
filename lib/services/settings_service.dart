@@ -33,6 +33,11 @@ class SettingsService {
   static const bool _defaultPerformanceAlertsEnabled = false; // 默认关闭
   static const bool _defaultAutoScrapeEnabled = true; // 默认开启自动刮削
   static const String _defaultThemeId = 'default'; // 默认主题ID
+  static const bool _defaultEnableVideoThumbnails = false; // 默认不开启视频截图作为封面（专业版功能）
+  static const String _defaultDefaultCoverStyle = 'gradient'; // 默认封面样式
+
+  static const String _enableVideoThumbnailsKey = 'enable_video_thumbnails';
+  static const String _defaultCoverStyleKey = 'default_cover_style';
 
   // TMDB 设置
   static Future<String?> getTMDBApiKey() async {
@@ -146,6 +151,27 @@ class SettingsService {
   static Future<void> setThemeId(String themeId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeIdKey, themeId);
+  }
+
+  // 封面设置
+  static Future<bool> isVideoThumbnailsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_enableVideoThumbnailsKey) ?? _defaultEnableVideoThumbnails;
+  }
+
+  static Future<void> setVideoThumbnailsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_enableVideoThumbnailsKey, enabled);
+  }
+
+  static Future<String> getDefaultCoverStyle() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_defaultCoverStyleKey) ?? _defaultDefaultCoverStyle;
+  }
+
+  static Future<void> setDefaultCoverStyle(String style) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_defaultCoverStyleKey, style);
   }
 
 

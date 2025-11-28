@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import 'smart_image.dart';
 import 'responsive_grid.dart'; // For VideoCardData
+import '../services/cover_fallback_service.dart';
 
 class VideoPosterCard extends StatefulWidget {
   final VideoCardData video;
@@ -22,6 +23,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
   bool _isHovered = false;
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+  String? _coverPath;
 
   @override
   void initState() {
@@ -36,6 +38,25 @@ class _VideoPosterCardState extends State<VideoPosterCard>
         curve: Curves.easeOut,
       ),
     );
+    _loadCover();
+  }
+
+  Future<void> _loadCover() async {
+    // 构造兼容 CoverFallbackService 的对象
+    final videoMap = {
+      'posterPath': widget.video.thumbnailUrl,
+      'name': widget.video.title,
+      'path': widget.video.localPath,
+      'id': widget.video.url ?? widget.video.localPath ?? widget.video.title.hashCode.toString(),
+    };
+
+    final coverPath = await CoverFallbackService.getCoverPath(videoMap);
+    
+    if (mounted) {
+      setState(() {
+        _coverPath = coverPath ?? widget.video.thumbnailUrl;
+      });
+    }
   }
 
   @override
@@ -111,7 +132,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
                             topRight: Radius.circular(AppRadius.medium),
                           ),
                           child: SmartImage(
-                            path: widget.video.thumbnailUrl,
+                            path: _coverPath,
                             fit: BoxFit.cover,
                             alignment: Alignment.topCenter,
                             placeholder: _buildPlaceholder(),

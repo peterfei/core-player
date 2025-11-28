@@ -13,6 +13,9 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
   final _accessTokenController = TextEditingController();
   bool _isLoading = true;
 
+  bool _enableVideoThumbnails = false;
+  String _defaultCoverStyle = 'gradient';
+
   @override
   void initState() {
     super.initState();
@@ -29,10 +32,15 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
   Future<void> _loadSettings() async {
     final apiKey = await SettingsService.getTMDBApiKey();
     final accessToken = await SettingsService.getTMDBAccessToken();
+    final enableVideoThumbnails = await SettingsService.isVideoThumbnailsEnabled();
+    final defaultCoverStyle = await SettingsService.getDefaultCoverStyle();
+
     if (mounted) {
       setState(() {
         _apiKeyController.text = apiKey ?? '';
         _accessTokenController.text = accessToken ?? '';
+        _enableVideoThumbnails = enableVideoThumbnails;
+        _defaultCoverStyle = defaultCoverStyle;
         _isLoading = false;
       });
     }
@@ -44,6 +52,8 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
     
     await SettingsService.setTMDBApiKey(apiKey);
     await SettingsService.setTMDBAccessToken(accessToken);
+    await SettingsService.setVideoThumbnailsEnabled(_enableVideoThumbnails);
+    await SettingsService.setDefaultCoverStyle(_defaultCoverStyle);
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -56,13 +66,53 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('元数据设置'),
+        title: const Text('元数据与封面设置'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                const Text(
+                  '封面设置',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  title: const Text('使用视频截图作为封面 (专业版)'),
+                  subtitle: const Text('当无法获取在线封面时，尝试从视频文件中提取截图'),
+                  value: _enableVideoThumbnails,
+                  onChanged: (value) {
+                    setState(() {
+                      _enableVideoThumbnails = value;
+                    });
+                  },
+                ),
+                ListTile(
+                  title: const Text('默认封面样式'),
+                  subtitle: const Text('当没有封面时显示的默认样式'),
+                  trailing: DropdownButton<String>(
+                    value: _defaultCoverStyle,
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _defaultCoverStyle = newValue;
+                        });
+                      }
+                    },
+                    items: <String>['gradient', 'solid']
+                        .map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value == 'gradient' ? '渐变' : '纯色'),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const Divider(height: 32),
                 const Text(
                   'TMDB 设置',
                   style: TextStyle(
