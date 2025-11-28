@@ -57,6 +57,9 @@ class _VideoPosterCardState extends State<VideoPosterCard>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return MouseRegion(
       onEnter: (_) => _handleHoverChange(true),
       onExit: (_) => _handleHoverChange(false),
@@ -67,12 +70,12 @@ class _VideoPosterCardState extends State<VideoPosterCard>
           onTap: widget.onTap,
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colorScheme.surface,
               borderRadius: BorderRadius.circular(AppRadius.medium),
               boxShadow: _isHovered
                   ? [
                       BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: colorScheme.primary.withOpacity(0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -96,7 +99,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceVariant,
+                          color: colorScheme.surfaceContainerHighest,
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(AppRadius.medium),
                             topRight: Radius.circular(AppRadius.medium),
@@ -124,7 +127,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
                           child: LinearProgressIndicator(
                             value: widget.video.progress,
                             backgroundColor: Colors.transparent,
-                            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                            valueColor: AlwaysStoppedAnimation(colorScheme.primary),
                             minHeight: 3,
                           ),
                         ),
@@ -162,7 +165,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
                         Text(
                           widget.video.title,
                           style: AppTextStyles.titleMedium.copyWith(
-                            color: AppColors.textPrimary,
+                            color: colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
                           ),
                           maxLines: 2,
@@ -175,7 +178,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
                           Text(
                             widget.video.subtitle!,
                             style: AppTextStyles.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
+                              color: colorScheme.onSurfaceVariant,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -193,13 +196,13 @@ class _VideoPosterCardState extends State<VideoPosterCard>
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.surfaceVariant,
+                                  color: colorScheme.surfaceContainerHighest,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   widget.video.type!,
                                   style: AppTextStyles.labelSmall.copyWith(
-                                    color: AppColors.textSecondary,
+                                    color: colorScheme.onSurfaceVariant,
                                     fontSize: 10,
                                   ),
                                 ),
@@ -209,7 +212,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
                               Text(
                                 _formatDuration(widget.video.duration!),
                                 style: AppTextStyles.labelSmall.copyWith(
-                                  color: AppColors.textTertiary,
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
                           ],
@@ -231,7 +234,7 @@ class _VideoPosterCardState extends State<VideoPosterCard>
       child: Icon(
         Icons.movie_outlined,
         size: 48,
-        color: AppColors.primary.withOpacity(0.3),
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
       ),
     );
   }

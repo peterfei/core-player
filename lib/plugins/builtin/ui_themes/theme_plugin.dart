@@ -1,14 +1,13 @@
 import 'dart:math' as math;
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
-import 'package:flutter/services.dart';
 import '../../../core/plugin_system/core_plugin.dart';
 import '../../../core/plugin_system/plugin_interface.dart';
 import '../../../theme/app_theme.dart';
+import '../../../services/settings_service.dart';
 
 /// 主题管理插件
 class ThemePlugin extends CorePlugin {
@@ -62,17 +61,76 @@ class ThemePlugin extends CorePlugin {
 
   @override
   Future<void> onInitialize() async {
+    if (kDebugMode) {
+      print('ThemePlugin: Initializing...');
+    }
+    
     // 加载内置主题
     await _loadBuiltinThemes();
+    if (kDebugMode) {
+      print('ThemePlugin: Loaded ${_builtinThemes.length} builtin themes');
+    }
 
     // 加载自定义主题
     await _loadCustomThemes();
+    if (kDebugMode) {
+      print('ThemePlugin: Loaded ${_customThemes.length} custom themes');
+    }
 
-    // 应用默认主题
-    await applyTheme('default');
+    // 加载保存的主题
+    String savedThemeId;
+    try {
+      savedThemeId = await SettingsService.getThemeId();
+      if (kDebugMode) {
+        print('ThemePlugin: Read saved theme ID: $savedThemeId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('ThemePlugin: Failed to read saved theme ID: $e');
+      }
+      savedThemeId = 'default';
+    }
+
+    // 验证主题 ID 是否存在
+    bool isValidTheme = _builtinThemes.containsKey(savedThemeId) || 
+                        _customThemes.containsKey(savedThemeId);
+    
+    if (!isValidTheme) {
+      if (kDebugMode) {
+        print('ThemePlugin: Invalid theme ID "$savedThemeId" found. Resetting to default.');
+      }
+      savedThemeId = 'default';
+      await SettingsService.setThemeId('default');
+    }
+
+    // 尝试应用主题
+    try {
+      await applyTheme(savedThemeId, saveToSettings: false);
+      if (kDebugMode) {
+        print('ThemePlugin: Successfully applied theme: $savedThemeId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('ThemePlugin: Failed to apply theme "$savedThemeId": $e');
+        print('ThemePlugin: Fallback to default theme');
+      }
+      
+      try {
+        await applyTheme('default', saveToSettings: true);
+        if (kDebugMode) {
+          print('ThemePlugin: Successfully applied default theme fallback');
+        }
+      } catch (fallbackError) {
+        if (kDebugMode) {
+          print('ThemePlugin: CRITICAL - Failed to apply default theme: $fallbackError');
+        }
+      }
+    }
 
     setStateInternal(PluginState.ready);
-    print('ThemePlugin initialized');
+    if (kDebugMode) {
+      print('ThemePlugin: Initialization complete');
+    }
   }
 
   @override
@@ -218,7 +276,7 @@ class ThemePlugin extends CorePlugin {
   }
 
   /// 应用主题
-  Future<void> applyTheme(String themeId) async {
+  Future<void> applyTheme(String themeId, {bool saveToSettings = true}) async {
     PluginTheme? theme;
 
     // 优先查找自定义主题
@@ -243,6 +301,11 @@ class ThemePlugin extends CorePlugin {
       theme: theme,
       timestamp: DateTime.now(),
     ));
+    
+    // 保存主题设置
+    if (saveToSettings) {
+      await SettingsService.setThemeId(themeId);
+    }
 
     if (kDebugMode) {
       print('Applied theme: ${theme.name}');
@@ -409,15 +472,15 @@ class ThemePlugin extends CorePlugin {
   Future<void> _saveCustomThemes() async {
     try {
       // 实际实现会保存到本地存储
-      final themesData = _customThemes.values
-          .map((theme) => theme.toJson())
-          .toList();
+      // final themesData = _customThemes.values
+      //     .map((theme) => theme.toJson())
+      //     .toList();
 
-      final data = {
-        'version': '1.0.0',
-        'themes': themesData,
-        'lastUpdated': DateTime.now().toIso8601String(),
-      };
+      // final data = {
+      //   'version': '1.0.0',
+      //   'themes': themesData,
+      //   'lastUpdated': DateTime.now().toIso8601String(),
+      // };
 
       // 这里应该调用实际的存储API
       if (kDebugMode) {

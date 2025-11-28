@@ -71,6 +71,9 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return MouseRegion(
       onEnter: (_) => _handleHoverChange(true),
       onExit: (_) => _handleHoverChange(false),
@@ -81,12 +84,12 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
           onTap: widget.onTap,
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colorScheme.surface,
               borderRadius: BorderRadius.circular(AppRadius.medium),
               boxShadow: _isHovered
                   ? [
                       BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: colorScheme.primary.withOpacity(0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -176,7 +179,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.9),
+                                color: colorScheme.primary.withOpacity(0.9),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -218,12 +221,12 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
 
   Widget _buildPlaceholder() {
     return Container(
-      color: AppColors.surfaceVariant,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Center(
         child: Icon(
           Icons.folder_special,
           size: 64,
-          color: AppColors.textSecondary.withOpacity(0.5),
+          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
         ),
       ),
     );

@@ -22,6 +22,9 @@ class _VideoListTileState extends State<VideoListTile> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -32,10 +35,10 @@ class _VideoListTileState extends State<VideoListTile> {
           height: 100,
           margin: const EdgeInsets.only(bottom: AppSpacing.medium),
           decoration: BoxDecoration(
-            color: _isHovered ? AppColors.surfaceVariant.withOpacity(0.5) : AppColors.surface,
+            color: _isHovered ? colorScheme.surfaceContainerHighest.withOpacity(0.5) : colorScheme.surface,
             borderRadius: BorderRadius.circular(AppRadius.medium),
             border: Border.all(
-              color: _isHovered ? AppColors.primary.withOpacity(0.3) : Colors.transparent,
+              color: _isHovered ? colorScheme.primary.withOpacity(0.3) : Colors.transparent,
               width: 1,
             ),
           ),
@@ -67,7 +70,7 @@ class _VideoListTileState extends State<VideoListTile> {
                         child: LinearProgressIndicator(
                           value: widget.video.progress,
                           backgroundColor: Colors.transparent,
-                          valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                          valueColor: AlwaysStoppedAnimation(colorScheme.primary),
                           minHeight: 3,
                         ),
                       ),
@@ -104,7 +107,7 @@ class _VideoListTileState extends State<VideoListTile> {
                       Text(
                         widget.video.title,
                         style: AppTextStyles.titleMedium.copyWith(
-                          color: AppColors.textPrimary,
+                          color: colorScheme.onSurface,
                           fontWeight: FontWeight.bold,
                         ),
                         maxLines: 1,
@@ -122,13 +125,13 @@ class _VideoListTileState extends State<VideoListTile> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceVariant,
+                                color: colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 widget.video.type!,
                                 style: AppTextStyles.labelSmall.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: colorScheme.onSurfaceVariant,
                                   fontSize: 10,
                                 ),
                               ),
@@ -137,12 +140,12 @@ class _VideoListTileState extends State<VideoListTile> {
                           ],
                           
                           if (widget.video.duration != null) ...[
-                            Icon(Icons.access_time, size: 12, color: AppColors.textTertiary),
+                            Icon(Icons.access_time, size: 12, color: colorScheme.onSurfaceVariant),
                             const SizedBox(width: 4),
                             Text(
                               _formatDuration(widget.video.duration!),
                               style: AppTextStyles.labelSmall.copyWith(
-                                color: AppColors.textTertiary,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(width: AppSpacing.medium),
@@ -153,7 +156,7 @@ class _VideoListTileState extends State<VideoListTile> {
                               child: Text(
                                 widget.video.subtitle!,
                                 style: AppTextStyles.bodySmall.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -172,7 +175,7 @@ class _VideoListTileState extends State<VideoListTile> {
                   padding: const EdgeInsets.only(right: AppSpacing.medium),
                   child: Icon(
                     Icons.play_circle_outline,
-                    color: AppColors.primary,
+                    color: colorScheme.primary,
                     size: 32,
                   ),
                 ),
@@ -188,7 +191,7 @@ class _VideoListTileState extends State<VideoListTile> {
       child: Icon(
         Icons.movie_outlined,
         size: 24,
-        color: AppColors.primary.withOpacity(0.3),
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
@@ -20,6 +21,7 @@ import 'package:yinghe_player/services/global_error_handler.dart';
 import 'package:yinghe_player/theme/app_theme.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
 import 'package:yinghe_player/core/plugin_system/plugin_loader.dart';
+import 'package:yinghe_player/core/plugin_system/plugin_interface.dart';
 import 'package:yinghe_player/core/plugin_system/config_migration.dart';
 import 'package:yinghe_player/plugins/builtin/ui_themes/theme_plugin.dart';
 
@@ -154,7 +156,7 @@ class _MyAppState extends State<MyApp> {
         print('Subtitle download plugins initialized successfully');
 
         // 监听主题变更
-        _setupThemeListener();
+        await _setupThemeListener();
       } catch (e) {
         print('Failed to initialize plugin system: $e');
         // 插件系统初始化失败不应该阻止应用启动
@@ -176,16 +178,69 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  void _setupThemeListener() {
+  Future<void> _setupThemeListener() async {
+    if (kDebugMode) {
+      print('Setting up theme listener...');
+    }
     try {
       // 从懒加载器获取主题插件
-      final themePlugin = PluginLazyLoader().getPlugin('coreplayer.theme_manager');
-      if (themePlugin != null && themePlugin is ThemePlugin) {
+      var corePlugin = PluginLazyLoader().getPlugin('coreplayer.theme_manager');
+      
+      // 如果插件尚未加载，尝试加载它
+      if (corePlugin == null) {
+        if (kDebugMode) {
+          print('ThemePlugin not found in cache, attempting to load...');
+        }
+        corePlugin = await PluginLazyLoader().loadPlugin('coreplayer.theme_manager');
+      }
+
+      if (corePlugin != null && corePlugin is ThemePlugin) {
+        final themePlugin = corePlugin;
+        // 激活插件(如果需要)
+        if (themePlugin.state != PluginState.active) {
+          if (kDebugMode) {
+            print('Activating ThemePlugin...');
+          }
+          await themePlugin.activate();
+        }
+
+        // 等待插件初始化完成（轮询状态）
+        // 确保 onInitialize 中的主题加载逻辑已执行
+        if (kDebugMode) {
+          print('Waiting for ThemePlugin initialization...');
+        }
+        int retry = 0;
+        const maxRetries = 100; // 5 seconds
+        while (themePlugin.state == PluginState.initializing || themePlugin.state == PluginState.uninitialized) {
+          await Future.delayed(const Duration(milliseconds: 50));
+          retry++;
+          if (retry > maxRetries) {
+             if (kDebugMode) {
+               print('Timeout waiting for ThemePlugin initialization after ${maxRetries * 50}ms');
+             }
+             break; 
+          }
+        }
+
+        if (themePlugin.state == PluginState.error) {
+           if (kDebugMode) {
+             print('ThemePlugin initialization failed with error state');
+           }
+           // Fallback or handle error if needed, currently we just proceed or log
+        }
+
         // 设置初始主题
         if (themePlugin.currentTheme != null) {
           setState(() {
             _currentTheme = themePlugin.currentTheme!;
           });
+          if (kDebugMode) {
+            print('Initial theme applied: ${themePlugin.currentThemeInfo.name}');
+          }
+        } else {
+          if (kDebugMode) {
+            print('Warning: ThemePlugin initialized but currentTheme is null');
+          }
         }
 
         // 监听主题变更
@@ -194,14 +249,24 @@ class _MyAppState extends State<MyApp> {
             setState(() {
               _currentTheme = event.theme.themeData;
             });
-            print('Theme updated to: ${event.theme.name}');
+            if (kDebugMode) {
+              print('Theme updated to: ${event.theme.name} (ID: ${event.themeId})');
+            }
           }
         });
 
-        print('Theme listener setup successfully');
+        if (kDebugMode) {
+          print('Theme listener setup successfully');
+        }
+      } else {
+        if (kDebugMode) {
+          print('ThemePlugin not found or failed to load');
+        }
       }
     } catch (e) {
-      print('Failed to setup theme listener: $e');
+      if (kDebugMode) {
+        print('Failed to setup theme listener: $e');
+      }
     }
   }
 

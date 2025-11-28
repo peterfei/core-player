@@ -317,7 +317,10 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('取消', style: TextStyle(color: AppColors.textSecondary)),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+            ),
+            child: const Text('取消'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),

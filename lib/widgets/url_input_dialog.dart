@@ -202,7 +202,10 @@ class _UrlInputDialogState extends State<UrlInputDialog> {
                   ),
                   TextButton(
                     onPressed: _clearAllHistory,
-                    child: const Text('清除全部', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                    child: const Text('清除全部'),
                   ),
                 ],
               ),

@@ -51,10 +51,13 @@ class ModernSidebar extends StatefulWidget {
 class _ModernSidebarState extends State<ModernSidebar> {
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Container(
       width: widget.isCollapsed ? 64 : 240,
       height: double.infinity,
-      color: AppColors.surface, // #1C1C1E
+      color: colorScheme.surface, 
       child: Column(
         children: [
           // Logo区域
@@ -63,7 +66,7 @@ class _ModernSidebarState extends State<ModernSidebar> {
           // 分隔线
           Divider(
             height: 1,
-            color: AppColors.divider,
+            color: theme.dividerColor,
           ),
 
           // 导航列表
@@ -74,7 +77,7 @@ class _ModernSidebarState extends State<ModernSidebar> {
           // 分隔线
           Divider(
             height: 1,
-            color: AppColors.divider,
+            color: theme.dividerColor,
           ),
 
           // 底部设置区域
@@ -97,17 +100,19 @@ class _ModernSidebarState extends State<ModernSidebar> {
   }
 
   Widget _buildCollapsedLogo() {
+    final theme = Theme.of(context);
+    
     return Center(
       child: Container(
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.primary,
-              Color(0xFF0066CC),
+              theme.colorScheme.primary,
+              theme.colorScheme.primaryContainer,
             ],
           ),
           borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -122,18 +127,20 @@ class _ModernSidebarState extends State<ModernSidebar> {
   }
 
   Widget _buildExpandedLogo() {
+    final theme = Theme.of(context);
+    
     return Row(
       children: [
         Container(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AppColors.primary,
-                Color(0xFF0066CC),
+                theme.colorScheme.primary,
+                theme.colorScheme.primaryContainer,
               ],
             ),
             borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -148,7 +155,7 @@ class _ModernSidebarState extends State<ModernSidebar> {
         Text(
           'CorePlayer',
           style: AppTextStyles.headlineSmall.copyWith(
-            color: AppColors.textPrimary,
+            color: theme.colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -176,16 +183,19 @@ class _ModernSidebarState extends State<ModernSidebar> {
   }
 
   Widget _buildSidebarItem(SidebarItem item, int index, bool isSelected) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return TapListItem(
       onTap: () => widget.onItemSelected(index),
-      highlightColor: AppColors.surfaceVariant,
+      highlightColor: colorScheme.surfaceContainerHighest,
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: widget.isCollapsed ? 0 : AppSpacing.medium,
           vertical: AppSpacing.small,
         ),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.surfaceVariant : Colors.transparent,
+          color: isSelected ? colorScheme.surfaceContainerHighest : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.medium),
         ),
         child: widget.isCollapsed
@@ -196,26 +206,32 @@ class _ModernSidebarState extends State<ModernSidebar> {
   }
 
   Widget _buildCollapsedItem(SidebarItem item, bool isSelected) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Center(
       child: Tooltip(
         message: item.label,
         child: Icon(
           isSelected ? item.selectedIcon : item.icon,
           size: 22,
-          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
         ),
       ),
     );
   }
 
   Widget _buildExpandedItem(SidebarItem item, bool isSelected) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Row(
       children: [
         const SizedBox(width: AppSpacing.small),
         Icon(
           isSelected ? item.selectedIcon : item.icon,
           size: 22,
-          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: AppSpacing.small),
         Expanded(
@@ -223,8 +239,8 @@ class _ModernSidebarState extends State<ModernSidebar> {
             item.label,
             style: AppTextStyles.sidebarNavItem.copyWith(
               color: isSelected
-                  ? AppColors.primary
-                  : AppColors.textSecondary,
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
@@ -236,7 +252,7 @@ class _ModernSidebarState extends State<ModernSidebar> {
             width: 3,
             height: 20,
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              color: colorScheme.primary,
               borderRadius: BorderRadius.circular(AppRadius.small),
             ),
           ),
@@ -288,7 +304,9 @@ class _ModernSidebarState extends State<ModernSidebar> {
       alignment: Alignment.centerLeft,
       child: Text(
         title,
-        style: AppTextStyles.sidebarSectionTitle,
+        style: AppTextStyles.sidebarSectionTitle.copyWith(
+           color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -301,7 +319,7 @@ class _ModernSidebarState extends State<ModernSidebar> {
           icon: Icon(
             icon,
             size: 22,
-            color: AppColors.textTertiary,
+            color: Theme.of(context).colorScheme.outline,
           ),
           onPressed: () => widget.onItemSelected(index),
           padding: EdgeInsets.zero,
@@ -318,11 +336,13 @@ class _ModernSidebarState extends State<ModernSidebar> {
     int index,
   ) {
     final isSelected = index == widget.selectedIndex;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.micro),
       child: Material(
-        color: isSelected ? AppColors.surfaceVariant : Colors.transparent,
+        color: isSelected ? colorScheme.surfaceContainerHighest : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadius.medium),
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -339,8 +359,8 @@ class _ModernSidebarState extends State<ModernSidebar> {
                   isSelected ? selectedIcon : icon,
                   size: 20,
                   color: isSelected
-                      ? AppColors.primary
-                      : AppColors.textTertiary,
+                      ? colorScheme.primary
+                      : colorScheme.outline,
                 ),
                 const SizedBox(width: AppSpacing.small),
                 Expanded(
@@ -348,8 +368,8 @@ class _ModernSidebarState extends State<ModernSidebar> {
                     label,
                     style: AppTextStyles.sidebarNavItem.copyWith(
                       color: isSelected
-                          ? AppColors.primary
-                          : AppColors.textTertiary,
+                          ? colorScheme.primary
+                          : colorScheme.outline,
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                       fontSize: 13,
                     ),

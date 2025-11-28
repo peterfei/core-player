@@ -8,7 +8,6 @@ import 'package:yinghe_player/widgets/history_list.dart';
 import 'package:yinghe_player/widgets/url_input_dialog.dart';
 import 'package:yinghe_player/widgets/modern_sidebar.dart';
 import 'package:yinghe_player/widgets/responsive_grid.dart';
-import 'package:yinghe_player/widgets/modern_video_card.dart';
 import 'package:yinghe_player/services/history_service.dart';
 import 'package:yinghe_player/services/cache_test_service.dart';
 import 'package:yinghe_player/theme/design_tokens/design_tokens.dart';
@@ -21,8 +20,6 @@ import 'package:yinghe_player/widgets/series_folder_card.dart';
 import 'package:yinghe_player/screens/series_detail_page.dart';
 import 'package:yinghe_player/widgets/video_list_tile.dart';
 import 'package:yinghe_player/widgets/video_poster_card.dart';
-
-import 'package:yinghe_player/services/cache_test_service.dart';
 import 'package:yinghe_player/models/playback_history.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -39,11 +36,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       GlobalKey<HistoryListWidgetRefreshableState>();
 
   List<PlaybackHistory> _histories = [];
-  List<VideoCardData> _historyVideos = [];
   List<VideoCardData> _libraryVideos = [];
   List<Series> _seriesList = []; // 剧集列表
   
-  bool _isLoading = true;
   bool _isSeriesView = true; // 默认为剧集视图
   String _searchQuery = '';
 
@@ -54,9 +49,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
     try {
       final histories = await HistoryService.getHistories();
       final scanned = MediaLibraryService.getAllVideos();
@@ -67,19 +59,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _histories = histories;
-          _historyVideos = histories.map(_mapHistoryToVideoCard).toList();
           _libraryVideos = scanned.map(_mapScannedToVideoCard).toList();
           _seriesList = series;
-          _isLoading = false;
         });
       }
     } catch (e) {
       print('Error loading history: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
@@ -141,15 +126,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _toggleSidebar() {
-    setState(() {
-      _isSidebarCollapsed = !_isSidebarCollapsed;
-    });
-  }
-
   Future<void> _playNetworkVideo() async {
     final url = await showUrlInputDialog(context);
     if (url != null) {
+      if (!mounted) return;
       // 导航到播放器播放网络视频
       Navigator.of(context)
           .push(
@@ -219,19 +199,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _navigateToSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SettingsScreen(),
-      ),
-    ).then((_) {
-      // 返回时刷新历史列表
-      _historyListKey.currentState?.refreshHistories();
-      _loadData(); // 刷新主页数据
-    });
-  }
-
   void _navigateToAnimationDemo() {
     Navigator.push(
       context,
@@ -284,8 +251,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Row(
         children: [
           // 左侧侧边栏
@@ -323,6 +293,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildMediaLibraryPage() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     // 过滤剧集列表（如果需要搜索）
     List<Series> displaySeries = _seriesList;
     if (_searchQuery.isNotEmpty) {
@@ -334,17 +307,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         // 顶部标题区域
         SliverAppBar(
           floating: true,
-          backgroundColor: AppColors.background,
+          backgroundColor: theme.scaffoldBackgroundColor,
           elevation: 0,
           title: Text(
             '媒体库',
             style: AppTextStyles.headlineLarge.copyWith(
-              color: AppColors.textPrimary,
+              color: colorScheme.onSurface,
             ),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.bug_report, color: AppColors.primary),
+              icon: Icon(Icons.bug_report, color: colorScheme.primary),
               onPressed: _runCacheTests,
               tooltip: '测试缓存功能',
             ),
@@ -372,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     // 视图切换按钮
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(AppRadius.medium),
                       ),
                       padding: const EdgeInsets.all(4),
@@ -398,13 +371,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     // 搜索框
                     Expanded(
                       child: TextField(
-                        style: TextStyle(color: AppColors.textPrimary),
+                        style: TextStyle(color: colorScheme.onSurface),
                         decoration: InputDecoration(
                           hintText: _isSeriesView ? '搜索剧集...' : '搜索视频...',
-                          hintStyle: TextStyle(color: AppColors.textSecondary),
-                          prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                          hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                          prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
                           filled: true,
-                          fillColor: AppColors.surface,
+                          fillColor: colorScheme.surfaceContainerHighest,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(AppRadius.medium),
                             borderSide: BorderSide.none,
@@ -450,6 +423,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.small),
@@ -459,7 +435,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           vertical: AppSpacing.small,
         ),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
+          color: isSelected ? colorScheme.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.small),
         ),
         child: Row(
@@ -467,13 +443,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Icon(
               icon,
               size: 16,
-              color: isSelected ? Colors.white : AppColors.textSecondary,
+              color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: AppSpacing.small),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textSecondary,
+                color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -484,6 +460,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildSeriesGrid(List<Series> series) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (series.isEmpty) {
       return SliverToBoxAdapter(
         child: Center(
@@ -492,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: Text(
               '没有找到剧集',
               style: AppTextStyles.bodyLarge.copyWith(
-                color: AppColors.textSecondary,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -532,6 +511,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildSection(String title, List<VideoCardData> videos) {
     if (videos.isEmpty) return const SizedBox.shrink();
+    
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -544,7 +526,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               Text(
                 title,
                 style: AppTextStyles.headlineLarge.copyWith(
-                  color: AppColors.textPrimary,
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(width: AppSpacing.small),
@@ -554,13 +536,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   vertical: AppSpacing.micro,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
+                  color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(AppRadius.small),
                 ),
                 child: Text(
                   '${videos.length}',
                   style: AppTextStyles.labelSmall.copyWith(
-                    color: AppColors.primary,
+                    color: colorScheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -581,12 +563,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     );
                   },
-                  child: Text(
-                    '查看全部',
-                    style: AppTextStyles.labelMedium.copyWith(
-                      color: AppColors.primary,
-                    ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colorScheme.primary,
+                    textStyle: AppTextStyles.labelMedium,
                   ),
+                  child: const Text('查看全部'),
                 ),
             ],
           ),
@@ -610,108 +591,225 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildFavoritesPage() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.favorite_outline,
-            size: 80,
-            color: AppColors.textTertiary,
-          ),
-          const SizedBox(height: AppSpacing.large),
-          Text(
-            '收藏夹为空',
-            style: AppTextStyles.headlineSmall.copyWith(
-              color: AppColors.textSecondary,
+    Widget _buildFavoritesPage() {
+
+      final theme = Theme.of(context);
+
+      final colorScheme = theme.colorScheme;
+
+      
+
+      return Center(
+
+        child: Column(
+
+          mainAxisAlignment: MainAxisAlignment.center,
+
+          children: [
+
+            Icon(
+
+              Icons.favorite_outline,
+
+              size: 80,
+
+              color: colorScheme.outline, // Using outline instead of tertiary for better M3 compliance
+
             ),
-          ),
-          const SizedBox(height: AppSpacing.medium),
-          Text(
-            '点击视频卡片上的爱心图标添加收藏',
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textTertiary,
+
+            const SizedBox(height: AppSpacing.large),
+
+            Text(
+
+              '收藏夹为空',
+
+              style: AppTextStyles.headlineSmall.copyWith(
+
+                color: colorScheme.onSurfaceVariant,
+
+              ),
+
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildFloatingActionButtons() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 网络视频按钮
-        FloatingActionButton(
-          heroTag: 'network',
-          onPressed: _playNetworkVideo,
-          tooltip: '播放网络视频',
-          backgroundColor: AppColors.secondary,
-          child: const Icon(Icons.link),
-        ),
-        const SizedBox(height: AppSpacing.standard),
-        // 本地视频按钮
-        FloatingActionButton(
-          heroTag: 'local',
-          onPressed: _pickAndPlayVideo,
-          tooltip: '选择本地视频',
-          backgroundColor: AppColors.primary,
-          child: const Icon(Icons.add),
-        ),
-        const SizedBox(height: AppSpacing.standard),
-        // 动画演示按钮
-        FloatingActionButton(
-          heroTag: 'animation_demo',
-          onPressed: _navigateToAnimationDemo,
-          tooltip: '动画演示',
-          backgroundColor: AppColors.surfaceVariant,
-          child: const Icon(Icons.animation),
-        ),
-      ],
-    );
-  }
+            const SizedBox(height: AppSpacing.medium),
 
-  List<VideoCardData> _getContinueWatchingVideos() {
-    // 返回有播放进度的视频，且未播放完成
-    final continueWatching = _histories.where((h) => 
-      h.currentPosition > 0 && 
-      h.currentPosition < h.totalDuration &&
-      !h.isCompleted
-    ).toList();
-    
-    return continueWatching.map(_mapHistoryToVideoCard).toList();
-  }
+            Text(
 
-  List<VideoCardData> _getRecentVideos() {
-    // 返回最近添加的视频（这里简单返回前几个）
-    // 假设 _histories 已经是按时间排序的
-    return _histories.take(4).map(_mapHistoryToVideoCard).toList();
-  }
-  
-  List<VideoCardData> _getAllVideos() {
-    // 返回媒体库中的所有视频
-    // 如果媒体库为空（未扫描），则显示历史记录作为后备，或者可以合并两者
-    if (_libraryVideos.isNotEmpty) {
-      return _libraryVideos;
+              '点击视频卡片上的爱心图标添加收藏',
+
+              style: AppTextStyles.bodyMedium.copyWith(
+
+                color: colorScheme.outline,
+
+              ),
+
+            ),
+
+          ],
+
+        ),
+
+      );
+
     }
-    return _histories.map(_mapHistoryToVideoCard).toList();
-  }
 
-  VideoCardData _mapHistoryToVideoCard(PlaybackHistory history) {
-    // 计算进度
-    double progress = 0.0;
-    return VideoCardData(
-      title: history.videoName,
-      subtitle: '上次观看: ${_formatDate(history.lastPlayedAt)}',
-      progress: history.currentPosition / (history.totalDuration == 0 ? 1 : history.totalDuration),
-      type: history.sourceType == 'network' ? '网络' : '本地',
-      duration: Duration(seconds: history.totalDuration),
-      thumbnailUrl: history.effectiveThumbnailPath != null ? 'file://${history.effectiveThumbnailPath}' : null,
-      localPath: history.videoPath,
-    );
-  }
+    
+
+    Widget _buildFloatingActionButtons() {
+
+      final theme = Theme.of(context);
+
+      final colorScheme = theme.colorScheme;
+
+      
+
+      return Column(
+
+        mainAxisSize: MainAxisSize.min,
+
+        children: [
+
+          // 网络视频按钮
+
+          FloatingActionButton(
+
+            heroTag: 'network',
+
+            onPressed: _playNetworkVideo,
+
+            tooltip: '播放网络视频',
+
+            backgroundColor: colorScheme.secondary,
+
+            foregroundColor: colorScheme.onSecondary,
+
+            child: const Icon(Icons.link),
+
+          ),
+
+          const SizedBox(height: AppSpacing.standard),
+
+          // 本地视频按钮
+
+          FloatingActionButton(
+
+            heroTag: 'local',
+
+            onPressed: _pickAndPlayVideo,
+
+            tooltip: '选择本地视频',
+
+            backgroundColor: colorScheme.primary,
+
+            foregroundColor: colorScheme.onPrimary,
+
+            child: const Icon(Icons.add),
+
+          ),
+
+          const SizedBox(height: AppSpacing.standard),
+
+          // 动画演示按钮
+
+          FloatingActionButton(
+
+            heroTag: 'animation_demo',
+
+            onPressed: _navigateToAnimationDemo,
+
+            tooltip: '动画演示',
+
+            backgroundColor: colorScheme.surfaceContainerHighest,
+
+            foregroundColor: colorScheme.onSurfaceVariant,
+
+            child: const Icon(Icons.animation),
+
+          ),
+
+        ],
+
+      );
+
+    }
+
+  
+
+    List<VideoCardData> _getContinueWatchingVideos() {
+
+      // 返回有播放进度的视频，且未播放完成
+
+      final continueWatching = _histories.where((h) => 
+
+        h.currentPosition > 0 && 
+
+        h.currentPosition < h.totalDuration &&
+
+        !h.isCompleted
+
+      ).toList();
+
+      
+
+      return continueWatching.map(_mapHistoryToVideoCard).toList();
+
+    }
+
+  
+
+    List<VideoCardData> _getRecentVideos() {
+
+      // 返回最近添加的视频（这里简单返回前几个）
+
+      // 假设 _histories 已经是按时间排序的
+
+      return _histories.take(4).map(_mapHistoryToVideoCard).toList();
+
+    }
+
+    
+
+    List<VideoCardData> _getAllVideos() {
+
+      // 返回媒体库中的所有视频
+
+      // 如果媒体库为空（未扫描），则显示历史记录作为后备，或者可以合并两者
+
+      if (_libraryVideos.isNotEmpty) {
+
+        return _libraryVideos;
+
+      }
+
+      return _histories.map(_mapHistoryToVideoCard).toList();
+
+    }
+
+  
+
+    VideoCardData _mapHistoryToVideoCard(PlaybackHistory history) {
+
+      // 计算进度
+
+      return VideoCardData(
+
+        title: history.videoName,
+
+        subtitle: '上次观看: ${_formatDate(history.lastPlayedAt)}',
+
+        progress: history.currentPosition / (history.totalDuration == 0 ? 1 : history.totalDuration),
+
+        type: history.sourceType == 'network' ? '网络' : '本地',
+
+        duration: Duration(seconds: history.totalDuration),
+
+        thumbnailUrl: history.effectiveThumbnailPath != null ? 'file://${history.effectiveThumbnailPath}' : null,
+
+        localPath: history.videoPath,
+
+      );
+
+    }
 
   VideoCardData _mapScannedToVideoCard(ScannedVideo video) {
     return VideoCardData(
@@ -787,6 +885,7 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   int _currentPage = 0;
   static const int _itemsPerPage = 20;
   
+  // ... getters omitted for brevity ...
   List<VideoCardData> get _filteredVideos {
     var videos = widget.videos;
     
@@ -841,19 +940,22 @@ class _AllVideosPageState extends State<_AllVideosPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           widget.title,
           style: AppTextStyles.headlineMedium.copyWith(
-            color: AppColors.textPrimary,
+            color: colorScheme.onSurface,
           ),
         ),
       ),
@@ -875,23 +977,26 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   }
   
   Widget _buildSearchBar() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.large),
       child: TextField(
-        style: TextStyle(color: AppColors.textPrimary),
+        style: TextStyle(color: colorScheme.onSurface),
         decoration: InputDecoration(
           hintText: '搜索视频...',
-          hintStyle: TextStyle(color: AppColors.textSecondary),
-          prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+          hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+          prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
           filled: true,
-          fillColor: AppColors.surface,
+          fillColor: colorScheme.surfaceContainerHighest,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.medium),
             borderSide: BorderSide.none,
           ),
           suffixIcon: _searchQuery.isNotEmpty
             ? IconButton(
-                icon: Icon(Icons.clear, color: AppColors.textSecondary),
+                icon: Icon(Icons.clear, color: colorScheme.onSurfaceVariant),
                 onPressed: () {
                   setState(() {
                     _searchQuery = '';
@@ -910,6 +1015,9 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   }
   
   Widget _buildFilterBar() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
       child: Row(
@@ -921,14 +1029,15 @@ class _AllVideosPageState extends State<_AllVideosPage> {
                 _groupByFolder = !_groupByFolder;
               });
             },
+            style: TextButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+            ),
             icon: Icon(
               _groupByFolder ? Icons.folder : Icons.grid_view,
               size: 18,
-              color: AppColors.primary,
             ),
             label: Text(
               _groupByFolder ? '按文件夹' : '全部',
-              style: TextStyle(color: AppColors.primary),
             ),
           ),
           const SizedBox(width: AppSpacing.small),
@@ -936,9 +1045,9 @@ class _AllVideosPageState extends State<_AllVideosPage> {
           // 视图切换 (列表/封面)
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(AppRadius.small),
-              border: Border.all(color: AppColors.surfaceVariant),
+              border: Border.all(color: theme.dividerColor),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -947,19 +1056,19 @@ class _AllVideosPageState extends State<_AllVideosPage> {
                   icon: Icon(
                     Icons.grid_view, 
                     size: 18,
-                    color: !_isListView ? AppColors.primary : AppColors.textSecondary,
+                    color: !_isListView ? colorScheme.primary : colorScheme.onSurfaceVariant,
                   ),
                   tooltip: '封面模式',
                   onPressed: () => setState(() => _isListView = false),
                   constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                   padding: EdgeInsets.zero,
                 ),
-                Container(width: 1, height: 20, color: AppColors.surfaceVariant),
+                Container(width: 1, height: 20, color: theme.dividerColor),
                 IconButton(
                   icon: Icon(
                     Icons.view_list, 
                     size: 18,
-                    color: _isListView ? AppColors.primary : AppColors.textSecondary,
+                    color: _isListView ? colorScheme.primary : colorScheme.onSurfaceVariant,
                   ),
                   tooltip: '列表模式',
                   onPressed: () => setState(() => _isListView = true),
@@ -974,8 +1083,8 @@ class _AllVideosPageState extends State<_AllVideosPage> {
           // 排序选择
           DropdownButton<String>(
             value: _sortBy,
-            dropdownColor: AppColors.surface,
-            style: TextStyle(color: AppColors.textPrimary),
+            dropdownColor: colorScheme.surface,
+            style: TextStyle(color: colorScheme.onSurface),
             underline: const SizedBox(),
             items: const [
               DropdownMenuItem(value: 'name_asc', child: Text('A-Z')),
@@ -996,7 +1105,7 @@ class _AllVideosPageState extends State<_AllVideosPage> {
           Text(
             '${_filteredVideos.length} 个视频',
             style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -1006,11 +1115,14 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   
   Widget _buildGroupedList() {
     final groups = _groupedVideos;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     if (groups.isEmpty) {
       return Center(
         child: Text(
           '没有找到视频',
-          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textSecondary),
+          style: AppTextStyles.bodyLarge.copyWith(color: colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -1033,6 +1145,9 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   }
   
   Widget _buildGroupSection(String groupName, List<VideoCardData> videos) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1041,13 +1156,13 @@ class _AllVideosPageState extends State<_AllVideosPage> {
           padding: const EdgeInsets.all(AppSpacing.large),
           child: Row(
             children: [
-              Icon(Icons.folder, color: AppColors.primary, size: 20),
+              Icon(Icons.folder, color: colorScheme.primary, size: 20),
               const SizedBox(width: AppSpacing.small),
               Expanded(
                 child: Text(
                   groupName,
                   style: AppTextStyles.headlineSmall.copyWith(
-                    color: AppColors.textPrimary,
+                    color: colorScheme.onSurface,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1059,13 +1174,13 @@ class _AllVideosPageState extends State<_AllVideosPage> {
                   vertical: AppSpacing.micro,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
+                  color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(AppRadius.small),
                 ),
                 child: Text(
                   '${videos.length}',
                   style: AppTextStyles.labelSmall.copyWith(
-                    color: AppColors.primary,
+                    color: colorScheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1101,6 +1216,9 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   }
   
   Widget _buildFlatList() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Column(
       children: [
         // 视频网格/列表
@@ -1109,7 +1227,7 @@ class _AllVideosPageState extends State<_AllVideosPage> {
             ? Center(
                 child: Text(
                   '没有找到视频',
-                  style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textSecondary),
+                  style: AppTextStyles.bodyLarge.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
               )
             : Padding(
@@ -1141,6 +1259,9 @@ class _AllVideosPageState extends State<_AllVideosPage> {
   }
   
   Widget _buildPagination() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Container(
       padding: const EdgeInsets.all(AppSpacing.large),
       child: Row(
@@ -1152,8 +1273,8 @@ class _AllVideosPageState extends State<_AllVideosPage> {
                 ? () => setState(() => _currentPage--)
                 : null,
             icon: const Icon(Icons.chevron_left),
-            color: AppColors.primary,
-            disabledColor: AppColors.textSecondary.withOpacity(0.3),
+            color: colorScheme.primary,
+            disabledColor: colorScheme.onSurfaceVariant.withOpacity(0.3),
           ),
           
           const SizedBox(width: AppSpacing.medium),
@@ -1162,14 +1283,14 @@ class _AllVideosPageState extends State<_AllVideosPage> {
           Text(
             '${_currentPage + 1} / $_totalPages',
             style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: colorScheme.onSurface,
             ),
           ),
           
           Text(
             '  (${_pagedVideos.length} / ${_filteredVideos.length})',
             style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
           
@@ -1181,8 +1302,8 @@ class _AllVideosPageState extends State<_AllVideosPage> {
                 ? () => setState(() => _currentPage++)
                 : null,
             icon: const Icon(Icons.chevron_right),
-            color: AppColors.primary,
-            disabledColor: AppColors.textSecondary.withOpacity(0.3),
+            color: colorScheme.primary,
+            disabledColor: colorScheme.onSurfaceVariant.withOpacity(0.3),
           ),
         ],
       ),

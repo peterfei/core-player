@@ -19,6 +19,7 @@ class SettingsService {
   static const String _tmdbApiKey = 'tmdb_api_key';
   static const String _tmdbAccessToken = 'tmdb_access_token';
   static const String _autoScrapeEnabledKey = 'auto_scrape_enabled';
+  static const String _themeIdKey = 'theme_id'; // 主题ID
   // 用户提供的默认 Key
   static const String _defaultTmdbApiKey = '7881c04fb4405464297402a783614152';
   static const String _defaultTmdbAccessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3ODgxYzA0ZmI0NDA1NDY0Mjk3NDAyYTc4MzYxNDE1MiIsIm5iZiI6MTYzMzQxMTkxNy45MzUwMDAyLCJzdWIiOiI2MTViZTM0ZDFjNjM1YjAwNDQ4M2YxNTQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.-Vlwm0cNIraTqijZXpPXuXZ-SDj56fyqucDvoU1oCjg';
@@ -31,6 +32,7 @@ class SettingsService {
   static const PlaybackQualityMode _defaultPlaybackQualityMode = PlaybackQualityMode.auto;
   static const bool _defaultPerformanceAlertsEnabled = false; // 默认关闭
   static const bool _defaultAutoScrapeEnabled = true; // 默认开启自动刮削
+  static const String _defaultThemeId = 'default'; // 默认主题ID
 
   // TMDB 设置
   static Future<String?> getTMDBApiKey() async {
@@ -135,6 +137,17 @@ class SettingsService {
     await prefs.setBool(_autoScrapeEnabledKey, enabled);
   }
 
+  // 主题设置
+  static Future<String> getThemeId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_themeIdKey) ?? _defaultThemeId;
+  }
+
+  static Future<void> setThemeId(String themeId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeIdKey, themeId);
+  }
+
 
   // 应用设置
   static Future<bool> isFirstLaunch() async {
@@ -156,6 +169,7 @@ class SettingsService {
     await prefs.remove(_thumbnailsEnabledKey);
     await prefs.remove(_playbackQualityModeKey);
     await prefs.remove(_performanceAlertsEnabledKey);
+    await prefs.remove(_themeIdKey);
   }
 
   // 获取所有设置
