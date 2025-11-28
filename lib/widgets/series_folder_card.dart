@@ -3,6 +3,7 @@ import '../models/series.dart';
 import '../services/metadata_store_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import 'smart_image.dart';
+import '../services/cover_fallback_service.dart';
 
 /// 剧集文件夹卡片组件
 /// 用于在列表或网格中展示剧集
@@ -26,6 +27,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   Map<String, dynamic>? _metadata;
+  String? _coverPath;
 
   @override
   void initState() {
@@ -40,14 +42,27 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
         curve: Curves.easeOut,
       ),
     );
-    _loadMetadata();
+    _loadCover();
   }
 
-  void _loadMetadata() {
+  Future<void> _loadCover() async {
     final metadata = MetadataStoreService.getSeriesMetadata(widget.series.folderPath);
+    
+    // 构造包含元数据的对象，确保优先使用已有的元数据封面
+    final source = {
+      'posterPath': metadata?['posterPath'] ?? widget.series.thumbnailPath,
+      'name': widget.series.name,
+      'path': widget.series.folderPath,
+      'id': widget.series.id,
+    };
+
+    // 优先使用 CoverFallbackService 获取最佳封面
+    final coverPath = await CoverFallbackService.getCoverPath(source);
+    
     if (mounted) {
       setState(() {
         _metadata = metadata;
+        _coverPath = coverPath;
       });
     }
   }
@@ -109,7 +124,7 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                 children: [
                   // 1. 全屏封面图
                   SmartImage(
-                    path: _metadata?['posterPath'] ?? widget.series.thumbnailPath,
+                    path: _coverPath,
                     fit: BoxFit.cover,
                     alignment: Alignment.topCenter,
                     placeholder: _buildPlaceholder(),
