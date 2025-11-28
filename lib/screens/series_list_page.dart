@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/series.dart';
 import '../services/series_service.dart';
 import '../services/media_library_service.dart';
+import '../services/metadata_store_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import '../widgets/series_folder_card.dart';
 import 'series_detail_page.dart';
@@ -24,10 +25,17 @@ class _SeriesListPageState extends State<SeriesListPage> {
   @override
   void initState() {
     super.initState();
-    _loadSeries();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    debugPrint('🚀 SeriesListPage: _initAndLoad started');
+    await MetadataStoreService.init();
+    await _loadSeries();
   }
 
   Future<void> _loadSeries() async {
+    debugPrint('🚀 SeriesListPage: _loadSeries started');
     setState(() {
       _isLoading = true;
     });
@@ -35,13 +43,17 @@ class _SeriesListPageState extends State<SeriesListPage> {
     try {
       // 1. 尝试获取已持久化的剧集数据
       var seriesList = await SeriesService.getAllSavedSeries();
+      debugPrint('🚀 Loaded saved series count: ${seriesList.length}');
       
       // 2. 如果持久化数据为空（首次运行或被清除），则实时计算
       if (seriesList.isEmpty) {
+        debugPrint('🚀 Saved series empty, trying realtime grouping...');
         final allVideos = MediaLibraryService.getAllVideos();
+        debugPrint('🚀 Total videos: ${allVideos.length}');
         if (allVideos.isNotEmpty) {
            // 实时分组用于显示，不强制立即保存（保存操作通常在扫描时触发）
            seriesList = SeriesService.groupVideosBySeries(allVideos);
+           debugPrint('🚀 Grouped series count: ${seriesList.length}');
         }
       }
       
@@ -62,7 +74,15 @@ class _SeriesListPageState extends State<SeriesListPage> {
     }
   }
 
+  bool _hasMetadata(Series series) {
+    final metadata = MetadataStoreService.getSeriesMetadata(series.folderPath);
+    // debugPrint('🔍 Metadata Check for [${series.name}]: ${metadata != null} (Poster: ${metadata?['posterPath'] != null})');
+    return metadata != null && metadata['posterPath'] != null;
+  }
+
   void _filterAndSortSeries() {
+    debugPrint('🔍 开始筛选和排序剧集 (总数: ${_seriesList.length})');
+    
     var result = List<Series>.from(_seriesList);
     
     // 搜索过滤
@@ -71,19 +91,35 @@ class _SeriesListPageState extends State<SeriesListPage> {
     }
     
     // 排序
-    switch (_sortBy) {
-      case 'name_asc':
-        result.sort((a, b) => a.name.compareTo(b.name));
-        break;
-      case 'name_desc':
-        result.sort((a, b) => b.name.compareTo(a.name));
-        break;
-      case 'count_desc':
-        result.sort((a, b) => b.episodeCount.compareTo(a.episodeCount));
-        break;
-      case 'date_desc':
-        result.sort((a, b) => b.addedAt.compareTo(a.addedAt));
-        break;
+    result.sort((a, b) {
+      // 优先显示有元数据（海报）的剧集
+      final aHasMeta = _hasMetadata(a);
+      final bHasMeta = _hasMetadata(b);
+      
+      if (aHasMeta != bHasMeta) {
+        return aHasMeta ? -1 : 1;
+      }
+      
+      // 次级排序
+      switch (_sortBy) {
+        case 'name_asc':
+          return a.name.compareTo(b.name);
+        case 'name_desc':
+          return b.name.compareTo(a.name);
+        case 'count_desc':
+          return b.episodeCount.compareTo(a.episodeCount);
+        case 'date_desc':
+          return b.addedAt.compareTo(a.addedAt);
+        default:
+          return 0;
+      }
+    });
+    
+    // 打印排序结果前5名
+    debugPrint('📊 排序结果 (Top 5):');
+    for (var i = 0; i < result.length && i < 5; i++) {
+      final s = result[i];
+      debugPrint('  #${i+1} ${s.name} (Meta: ${_hasMetadata(s)})');
     }
     
     setState(() {

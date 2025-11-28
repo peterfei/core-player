@@ -2,6 +2,7 @@ import 'package:path/path.dart' as p;
 import '../models/series.dart';
 import '../models/episode.dart';
 import 'media_library_service.dart';
+import 'metadata_store_service.dart';
 
 /// 剧集服务
 /// 负责从扫描的视频中识别和分组剧集
@@ -76,8 +77,8 @@ class SeriesService {
   static List<Series> groupVideosBySeries(List<ScannedVideo> videos) {
     // 按清洗后的剧集名称分组
     final Map<String, List<ScannedVideo>> nameGroups = {};
-    // 同时也记录主文件夹路径，用于后续回溯
-    final Map<String, String> nameToPathMap = {};
+    // 记录每个组涉及的所有文件夹路径
+    final Map<String, Set<String>> nameToPathsMap = {};
     
     for (var video in videos) {
       final folderPath = _extractFolderPath(video.path);
@@ -91,9 +92,10 @@ class SeriesService {
       
       if (!nameGroups.containsKey(seriesName)) {
         nameGroups[seriesName] = [];
-        nameToPathMap[seriesName] = folderPath; // 记录第一个遇到的文件夹路径作为主路径
+        nameToPathsMap[seriesName] = {};
       }
       nameGroups[seriesName]!.add(video);
+      nameToPathsMap[seriesName]!.add(folderPath);
     }
     
     // 转换为 Series 对象
@@ -101,7 +103,16 @@ class SeriesService {
     for (var entry in nameGroups.entries) {
       final seriesName = entry.key;
       final episodeCount = entry.value.length;
-      final folderPath = nameToPathMap[seriesName]!;
+      final folderPaths = nameToPathsMap[seriesName]!;
+      
+      // 确定主路径：优先选择有元数据的路径，否则选第一个
+      String mainFolderPath = folderPaths.first;
+      for (final path in folderPaths) {
+        if (MetadataStoreService.isScraped(path)) {
+          mainFolderPath = path;
+          break;
+        }
+      }
       
       if (episodeCount > 0) {
         // 使用清洗后的名称创建 Series
@@ -109,7 +120,7 @@ class SeriesService {
         seriesList.add(Series(
           id: seriesName.hashCode.toString(),
           name: seriesName,
-          folderPath: folderPath, // 主要路径，虽然可能合并了多个路径
+          folderPath: mainFolderPath, // 使用选定的主路径（可能有元数据）
           episodeCount: episodeCount,
           addedAt: entry.value.first.addedAt ?? DateTime.now(),
         ));
@@ -187,7 +198,8 @@ class SeriesService {
     // 支持 "EP01", "E01-04", "ep1"
     title = title.replaceAll(RegExp(r'\bE[Pp]?\d+(?:-\d+)?\b', caseSensitive: false), '');
 
-    // 6. 移除多余空格
+    // 6. 最后处理剩余的连字符和多余空格
+    title = title.replaceAll('-', ' ');
     title = title.replaceAll(RegExp(r'\s+'), ' ');
     
     // 7. 特殊处理：移除中文字符之间的空格

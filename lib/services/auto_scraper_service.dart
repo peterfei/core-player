@@ -94,6 +94,10 @@ class AutoScraperService {
 
     onProgress?.call(seriesList.length, seriesList.length, '刮削完成');
     
+    // 重新处理并保存剧集数据，以确保 Series.folderPath 指向已刮削的路径
+    debugPrint('🤖 刮削完成，正在刷新剧集分组数据...');
+    await SeriesService.processAndSaveSeries(videos);
+    
     debugPrint('');
     debugPrint('🤖 ═══════════════════════════════════════════════════════');
     debugPrint('🤖 自动刮削完成');
