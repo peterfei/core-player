@@ -70,7 +70,8 @@ class DefaultCoverGenerator {
     if (!await coversDir.exists()) {
       await coversDir.create(recursive: true);
     }
-    return File(path.join(coversDir.path, '$outputId.jpg'));
+    // 使用 _v2 后缀强制刷新缓存，解决旧版生成器产生的标题问题
+    return File(path.join(coversDir.path, '${outputId}_v2.jpg'));
   }
 
   static void _drawPattern(Canvas canvas, Size size) {
@@ -146,20 +147,26 @@ class DefaultCoverGenerator {
   static String _cleanTitle(String title) {
     var cleaned = title;
 
-    // 1. 移除开头的方括号内容 (如 [高清电影天堂...])
-    cleaned = cleaned.replaceAll(RegExp(r'^(\[.*?\]|【.*?】)'), '');
+    // 1. 移除所有方括号内容 (如 [高清电影天堂...] 或 【首发...】)
+    // 移除 ^ 锚点，匹配所有位置
+    cleaned = cleaned.replaceAll(RegExp(r'(\[.*?\]|【.*?】)'), '');
 
-    // 2. 移除网址
-    cleaned = cleaned.replaceAll(RegExp(r'www\.[a-zA-Z0-9-]+\.[a-z]+'), '');
+    // 2. 移除网址 (加强版，匹配更多格式)
+    cleaned = cleaned.replaceAll(RegExp(r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}'), '');
 
     // 3. 移除常见的发布信息标签 (不区分大小写)
+    // 增加更多关键词，优化匹配逻辑
     final techSpecs = RegExp(
-      r'(S\d+.*|1080p|2160p|4k|60fps|WEBRip|BluRay|HDTV|x264|x265|HEVC|AAC|DTS|HDR|Remux)', 
+      r'(S\d+|1080p|2160p|4k|60fps|WEBRip|BluRay|HDTV|x264|x265|HEVC|AAC|DTS|HDR|Remux|H\.264|H\.265)', 
       caseSensitive: false,
     );
     
+    // 如果包含技术参数，截断之前的内容
     if (techSpecs.hasMatch(cleaned)) {
-      cleaned = cleaned.split(techSpecs).first;
+      final match = techSpecs.firstMatch(cleaned);
+      if (match != null && match.start > 0) {
+        cleaned = cleaned.substring(0, match.start);
+      }
     }
 
     // 4. 替换点号、下划线为空格
