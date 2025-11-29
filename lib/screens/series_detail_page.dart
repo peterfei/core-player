@@ -108,13 +108,44 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
       // MediaLibraryService.getAllVideos 是内存操作，很快
       
       final allVideos = MediaLibraryService.getAllVideos();
+      print('🔍 ═══ Episode Loading Debug (${widget.series.name}) ═══');
+      print('   Total videos in library: ${allVideos.length}');
+      print('   Series folder paths: ${widget.series.folderPaths}');
+      
       var episodes = SeriesService.getEpisodesForSeries(widget.series, allVideos);
+      print('   Episodes loaded: ${episodes.length}');
+      
+      // Count original season numbers
+      final seasonCounts = <int?, int>{};
+      for (var e in episodes) {
+        seasonCounts[e.seasonNumber] = (seasonCounts[e.seasonNumber] ?? 0) + 1;
+      }
+      print('   Season distribution (before fix): $seasonCounts');
       
       if (mounted) {
         setState(() {
-          _episodes = episodes;
+          // Treat null season as Season 1 to ensure visibility
+          _episodes = episodes.map((e) {
+            if (e.seasonNumber == null) {
+              return e.copyWith(seasonNumber: 1);
+            }
+            return e;
+          }).toList();
+          
+          // Count after fix
+          final finalSeasonCounts = <int?, int>{};
+          for (var e in _episodes) {
+            finalSeasonCounts[e.seasonNumber] = (finalSeasonCounts[e.seasonNumber] ?? 0) + 1;
+          }
+          print('   Season distribution (after fix): $finalSeasonCounts');
+          
           _extractSeasons(); // 提取季数信息
+          print('   Available seasons: $_seasons');
+          print('   Selected season: $_selectedSeason');
+          
           _filterAndSortEpisodes();
+          print('   Filtered episodes: ${_filteredEpisodes.length}');
+          print('🔍 ═══════════════════════════════════════');
           _isLoading = false;
         });
       }

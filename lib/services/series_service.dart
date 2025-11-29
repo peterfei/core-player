@@ -158,6 +158,14 @@ class SeriesService {
         seriesName = folderName; // 回退到原始文件夹名
       }
       
+      // DEBUG LOG
+      if (seriesName.contains('大考')) {
+        print('🔍 Grouping Debug:');
+        print('   File: ${p.basename(video.path)}');
+        print('   Folder: $folderName');
+        print('   Cleaned: $seriesName');
+      }
+      
       if (!nameGroups.containsKey(seriesName)) {
         nameGroups[seriesName] = [];
         nameToPathsMap[seriesName] = {};
@@ -189,6 +197,7 @@ class SeriesService {
           id: seriesName.hashCode.toString(),
           name: seriesName,
           folderPath: mainFolderPath, // 使用选定的主路径（可能有元数据）
+          folderPaths: folderPaths.toList(), // 传递所有相关文件夹路径
           episodeCount: episodeCount,
           addedAt: entry.value.first.addedAt ?? DateTime.now(),
         ));
@@ -239,15 +248,21 @@ static Future<List<Series>> getSeriesListFromVideos(List<ScannedVideo> videos) a
     // 转换为 Episode 对象
     final episodes = seriesVideos.map((video) {
       final parsed = parseSeasonAndEpisode(video.name);
+      final folderName = p.basename(_extractFolderPath(video.path));
       
       // 如果文件名没有季数，尝试从文件夹名解析 (e.g. "Season 1")
       int? seasonNumber = parsed.season;
       if (seasonNumber == null) {
-        final folderName = p.basename(_extractFolderPath(video.path));
-        final seasonPattern = RegExp(r'(?:Season|S|第)\s*(\d+)\s*(?:季|Season)?', caseSensitive: false);
+        // Fixed regex: Require "Season/S" prefix OR "第...季" format
+        // This prevents "第10集" from being parsed as Season 10
+        final seasonPattern = RegExp(r'(?:Season|S)\s*(\d+)|第\s*(\d+)\s*季', caseSensitive: false);
         final match = seasonPattern.firstMatch(folderName);
         if (match != null) {
-          seasonNumber = int.tryParse(match.group(1)!);
+          // Group 1 is for "Season X", Group 2 is for "第 X 季"
+          final seasonStr = match.group(1) ?? match.group(2);
+          if (seasonStr != null) {
+            seasonNumber = int.tryParse(seasonStr);
+          }
         }
       }
 
@@ -279,7 +294,7 @@ static Future<List<Series>> getSeriesListFromVideos(List<ScannedVideo> videos) a
   static String cleanSeriesName(String name) {
     var title = name;
 
-    // 1. 移除方括号内容
+    // 1. 移除方括号和圆括号内容（包括重复文件的(1)、(2)等）
     title = title.replaceAll(RegExp(r'[\[【\(].*?[\]】\)]'), '');
 
     // 2. 部分标准化分隔符 (仅替换 . 和 _，保留 - 以便后续匹配集数范围)
@@ -299,11 +314,14 @@ static Future<List<Series>> getSeriesListFromVideos(List<ScannedVideo> videos) a
     // 支持 "EP01", "E01-04", "ep1"
     title = title.replaceAll(RegExp(r'\bE[Pp]?\d+(?:-\d+)?\b', caseSensitive: false), '');
 
-    // 6. 最后处理剩余的连字符和多余空格
+    // 6. 移除常见后缀（end、完结、全集等）
+    title = title.replaceAll(RegExp(r'\b(end|完结|全集|合集)\b', caseSensitive: false), '');
+
+    // 7. 最后处理剩余的连字符和多余空格
     title = title.replaceAll('-', ' ');
     title = title.replaceAll(RegExp(r'\s+'), ' ');
     
-    // 7. 特殊处理：移除中文字符之间的空格
+    // 8. 特殊处理：移除中文字符之间的空格
     // 解决 "盗墓笔记.重启" (变成 "盗墓笔记 重启") 和 "盗墓笔记重启" 不匹配的问题
     // 策略：如果是 中文+空格+中文，则移除空格
     title = title.replaceAllMapped(
