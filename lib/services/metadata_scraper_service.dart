@@ -8,6 +8,8 @@ import '../core/scraping/similarity_calculator.dart';
 import '../core/scraping/scraping_candidate.dart';
 import 'tmdb_service.dart';
 import 'settings_service.dart';
+import 'metadata_store_service.dart';
+import 'image_download_service.dart';
 
 /// 刮削结果
 class ScrapingResult {
@@ -122,11 +124,37 @@ class MetadataScraperService {
       final details = await TMDBService.getDetails(tmdbId, type: bestType!);
 
       if (details != null) {
+        // 下载图片
+        onProgress?.call('下载封面...');
+        final images = await ImageDownloadService.downloadSeriesImages(
+          tmdbId: tmdbId,
+          posterPath: details['poster_path'],
+          backdropPath: details['backdrop_path'],
+        );
+        
+        // 保存元数据到数据库
+        final metadata = {
+          'tmdbId': tmdbId,
+          'name': details[bestType == 'tv' ? 'name' : 'title'],
+          'originalName': details[bestType == 'tv' ? 'original_name' : 'original_title'],
+          'overview': details['overview'],
+          'posterPath': images['poster'] ?? details['poster_path'], // 优先使用本地路径
+          'backdropPath': images['backdrop'] ?? details['backdrop_path'], // 优先使用本地路径
+          'rating': (details['vote_average'] as num?)?.toDouble(),
+          'releaseDate': details[bestType == 'tv' ? 'first_air_date' : 'release_date'],
+          'status': details['status'],
+          'type': bestType,
+          'scrapedAt': DateTime.now().toIso8601String(),
+        };
+        
+        // 保存到数据库
+        await MetadataStoreService.saveSeriesMetadata(series.folderPath, metadata);
+        
         return ScrapingResult(
           seriesId: series.id,
           seriesName: series.name,
           success: true,
-          metadata: details,
+          metadata: metadata,
         );
       } else {
         return ScrapingResult(

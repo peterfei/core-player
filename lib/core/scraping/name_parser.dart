@@ -78,11 +78,6 @@ class NameParser {
       cleanName = cleanName.replaceAll(RegExp(r'\b' + RegExp.escape(word) + r'\b', caseSensitive: false), '');
     }
     
-    // Remove year from name for searching title
-    if (year != null) {
-      cleanName = cleanName.replaceAll(year.toString(), '');
-    }
-    
     // Remove season/episode info
     for (final pattern in NamingPatterns.seasonEpisode) {
       cleanName = cleanName.replaceAll(pattern, '');
@@ -94,6 +89,34 @@ class NameParser {
     // Remove video extensions (in case they appear as words)
     for (final ext in NamingPatterns.videoExtensions) {
       cleanName = cleanName.replaceAll(RegExp(r'\b' + ext + r'\b', caseSensitive: false), '');
+    }
+    
+    // Remove "end" suffix (before removing numbers)
+    cleanName = cleanName.replaceAll(RegExp(r'\s*end\s*$', caseSensitive: false), '');
+    
+    // Remove version numbers (v2, v3, etc.) - before removing trailing numbers
+    cleanName = cleanName.replaceAll(RegExp(r'\s+v\d+\s*$', caseSensitive: false), '');
+    
+    // ONLY remove trailing numbers in specific cases:
+    // 1. Episode ranges like "01 07", "08 13" (two 2-digit numbers with space)
+    // 2. Single trailing numbers ONLY if they appear after season/episode info was already extracted
+    //    This prevents removing meaningful numbers like "1919", "12" from titles
+    
+    // Remove episode ranges (e.g. "01 07", "08 13") - these are clearly episode ranges
+    // Match 1-2 digit numbers separated by space at the end
+    cleanName = cleanName.replaceAll(RegExp(r'\d{1,2}\s+\d{1,2}\s*$'), '');
+    
+    // Only remove single trailing 2-digit numbers if we already extracted season/episode info
+    // This prevents removing "12" from "刑侦12" or "1919" from "我的1919"
+    if (season != null || episode != null) {
+      // If we found season/episode, it's safe to remove trailing numbers
+      cleanName = cleanName.replaceAll(RegExp(r'\s+\d{1,2}\s*$'), '');
+    }
+    
+    // Remove year from name for searching title (year has already been extracted)
+    // Only remove if it appears as a separate word (with word boundaries)
+    if (year != null) {
+      cleanName = cleanName.replaceAll(RegExp(r'\b' + year.toString() + r'\b'), '');
     }
 
     // Final cleanup of spaces

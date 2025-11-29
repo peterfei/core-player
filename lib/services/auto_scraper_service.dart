@@ -75,7 +75,7 @@ class AutoScraperService {
         onProgress: (status) {
           debugPrint('   → $status');
         },
-        forceUpdate: false, // 不强制更新，如果已存在则跳过
+        forceUpdate: true, // 强制更新，以确保封面被下载
       );
 
       if (result.success) {

@@ -58,6 +58,33 @@ void main() {
       expect(result.query, '封神第一部：朝歌风云');
       expect(result.year, 2023);
     });
+    
+    test('Should remove trailing episode range numbers', () {
+      final result = NameParser.parse('法证先锋6之幸存者的救赎01 07');
+      expect(result.query, '法证先锋6之幸存者的救赎');
+    });
+    
+    test('Should remove trailing single numbers when season/episode exists', () {
+      final result = NameParser.parse('冰与火之歌：权力的游戏全集 Game of Thrones S02E01 10 BD1080P');
+      expect(result.query, '冰与火之歌：权力的游戏全集 Game of Thrones');
+      expect(result.season, 2);
+      expect(result.episode, 1);
+    });
+    
+    test('Should NOT remove meaningful numbers from titles', () {
+      final result = NameParser.parse('刑侦12');
+      expect(result.query, '刑侦12');
+    });
+    
+    test('Should remove end suffix', () {
+      final result = NameParser.parse('大考end mp4');
+      expect(result.query, '大考');
+    });
+    
+    test('Should remove version numbers', () {
+      final result = NameParser.parse('t朝g事l之x行 HD1080p v2 mp4');
+      expect(result.query, 't朝g事l之x行');
+    });
   });
 
   group('SimilarityCalculator Tests', () {
