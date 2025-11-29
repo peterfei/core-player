@@ -53,8 +53,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final histories = await HistoryService.getHistories();
       final scanned = MediaLibraryService.getAllVideos();
       
-      // 加载剧集数据
-      final series = SeriesService.groupVideosBySeries(scanned);
+      // 加载剧集数据 (包含合并逻辑)
+      final series = await SeriesService.getSeriesListFromVideos(scanned);
       
       if (mounted) {
         setState(() {

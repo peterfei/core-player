@@ -21,6 +21,9 @@ class Episode {
   
   /// 集数编号（从文件名解析，可选）
   final int? episodeNumber;
+
+  /// 季数编号（从文件名解析，可选）
+  final int? seasonNumber;
   
   /// 添加时间
   final DateTime addedAt;
@@ -57,6 +60,7 @@ class Episode {
     required this.size,
     this.duration,
     this.episodeNumber,
+    this.seasonNumber,
     required this.addedAt,
     this.playbackPosition,
     this.thumbnailPath,
@@ -91,6 +95,7 @@ class Episode {
     int? size,
     int? duration,
     int? episodeNumber,
+    int? seasonNumber,
     DateTime? addedAt,
     int? playbackPosition,
     String? thumbnailPath,
@@ -109,6 +114,7 @@ class Episode {
       size: size ?? this.size,
       duration: duration ?? this.duration,
       episodeNumber: episodeNumber ?? this.episodeNumber,
+      seasonNumber: seasonNumber ?? this.seasonNumber,
       addedAt: addedAt ?? this.addedAt,
       playbackPosition: playbackPosition ?? this.playbackPosition,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,

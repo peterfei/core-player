@@ -47,15 +47,83 @@ class SeriesService {
   }
 
   /// 获取所有已保存的剧集（转换为领域模型）
+  /// 并根据 TMDB ID 合并重复的剧集（例如不同季度的文件夹）
   static Future<List<Series>> getAllSavedSeries() async {
     final scannedSeries = MediaLibraryService.getAllSeries();
-    return scannedSeries.map((s) => Series(
-      id: s.id,
-      name: s.name,
-      folderPath: s.folderPath,
-      episodeCount: s.episodeCount,
-      addedAt: s.addedAt,
-    )).toList();
+    
+    // 1. 转换为 Series 对象并填充元数据
+    final List<Series> initialList = scannedSeries.map((s) {
+      final metadata = MetadataStoreService.getSeriesMetadata(s.folderPath);
+      return Series(
+        id: s.id,
+        name: metadata?['name'] ?? s.name, // 优先使用元数据名称
+        folderPath: s.folderPath,
+        episodeCount: s.episodeCount,
+        addedAt: s.addedAt,
+        tmdbId: metadata?['tmdbId'],
+        thumbnailPath: metadata?['posterPath'],
+        backdropPath: metadata?['backdropPath'],
+        overview: metadata?['overview'],
+        rating: metadata?['rating'],
+        releaseDate: metadata?['releaseDate'] != null ? DateTime.tryParse(metadata!['releaseDate']) : null,
+      );
+    }).toList();
+
+    // 2. 按 TMDB ID 分组并合并
+    return mergeSeriesList(initialList);
+  }
+
+  /// 合并重复的剧集列表 (纯逻辑，易于测试)
+  static List<Series> mergeSeriesList(List<Series> inputList) {
+    final Map<int, List<Series>> tmdbGroups = {};
+    final List<Series> unmergedList = [];
+
+    for (var series in inputList) {
+      if (series.tmdbId != null && series.tmdbId! > 0) {
+        if (!tmdbGroups.containsKey(series.tmdbId)) {
+          tmdbGroups[series.tmdbId!] = [];
+        }
+        tmdbGroups[series.tmdbId!]!.add(series);
+      } else {
+        unmergedList.add(series);
+      }
+    }
+
+    // 3. 处理合并
+    final List<Series> mergedList = [];
+    
+    // 添加未合并的（没有 TMDB ID 的）
+    mergedList.addAll(unmergedList);
+
+    // 处理有 TMDB ID 的
+    for (var entry in tmdbGroups.entries) {
+      final group = entry.value;
+      if (group.isEmpty) continue;
+
+      if (group.length == 1) {
+        mergedList.add(group.first);
+      } else {
+        // 合并多个 Series
+        // 排序：优先保留元数据最完整的，或者按文件夹名称排序
+        group.sort((a, b) => a.folderPath.compareTo(b.folderPath));
+        
+        final mainSeries = group.first;
+        final allFolderPaths = group.map((s) => s.folderPath).toList();
+        final totalEpisodes = group.fold<int>(0, (sum, s) => sum + s.episodeCount);
+
+        // 创建合并后的 Series
+        // 使用主 Series 的 ID 和元数据，但包含所有文件夹路径
+        mergedList.add(mainSeries.copyWith(
+          folderPaths: allFolderPaths,
+          episodeCount: totalEpisodes,
+        ));
+      }
+    }
+
+    // 4. 排序
+    mergedList.sort((a, b) => a.name.compareTo(b.name));
+
+    return mergedList;
   }
   
   /// 获取已保存的剧集集数（转换为领域模型）
@@ -133,31 +201,64 @@ class SeriesService {
     return seriesList;
   }
 
+/// 从扫描的视频列表中获取剧集列表，并应用元数据和合并逻辑
+static Future<List<Series>> getSeriesListFromVideos(List<ScannedVideo> videos) async {
+  // 1. 初步分组 (按文件夹名称)
+  final initialSeries = groupVideosBySeries(videos);
+  
+  // 2. 填充元数据
+  final List<Series> populatedList = initialSeries.map((s) {
+    final metadata = MetadataStoreService.getSeriesMetadata(s.folderPath);
+    return s.copyWith(
+      name: metadata?['name'] ?? s.name, // 优先使用元数据名称
+      tmdbId: metadata?['tmdbId'],
+      thumbnailPath: metadata?['posterPath'],
+      backdropPath: metadata?['backdropPath'],
+      overview: metadata?['overview'],
+      rating: metadata?['rating'],
+      releaseDate: metadata?['releaseDate'] != null ? DateTime.tryParse(metadata!['releaseDate']) : null,
+    );
+  }).toList();
+
+  // 3. 合并重复剧集 (按 TMDB ID)
+  return mergeSeriesList(populatedList);
+}
+
   /// 获取指定剧集的所有集数
   static List<Episode> getEpisodesForSeries(
     Series series,
     List<ScannedVideo> allVideos,
   ) {
-    // 筛选出属于该剧集的视频 (通过清洗后的名称匹配)
+    // 筛选出属于该剧集的视频
+    // 策略：检查视频的文件夹路径是否包含在 series.folderPaths 中
     final seriesVideos = allVideos.where((video) {
       final folderPath = _extractFolderPath(video.path);
-      final folderName = p.basename(folderPath);
-      
-      String cleanName = cleanSeriesName(folderName);
-      if (cleanName.isEmpty) cleanName = folderName;
-      
-      return cleanName == series.name;
+      return series.folderPaths.contains(folderPath);
     }).toList();
     
     // 转换为 Episode 对象
     final episodes = seriesVideos.map((video) {
+      final parsed = parseSeasonAndEpisode(video.name);
+      
+      // 如果文件名没有季数，尝试从文件夹名解析 (e.g. "Season 1")
+      int? seasonNumber = parsed.season;
+      if (seasonNumber == null) {
+        final folderName = p.basename(_extractFolderPath(video.path));
+        final seasonPattern = RegExp(r'(?:Season|S|第)\s*(\d+)\s*(?:季|Season)?', caseSensitive: false);
+        final match = seasonPattern.firstMatch(folderName);
+        if (match != null) {
+          seasonNumber = int.tryParse(match.group(1)!);
+        }
+      }
+
       return Episode(
         id: video.pathHash,
         seriesId: series.id,
         name: video.name,
         path: video.path,
         size: video.size,
-        episodeNumber: parseEpisodeNumber(video.name),
+        episodeNumber: parsed.episode,
+        seasonNumber: seasonNumber,
         addedAt: video.addedAt ?? DateTime.now(),
         sourceId: video.sourceId,
       );
@@ -213,21 +314,37 @@ class SeriesService {
     return title.trim();
   }
 
-  /// 从文件名解析集数编号
-  /// 支持多种常见格式：
-  /// - "第01集", "第1集"
-  /// - "E01", "e01", "EP01", "ep01"
-  /// - "01", "1" (纯数字)
-  /// - "S01E01" (季+集)
-  static int? parseEpisodeNumber(String filename) {
+  /// 从文件名解析季数和集数编号
+  static ({int? season, int? episode}) parseSeasonAndEpisode(String filename) {
     // 移除文件扩展名
     final nameWithoutExt = p.basenameWithoutExtension(filename);
     
-    // 正则表达式模式列表
+    // 1. S01E01 格式 (最优先)
+    final s01e01Pattern = RegExp(r'[Ss](\d+)[Ee](\d+)');
+    final s01e01Match = s01e01Pattern.firstMatch(nameWithoutExt);
+    if (s01e01Match != null) {
+      return (
+        season: int.tryParse(s01e01Match.group(1)!),
+        episode: int.tryParse(s01e01Match.group(2)!)
+      );
+    }
+
+    // 2. 第X季 第X集 格式
+    final chinesePattern = RegExp(r'第\s*(\d+)\s*季.*第\s*(\d+)\s*集');
+    final chineseMatch = chinesePattern.firstMatch(nameWithoutExt);
+    if (chineseMatch != null) {
+      return (
+        season: int.tryParse(chineseMatch.group(1)!),
+        episode: int.tryParse(chineseMatch.group(2)!)
+      );
+    }
+
+    // 3. 仅集数 (尝试推断季数，如果文件夹名包含季数信息)
+    // 这里只解析集数
+    int? episode;
     final patterns = [
       RegExp(r'第\s*(\d+)\s*集'),           // 第01集, 第1集
       RegExp(r'[Ee][Pp]?\s*(\d+)'),        // E01, EP01, e01, ep01
-      RegExp(r'[Ss]\d+[Ee](\d+)'),         // S01E01
       RegExp(r'\b(\d{1,3})\b'),            // 01, 1, 001
     ];
     
@@ -236,12 +353,13 @@ class SeriesService {
       if (match != null) {
         final numStr = match.group(1);
         if (numStr != null) {
-          return int.tryParse(numStr);
+          episode = int.tryParse(numStr);
+          break;
         }
       }
     }
     
-    return null;
+    return (season: null, episode: episode);
   }
 
   /// 从视频文件路径提取文件夹路径
