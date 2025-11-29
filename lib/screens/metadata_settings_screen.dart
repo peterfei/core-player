@@ -15,6 +15,10 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
 
   bool _enableVideoThumbnails = false;
   String _defaultCoverStyle = 'gradient';
+  
+  int _scrapingRetryCount = 3;
+  double _scrapingSimilarityThreshold = 0.8;
+  double _scrapingMinConfidence = 0.4;
 
   @override
   void initState() {
@@ -34,6 +38,9 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
     final accessToken = await SettingsService.getTMDBAccessToken();
     final enableVideoThumbnails = await SettingsService.isVideoThumbnailsEnabled();
     final defaultCoverStyle = await SettingsService.getDefaultCoverStyle();
+    final scrapingRetryCount = await SettingsService.getScrapingRetryCount();
+    final scrapingSimilarityThreshold = await SettingsService.getScrapingSimilarityThreshold();
+    final scrapingMinConfidence = await SettingsService.getScrapingMinConfidence();
 
     if (mounted) {
       setState(() {
@@ -41,6 +48,9 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
         _accessTokenController.text = accessToken ?? '';
         _enableVideoThumbnails = enableVideoThumbnails;
         _defaultCoverStyle = defaultCoverStyle;
+        _scrapingRetryCount = scrapingRetryCount;
+        _scrapingSimilarityThreshold = scrapingSimilarityThreshold;
+        _scrapingMinConfidence = scrapingMinConfidence;
         _isLoading = false;
       });
     }
@@ -54,6 +64,9 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
     await SettingsService.setTMDBAccessToken(accessToken);
     await SettingsService.setVideoThumbnailsEnabled(_enableVideoThumbnails);
     await SettingsService.setDefaultCoverStyle(_defaultCoverStyle);
+    await SettingsService.setScrapingRetryCount(_scrapingRetryCount);
+    await SettingsService.setScrapingSimilarityThreshold(_scrapingSimilarityThreshold);
+    await SettingsService.setScrapingMinConfidence(_scrapingMinConfidence);
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -146,6 +159,68 @@ class _MetadataSettingsScreenState extends State<MetadataSettingsScreen> {
                   ),
                   maxLines: 3,
                   minLines: 1,
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  '刮削高级设置',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: const Text('重试次数'),
+                  subtitle: Text('网络请求失败时的重试次数: $_scrapingRetryCount'),
+                  trailing: DropdownButton<int>(
+                    value: _scrapingRetryCount,
+                    onChanged: (int? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _scrapingRetryCount = newValue;
+                        });
+                      }
+                    },
+                    items: <int>[1, 2, 3, 4, 5]
+                        .map<DropdownMenuItem<int>>((int value) {
+                      return DropdownMenuItem<int>(
+                        value: value,
+                        child: Text(value.toString()),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                ListTile(
+                  title: const Text('相似度阈值'),
+                  subtitle: Text('高于此值时立即停止搜索: ${_scrapingSimilarityThreshold.toStringAsFixed(2)}'),
+                ),
+                Slider(
+                  value: _scrapingSimilarityThreshold,
+                  min: 0.5,
+                  max: 1.0,
+                  divisions: 10,
+                  label: _scrapingSimilarityThreshold.toStringAsFixed(2),
+                  onChanged: (double value) {
+                    setState(() {
+                      _scrapingSimilarityThreshold = value;
+                    });
+                  },
+                ),
+                ListTile(
+                  title: const Text('最低置信度'),
+                  subtitle: Text('低于此值时视为未找到: ${_scrapingMinConfidence.toStringAsFixed(2)}'),
+                ),
+                Slider(
+                  value: _scrapingMinConfidence,
+                  min: 0.1,
+                  max: 0.9,
+                  divisions: 16,
+                  label: _scrapingMinConfidence.toStringAsFixed(2),
+                  onChanged: (double value) {
+                    setState(() {
+                      _scrapingMinConfidence = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton(

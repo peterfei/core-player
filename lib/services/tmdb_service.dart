@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import '../core/scraping/retry_helper.dart';
+import 'settings_service.dart';
 
 class TMDBService {
   static const String _baseUrl = 'https://api.themoviedb.org/3';
@@ -43,50 +45,72 @@ class TMDBService {
 
   /// 搜索剧集
   static Future<List<Map<String, dynamic>>> searchTVShow(String query) async {
+    return _search('tv', query);
+  }
+
+  /// 搜索电影
+  static Future<List<Map<String, dynamic>>> searchMovie(String query) async {
+    return _search('movie', query);
+  }
+
+  static Future<List<Map<String, dynamic>>> _search(String type, String query) async {
     if (!isInitialized) return [];
     
-    try {
-      final queryParams = _getQueryParams({
-        'query': query,
-        'include_adult': 'false',
-      });
+    final retryCount = await SettingsService.getScrapingRetryCount();
 
-      final uri = Uri.parse('$_baseUrl/search/tv').replace(queryParameters: queryParams);
-      
-      final response = await http.get(uri, headers: _getHeaders());
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final results = List<Map<String, dynamic>>.from(data['results']);
-        return results;
-      } else {
-        debugPrint('TMDB Search Error: ${response.statusCode} ${response.body}');
-        return [];
-      }
+    try {
+      return await RetryHelper.retry(() async {
+        final queryParams = _getQueryParams({
+          'query': query,
+          'include_adult': 'false',
+        });
+
+        final uri = Uri.parse('$_baseUrl/search/$type').replace(queryParameters: queryParams);
+        
+        final response = await http.get(uri, headers: _getHeaders());
+        
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final results = List<Map<String, dynamic>>.from(data['results']);
+          return results;
+        } else {
+          debugPrint('TMDB Search $type Error: ${response.statusCode} ${response.body}');
+          throw Exception('TMDB API Error: ${response.statusCode}');
+        }
+      }, maxAttempts: retryCount);
     } catch (e) {
-      debugPrint('TMDB Search Exception: $e');
+      debugPrint('TMDB Search $type Exception: $e');
       return [];
     }
   }
 
-  /// 获取剧集详情
-  static Future<Map<String, dynamic>?> getTVShowDetails(int tmdbId) async {
+  /// 获取详情 (支持电影和剧集)
+  static Future<Map<String, dynamic>?> getDetails(int tmdbId, {String type = 'tv'}) async {
     if (!isInitialized) return null;
     
+    final retryCount = await SettingsService.getScrapingRetryCount();
+
     try {
-      final queryParams = _getQueryParams({});
-      final uri = Uri.parse('$_baseUrl/tv/$tmdbId').replace(queryParameters: queryParams);
-      
-      final response = await http.get(uri, headers: _getHeaders());
-      
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      }
-      return null;
+      return await RetryHelper.retry(() async {
+        final queryParams = _getQueryParams({});
+        final uri = Uri.parse('$_baseUrl/$type/$tmdbId').replace(queryParameters: queryParams);
+        
+        final response = await http.get(uri, headers: _getHeaders());
+        
+        if (response.statusCode == 200) {
+          return json.decode(response.body);
+        }
+        return null;
+      }, maxAttempts: retryCount);
     } catch (e) {
       debugPrint('TMDB Details Exception: $e');
       return null;
     }
+  }
+
+  /// 获取剧集详情 (兼容旧方法)
+  static Future<Map<String, dynamic>?> getTVShowDetails(int tmdbId) async {
+    return getDetails(tmdbId, type: 'tv');
   }
 
   /// 获取季详情（包含集数信息）
