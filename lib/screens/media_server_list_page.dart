@@ -206,7 +206,8 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
         Navigator.of(context).pop(); // 关闭扫描进度对话框
         
         // 检查是否启用自动刮削
-        final autoScrapeEnabled = await SettingsService.getAutoScrapeEnabled();
+        // final autoScrapeEnabled = await SettingsService.getAutoScrapeEnabled();
+        const autoScrapeEnabled = true; // 强制启用自动刮削
         
         if (autoScrapeEnabled && scannedVideos.isNotEmpty) {
           // 立即显示开始通知

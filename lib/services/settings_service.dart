@@ -38,6 +38,14 @@ class SettingsService {
 
   static const String _enableVideoThumbnailsKey = 'enable_video_thumbnails';
   static const String _defaultCoverStyleKey = 'default_cover_style';
+  
+  static const String _scrapingRetryCountKey = 'scraping_retry_count';
+  static const String _scrapingSimilarityThresholdKey = 'scraping_similarity_threshold';
+  static const String _scrapingMinConfidenceKey = 'scraping_min_confidence';
+
+  static const int _defaultScrapingRetryCount = 3;
+  static const double _defaultScrapingSimilarityThreshold = 0.8;
+  static const double _defaultScrapingMinConfidence = 0.4;
 
   // TMDB 设置
   static Future<String?> getTMDBApiKey() async {
@@ -172,6 +180,37 @@ class SettingsService {
   static Future<void> setDefaultCoverStyle(String style) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_defaultCoverStyleKey, style);
+  }
+
+  // 刮削高级设置
+  static Future<int> getScrapingRetryCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_scrapingRetryCountKey) ?? _defaultScrapingRetryCount;
+  }
+
+  static Future<void> setScrapingRetryCount(int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_scrapingRetryCountKey, count);
+  }
+
+  static Future<double> getScrapingSimilarityThreshold() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_scrapingSimilarityThresholdKey) ?? _defaultScrapingSimilarityThreshold;
+  }
+
+  static Future<void> setScrapingSimilarityThreshold(double threshold) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_scrapingSimilarityThresholdKey, threshold);
+  }
+
+  static Future<double> getScrapingMinConfidence() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_scrapingMinConfidenceKey) ?? _defaultScrapingMinConfidence;
+  }
+
+  static Future<void> setScrapingMinConfidence(double confidence) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_scrapingMinConfidenceKey, confidence);
   }
 
 
