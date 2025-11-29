@@ -14,7 +14,8 @@ class VideoThumbnailExtractor {
       if (kIsWeb) return null;
 
       // 1. 检查专业版权限 (这里暂时模拟，实际应调用 LicenseService 或类似服务)
-      bool isPro = true; // TODO: Replace with actual check
+      // 1. 检查专业版权限 (这里暂时模拟，实际应调用 LicenseService 或类似服务)
+      bool isPro = true; // Enabled for all users as per requirement
       if (!isPro) return null;
 
       // 2. 准备输出路径

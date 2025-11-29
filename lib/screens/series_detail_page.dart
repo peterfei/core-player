@@ -707,11 +707,44 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                             final episodeMetadata = MetadataStoreService.getEpisodeMetadata(episode.id);
                             
                             Episode displayEpisode = episode;
+                            
+                            // 1. 尝试使用集数特有的元数据
                             if (episodeMetadata != null && episodeMetadata['stillPath'] != null) {
                               displayEpisode = episode.copyWith(
                                 stillPath: episodeMetadata['stillPath'] as String,
                                 overview: episodeMetadata['overview'] as String?,
                                 rating: episodeMetadata['rating'] as double?,
+                              );
+                            } else {
+                              // 2. 如果没有集数元数据，回退使用剧集(Series)的元数据
+                              // 用户需求：如果单集没有刮削成功，使用成功刮削的封面做为子集的封面和标题
+                              
+                              String? fallbackImage = _metadata?['posterPath'] ?? widget.series.thumbnailPath;
+                              String? fallbackName = _metadata?['name'] ?? widget.series.name;
+                              
+                              // 构建回退后的名称
+                              String newName = episode.name;
+                              
+                              // 如果是单集文件（通常是电影识别为剧集），直接使用剧集名称
+                              if (_episodes.length == 1) {
+                                newName = fallbackName ?? episode.name;
+                              } else {
+                                // 如果是多集，尝试保留集数信息
+                                // 如果能解析出集数，显示 "剧集名称 - 第X集"
+                                if (episode.episodeNumber != null && fallbackName != null) {
+                                  newName = '$fallbackName - 第${episode.episodeNumber}集';
+                                } else {
+                                  // 否则，如果文件名很乱，可能还是显示剧集名称比较好，或者保持原样
+                                  // 这里我们选择：如果有剧集名称，就用剧集名称（虽然会重复，但比乱码好）
+                                  // 或者我们可以尝试只用 NameParser 清理一下原文件名
+                                  // 但根据用户 "使用成功刮削的...标题" 的要求，倾向于使用 fallbackName
+                                  newName = fallbackName ?? episode.name;
+                                }
+                              }
+                              
+                              displayEpisode = episode.copyWith(
+                                stillPath: fallbackImage, // 使用剧集封面
+                                name: newName,           // 使用剧集标题
                               );
                             }
                             

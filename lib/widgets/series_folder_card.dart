@@ -4,6 +4,7 @@ import '../services/metadata_store_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import 'smart_image.dart';
 import '../services/cover_fallback_service.dart';
+import '../core/scraping/name_parser.dart';
 
 /// 剧集文件夹卡片组件
 /// 用于在列表或网格中展示剧集
@@ -168,7 +169,9 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                       children: [
                         // 剧集名称
                         Text(
-                          _cleanTitle(widget.series.name),
+                          _metadata != null && _metadata!['name'] != null
+                              ? _metadata!['name']
+                              : _cleanTitle(widget.series.name),
                           style: AppTextStyles.titleMedium.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -248,20 +251,9 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
   }
 
   String _cleanTitle(String title) {
-    // 1. 替换点号为为空格
-    var cleaned = title.replaceAll('.', ' ');
-    
-    // 2. 移除常见的发布信息标签 (不区分大小写)
-    final regex = RegExp(
-      r'(S\d+.*|1080p.*|2160p.*|4k.*|WEBRip.*|BluRay.*|HDTV.*)', 
-      caseSensitive: false,
-    );
-    
-    if (regex.hasMatch(cleaned)) {
-      cleaned = cleaned.split(regex).first;
-    }
-
-    return cleaned.trim();
+    // 使用 NameParser 进行更智能的标题清理
+    // 这确保即使刮削失败，显示的标题也是经过反混淆处理的 (e.g. "n来b往" -> "来往")
+    return NameParser.parse(title).query;
   }
 
   String _formatDateYear(DateTime date) {

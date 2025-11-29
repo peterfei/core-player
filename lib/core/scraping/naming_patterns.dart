@@ -54,6 +54,11 @@ class NamingPatterns {
     RegExp(r'www\s*\w+\s*(com|net|org|cn)', caseSensitive: false),
     RegExp(r'\d+v\d+.*?(com|net|org)', caseSensitive: false),
     RegExp(r'(dygod|ygdy8|dygang).*?(org|com|net)', caseSensitive: false),
+    RegExp(r'wsxj', caseSensitive: false),
+    RegExp(r'地址发布页', caseSensitive: false),
+    RegExp(r'6v123', caseSensitive: false),
+    RegExp(r'6v电影', caseSensitive: false),
+    RegExp(r'收藏', caseSensitive: false),
   ];
 
   // Language/subtitle patterns (语言字幕信息)

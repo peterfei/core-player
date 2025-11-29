@@ -100,9 +100,19 @@ class CoverFallbackService {
     }
   }
 
-  static Future<File?> _findFirstVideoFile(String dirPath) async {
+  static Future<File?> _findFirstVideoFile(String pathStr) async {
     try {
-      final dir = Directory(dirPath);
+      // 如果路径本身就是文件
+      if (await File(pathStr).exists()) {
+        final ext = path.extension(pathStr).toLowerCase();
+        final videoExtensions = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm'};
+        if (videoExtensions.contains(ext)) {
+          return File(pathStr);
+        }
+        return null;
+      }
+
+      final dir = Directory(pathStr);
       if (!await dir.exists()) return null;
 
       final videoExtensions = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm'};

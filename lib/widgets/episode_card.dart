@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/episode.dart';
 import '../theme/design_tokens/design_tokens.dart';
+import 'smart_image.dart';
 
 /// 集数卡片组件
 /// 用于在剧集详情页中展示单个集数
@@ -215,14 +216,11 @@ class _EpisodeCardState extends State<EpisodeCard> {
   Widget _buildThumbnail() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.small),
-      child: widget.episode.stillPath != null
-          ? Image.file(
-              File(widget.episode.stillPath!),
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  _buildPlaceholder(),
-            )
-          : _buildPlaceholder(),
+      child: SmartImage(
+        path: widget.episode.stillPath,
+        fit: BoxFit.cover,
+        placeholder: _buildPlaceholder(),
+      ),
     );
   }
 

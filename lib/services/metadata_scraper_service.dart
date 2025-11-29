@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as path;
+import '../core/scraping/naming_patterns.dart';
 import '../models/series.dart';
 import '../models/episode.dart';
 import '../core/plugin_system/plugin_registry.dart';
@@ -66,6 +68,32 @@ class MetadataScraperService {
       
       // 1. 生成搜索候选词
       final candidates = NameParser.generateCandidates(series.name);
+      
+      // Fallback: 如果文件名看起来像文件 (有扩展名) 且解析结果可能不理想，
+      // 尝试添加父文件夹名称作为候选
+      // e.g. "/path/to/南来北往/n来b往.mp4" -> "南来北往"
+      final extension = series.name.split('.').last.toLowerCase();
+      if (NamingPatterns.videoExtensions.contains(extension)) {
+        // 尝试从路径获取父文件夹名
+        // series.folderPath 可能是文件路径
+        final parentDir = path.dirname(series.folderPath);
+        final parentName = path.basename(parentDir);
+        
+        // 过滤掉通用文件夹名
+        if (!NamingPatterns.invalidNames.contains(parentName.toLowerCase()) && 
+            !['download', 'downloads', 'movie', 'movies', 'tv', 'series', 'video', 'videos'].contains(parentName.toLowerCase())) {
+             
+           // 解析父文件夹名
+           final parentCandidates = NameParser.generateCandidates(parentName);
+           for (final candidate in parentCandidates) {
+             // 避免重复
+             if (!candidates.any((c) => c.query == candidate.query)) {
+               candidates.add(candidate);
+             }
+           }
+        }
+      }
+
       if (candidates.isEmpty) {
         return ScrapingResult(
           seriesId: series.id,
