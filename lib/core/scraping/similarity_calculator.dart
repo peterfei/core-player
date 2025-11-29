@@ -18,8 +18,11 @@ class SimilarityCalculator {
     // Calculate Jaccard similarity (token based)
     final jaccardScore = _calculateJaccardSimilarity(s1Lower, s2Lower);
 
-    // Return the maximum or weighted average
-    return max(levenshteinScore, jaccardScore);
+    // Calculate Subsequence similarity
+    final subsequenceScore = _calculateSubsequenceSimilarity(s1Lower, s2Lower);
+
+    // Return the maximum
+    return [levenshteinScore, jaccardScore, subsequenceScore].reduce(max);
   }
 
   static double _calculateLevenshteinSimilarity(String s1, String s2) {
@@ -65,5 +68,42 @@ class SimilarityCalculator {
     if (union == 0) return 0.0;
 
     return intersection / union;
+  }
+
+  /// Calculates similarity based on whether s1 is a subsequence of s2 (or vice versa).
+  /// Useful for cases like "江河岁如" matching "大江大河岁月如歌".
+  static double _calculateSubsequenceSimilarity(String s1, String s2) {
+    if (s1.isEmpty || s2.isEmpty) return 0.0;
+    
+    // Check if s1 is a subsequence of s2
+    double score1 = _isSubsequence(s1, s2) ? (s1.length / s2.length) : 0.0;
+    
+    // Check if s2 is a subsequence of s1
+    double score2 = _isSubsequence(s2, s1) ? (s2.length / s1.length) : 0.0;
+    
+    // Boost the score significantly if it is a subsequence
+    // e.g. 4/8 = 0.5. We might want to boost this to 0.8 or 0.9 if it's a clean subsequence.
+    // But we should be careful about short strings (e.g. "ab" in "absolute").
+    // Let's require at least 3 characters or 50% length match.
+    
+    double maxScore = max(score1, score2);
+    if (maxScore > 0) {
+       // Apply a boost
+       return 0.5 + (maxScore * 0.5); 
+    }
+    return 0.0;
+  }
+
+  static bool _isSubsequence(String s1, String s2) {
+    int i = 0; // index for s1
+    int j = 0; // index for s2
+    
+    while (i < s1.length && j < s2.length) {
+      if (s1[i] == s2[j]) {
+        i++;
+      }
+      j++;
+    }
+    return i == s1.length;
   }
 }

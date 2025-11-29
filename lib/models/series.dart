@@ -7,8 +7,11 @@ class Series {
   /// 剧集名称（通常是文件夹名称）
   final String name;
   
-  /// 文件夹路径
+  /// 文件夹路径 (主路径)
   final String folderPath;
+
+  /// 所有包含该剧集视频的文件夹路径列表 (用于合并显示)
+  final List<String> folderPaths;
   
   /// 集数统计
   final int episodeCount;
@@ -41,6 +44,7 @@ class Series {
     required this.id,
     required this.name,
     required this.folderPath,
+    List<String>? folderPaths,
     required this.episodeCount,
     required this.addedAt,
     this.thumbnailPath,
@@ -50,7 +54,7 @@ class Series {
     this.releaseDate,
     this.lastPlayedAt,
     this.tmdbId,
-  });
+  }) : folderPaths = folderPaths ?? [folderPath];
 
   /// 从文件夹路径创建剧集对象
   factory Series.fromPath(String folderPath, int episodeCount) {
@@ -62,6 +66,7 @@ class Series {
       id: folderPath.hashCode.toString(),
       name: name,
       folderPath: folderPath,
+      folderPaths: [folderPath],
       episodeCount: episodeCount,
       addedAt: DateTime.now(),
     );
@@ -72,6 +77,7 @@ class Series {
     String? id,
     String? name,
     String? folderPath,
+    List<String>? folderPaths,
     int? episodeCount,
     DateTime? addedAt,
     String? thumbnailPath,
@@ -86,6 +92,7 @@ class Series {
       id: id ?? this.id,
       name: name ?? this.name,
       folderPath: folderPath ?? this.folderPath,
+      folderPaths: folderPaths ?? this.folderPaths,
       episodeCount: episodeCount ?? this.episodeCount,
       addedAt: addedAt ?? this.addedAt,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,

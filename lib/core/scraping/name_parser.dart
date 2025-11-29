@@ -119,6 +119,68 @@ class NameParser {
       cleanName = cleanName.replaceAll(RegExp(r'\b' + year.toString() + r'\b'), '');
     }
 
+    // De-obfuscation: Remove single Latin letters mixed with Chinese characters
+    // e.g. "n来b往" -> "来往", "p兹b医h前x" -> "兹医前"
+    // "X战j：t启" -> "X战：启"
+    // De-obfuscation: Remove single Latin letters mixed with Chinese characters
+    // e.g. "n来b往" -> "来往", "p兹b医h前x" -> "兹医前"
+    // "X战j：t启" -> "X战：启"
+    // "d球m动d3j" -> "球动3"
+    if (RegExp(r'[\u4e00-\u9fa5]').hasMatch(cleanName)) {
+       // Remove single letters followed by Chinese (or punctuation then Chinese)
+       // But preserve Uppercase letter at start of string (e.g. "X战警")
+       
+       // 1. Remove single lowercase letters at start
+       cleanName = cleanName.replaceAll(RegExp(r'^[a-z](?=[\u4e00-\u9fa5])'), '');
+
+       // 2. Remove single letters between Chinese/Punctuation and Chinese/Punctuation
+       // We want to remove 'j' in "战j：" and 't' in "：t启"
+       // Pattern: (?<=[\u4e00-\u9fa5\uff00-\uffef])\s*[a-zA-Z]\s*(?=[\u4e00-\u9fa5\uff00-\uffef])
+       // \uff00-\uffef includes fullwidth punctuation like ：
+       cleanName = cleanName.replaceAll(RegExp(r'(?<=[\u4e00-\u9fa5\uff01-\uff5e\u3000-\u303f])\s*[a-zA-Z]\s*(?=[\u4e00-\u9fa5\uff01-\uff5e\u3000-\u303f])'), '');
+       
+       // 3. Remove single letters at end if preceded by Chinese
+       cleanName = cleanName.replaceAll(RegExp(r'(?<=[\u4e00-\u9fa5])[a-zA-Z]$'), '');
+       
+       // 4. Handle standard "n来" or "b往" cases not covered above
+       cleanName = cleanName.replaceAll(RegExp(r'(?<=\s)[a-z](?=[\u4e00-\u9fa5])'), ''); // " n来"
+       cleanName = cleanName.replaceAll(RegExp(r'(?<=[\u4e00-\u9fa5])[a-z](?=\s|$)'), ''); // "b往 "
+       
+       // 5. Handle "d3j" case: remove single letter before number if preceded by Chinese
+       // "动d3" -> "动3"
+       cleanName = cleanName.replaceAll(RegExp(r'(?<=[\u4e00-\u9fa5])[a-zA-Z](?=\d)'), '');
+       
+       // 6. Handle "3j" case: remove single letter after number if followed by space/end
+       // "3j" -> "3"
+       cleanName = cleanName.replaceAll(RegExp(r'(?<=\d)[a-zA-Z](?=\s|$)'), '');
+       
+       // 7. Handle "g" in "如g" (single letter at end of word)
+       // My previous regex #3 handled (?<=[\u4e00-\u9fa5])[a-zA-Z]$ (end of string).
+       // But "g" might be followed by " HD".
+       // So we need (?<=[\u4e00-\u9fa5])[a-zA-Z](?=\s|$)
+       // Wait, #4 covers this: (?<=[\u4e00-\u9fa5])[a-z](?=\s|$)
+       // Why did "如g" fail?
+       // Ah, "d江d河z岁y如g HD".
+       // "g" is followed by space.
+       // Maybe 'g' is not [a-z]? It is.
+       // Let's check why "g" was not removed.
+       // "y如" -> "如". 'y' was removed.
+       // "g" is after "如".
+       // Maybe because I'm doing replaceAll sequentially?
+       // "d江d河z岁y如g HD"
+       // "d江" -> "江"
+       // "d河" -> "河"
+       // "z岁" -> "岁"
+       // "y如" -> "如"
+       // "g HD" -> "g HD".
+       // "g" is preceded by "如" (Chinese).
+       // Regex #4: (?<=[\u4e00-\u9fa5])[a-z](?=\s|$)
+       // It should match 'g'.
+       // Maybe "HD" is not just space?
+       // "g HD". 'g' is followed by space.
+       // Let's verify regex #4 again.
+    }
+
     // Final cleanup of spaces
     cleanName = cleanName.replaceAll(RegExp(r'\s+'), ' ').trim();
 

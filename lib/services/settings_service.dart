@@ -33,7 +33,7 @@ class SettingsService {
   static const bool _defaultPerformanceAlertsEnabled = false; // 默认关闭
   static const bool _defaultAutoScrapeEnabled = true; // 默认开启自动刮削
   static const String _defaultThemeId = 'default'; // 默认主题ID
-  static const bool _defaultEnableVideoThumbnails = false; // 默认不开启视频截图作为封面（专业版功能）
+  static const bool _defaultEnableVideoThumbnails = true; // 默认开启视频截图作为封面
   static const String _defaultDefaultCoverStyle = 'gradient'; // 默认封面样式
 
   static const String _enableVideoThumbnailsKey = 'enable_video_thumbnails';

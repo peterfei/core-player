@@ -40,6 +40,10 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
   bool _isScraping = false;
 
 
+  // Season support
+  List<int> _seasons = [];
+  int? _selectedSeason;
+
   @override
   void initState() {
     super.initState();
@@ -90,18 +94,58 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
 
     try {
       // 1. 尝试获取已持久化的集数数据
-      var episodes = await SeriesService.getSavedEpisodesForSeries(widget.series.id);
+      // 注意：这里需要获取所有相关文件夹的集数，如果 SeriesService.getSavedEpisodesForSeries 还没更新支持合并ID的话
+      // 其实 SeriesService.getEpisodesForSeries 已经更新支持 folderPaths 了
+      // 但是 getSavedEpisodesForSeries 是从 Hive 读取 ScannedEpisode
+      // ScannedEpisode 关联的是 seriesId (scannedSeries.id)
+      // 如果我们合并了 Series，UI 传进来的 widget.series.id 是 mainSeries.id
+      // 但是其他的 merged folders 对应的 scannedSeries.id 是不同的
+      // 所以我们需要获取所有 folderPaths 对应的 scannedSeries IDs，然后获取所有 episodes
       
-      // 2. 如果持久化数据为空，则实时计算
-      if (episodes.isEmpty) {
-        final allVideos = MediaLibraryService.getAllVideos();
-        episodes = SeriesService.getEpisodesForSeries(widget.series, allVideos);
+      // 简化方案：直接重新扫描/计算 (getEpisodesForSeries)，因为它已经支持 folderPaths
+      // 或者我们需要更新 SeriesService.getSavedEpisodesForSeries 来支持多 ID 查找
+      // 鉴于性能，我们先用 getEpisodesForSeries (它会从 MediaLibraryService.getAllVideos 过滤)
+      // MediaLibraryService.getAllVideos 是内存操作，很快
+      
+      final allVideos = MediaLibraryService.getAllVideos();
+      print('🔍 ═══ Episode Loading Debug (${widget.series.name}) ═══');
+      print('   Total videos in library: ${allVideos.length}');
+      print('   Series folder paths: ${widget.series.folderPaths}');
+      
+      var episodes = SeriesService.getEpisodesForSeries(widget.series, allVideos);
+      print('   Episodes loaded: ${episodes.length}');
+      
+      // Count original season numbers
+      final seasonCounts = <int?, int>{};
+      for (var e in episodes) {
+        seasonCounts[e.seasonNumber] = (seasonCounts[e.seasonNumber] ?? 0) + 1;
       }
+      print('   Season distribution (before fix): $seasonCounts');
       
       if (mounted) {
         setState(() {
-          _episodes = episodes;
+          // Treat null season as Season 1 to ensure visibility
+          _episodes = episodes.map((e) {
+            if (e.seasonNumber == null) {
+              return e.copyWith(seasonNumber: 1);
+            }
+            return e;
+          }).toList();
+          
+          // Count after fix
+          final finalSeasonCounts = <int?, int>{};
+          for (var e in _episodes) {
+            finalSeasonCounts[e.seasonNumber] = (finalSeasonCounts[e.seasonNumber] ?? 0) + 1;
+          }
+          print('   Season distribution (after fix): $finalSeasonCounts');
+          
+          _extractSeasons(); // 提取季数信息
+          print('   Available seasons: $_seasons');
+          print('   Selected season: $_selectedSeason');
+          
           _filterAndSortEpisodes();
+          print('   Filtered episodes: ${_filteredEpisodes.length}');
+          print('🔍 ═══════════════════════════════════════');
           _isLoading = false;
         });
       }
@@ -115,8 +159,34 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
     }
   }
 
+  void _extractSeasons() {
+    final seasons = <int>{};
+    for (var episode in _episodes) {
+      if (episode.seasonNumber != null) {
+        seasons.add(episode.seasonNumber!);
+      }
+    }
+    
+    // 如果有季数信息
+    if (seasons.isNotEmpty) {
+      _seasons = seasons.toList()..sort();
+      // 默认选中第一季 (或者最小的季数)
+      if (_selectedSeason == null || !_seasons.contains(_selectedSeason)) {
+        _selectedSeason = _seasons.first;
+      }
+    } else {
+      _seasons = [];
+      _selectedSeason = null;
+    }
+  }
+
   void _filterAndSortEpisodes() {
     var result = List<Episode>.from(_episodes);
+    
+    // 季数过滤
+    if (_selectedSeason != null) {
+      result = result.where((e) => e.seasonNumber == _selectedSeason).toList();
+    }
     
     // 搜索过滤
     if (_searchQuery.isNotEmpty) {
@@ -128,6 +198,10 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
     switch (_sortBy) {
       case 'number_asc':
         result.sort((a, b) {
+          // 先按季数排序
+          if (a.seasonNumber != b.seasonNumber) {
+             return (a.seasonNumber ?? 0).compareTo(b.seasonNumber ?? 0);
+          }
           if (a.episodeNumber != null && b.episodeNumber != null) {
             return a.episodeNumber!.compareTo(b.episodeNumber!);
           }
@@ -136,6 +210,9 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
         break;
       case 'number_desc':
         result.sort((a, b) {
+          if (a.seasonNumber != b.seasonNumber) {
+             return (b.seasonNumber ?? 0).compareTo(a.seasonNumber ?? 0);
+          }
           if (a.episodeNumber != null && b.episodeNumber != null) {
             return b.episodeNumber!.compareTo(a.episodeNumber!);
           }
@@ -672,6 +749,52 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                         ),
                       ],
                     ),
+                    
+                    // 季数选择器 (如果有多个季度)
+                    if (_seasons.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.large),
+                      Container(
+                        height: 40,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _seasons.length,
+                          separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.small),
+                          itemBuilder: (context, index) {
+                            final season = _seasons[index];
+                            final isSelected = season == _selectedSeason;
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedSeason = season;
+                                    _filterAndSortEpisodes();
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? AppColors.primary : AppColors.surfaceVariant.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isSelected ? AppColors.primary : Colors.white.withOpacity(0.1),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '第 $season 季',
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.white : AppColors.textSecondary,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -707,11 +830,44 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                             final episodeMetadata = MetadataStoreService.getEpisodeMetadata(episode.id);
                             
                             Episode displayEpisode = episode;
+                            
+                            // 1. 尝试使用集数特有的元数据
                             if (episodeMetadata != null && episodeMetadata['stillPath'] != null) {
                               displayEpisode = episode.copyWith(
                                 stillPath: episodeMetadata['stillPath'] as String,
                                 overview: episodeMetadata['overview'] as String?,
                                 rating: episodeMetadata['rating'] as double?,
+                              );
+                            } else {
+                              // 2. 如果没有集数元数据，回退使用剧集(Series)的元数据
+                              // 用户需求：如果单集没有刮削成功，使用成功刮削的封面做为子集的封面和标题
+                              
+                              String? fallbackImage = _metadata?['posterPath'] ?? widget.series.thumbnailPath;
+                              String? fallbackName = _metadata?['name'] ?? widget.series.name;
+                              
+                              // 构建回退后的名称
+                              String newName = episode.name;
+                              
+                              // 如果是单集文件（通常是电影识别为剧集），直接使用剧集名称
+                              if (_episodes.length == 1) {
+                                newName = fallbackName ?? episode.name;
+                              } else {
+                                // 如果是多集，尝试保留集数信息
+                                // 如果能解析出集数，显示 "剧集名称 - 第X集"
+                                if (episode.episodeNumber != null && fallbackName != null) {
+                                  newName = '$fallbackName - 第${episode.episodeNumber}集';
+                                } else {
+                                  // 否则，如果文件名很乱，可能还是显示剧集名称比较好，或者保持原样
+                                  // 这里我们选择：如果有剧集名称，就用剧集名称（虽然会重复，但比乱码好）
+                                  // 或者我们可以尝试只用 NameParser 清理一下原文件名
+                                  // 但根据用户 "使用成功刮削的...标题" 的要求，倾向于使用 fallbackName
+                                  newName = fallbackName ?? episode.name;
+                                }
+                              }
+                              
+                              displayEpisode = episode.copyWith(
+                                stillPath: fallbackImage, // 使用剧集封面
+                                name: newName,           // 使用剧集标题
                               );
                             }
                             
