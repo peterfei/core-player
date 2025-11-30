@@ -119,6 +119,10 @@ class NameParser {
       cleanName = cleanName.replaceAll(RegExp(r'\b' + year.toString() + r'\b'), '');
     }
 
+    // Save the cleaned but NOT de-obfuscated name as rawQuery
+    // This is useful for pinyin matching (e.g. "p兹b医h前x" -> "匹兹堡医护前线")
+    String rawQuery = cleanName;
+
     // De-obfuscation: Remove single Latin letters mixed with Chinese characters
     // e.g. "n来b往" -> "来往", "p兹b医h前x" -> "兹医前"
     // "X战j：t启" -> "X战：启"
@@ -186,6 +190,7 @@ class NameParser {
 
     return ScrapingCandidate(
       query: cleanName,
+      rawQuery: rawQuery,
       year: year,
       season: season,
       episode: episode,

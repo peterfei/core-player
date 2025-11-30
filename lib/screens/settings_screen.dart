@@ -12,6 +12,7 @@ import 'metadata_settings_screen.dart';
 import 'metadata_management_page.dart';
 import 'plugin_manager_screen.dart';
 import 'theme_settings_screen.dart';
+import 'excluded_paths_screen.dart';
 
 
 class SettingsScreen extends StatefulWidget {

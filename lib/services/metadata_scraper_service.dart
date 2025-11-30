@@ -223,10 +223,22 @@ class MetadataScraperService {
       // 计算名称相似度
       double score = SimilarityCalculator.calculate(candidate.query, title);
       
+      // 如果有rawQuery (包含混淆字符)，也尝试匹配
+      if (candidate.rawQuery != null && candidate.rawQuery != candidate.query) {
+        final rawScore = SimilarityCalculator.calculate(candidate.rawQuery!, title);
+        if (rawScore > score) score = rawScore;
+      }
+      
       // 如果有原名，也尝试匹配
       if (originalTitle != null && originalTitle != title) {
         final originalScore = SimilarityCalculator.calculate(candidate.query, originalTitle);
         if (originalScore > score) score = originalScore;
+        
+        // 同样尝试用rawQuery匹配原名
+        if (candidate.rawQuery != null && candidate.rawQuery != candidate.query) {
+          final rawOriginalScore = SimilarityCalculator.calculate(candidate.rawQuery!, originalTitle);
+          if (rawOriginalScore > score) score = rawOriginalScore;
+        }
       }
 
       // 年份匹配加分

@@ -23,6 +23,7 @@ import 'package:yinghe_player/widgets/video_poster_card.dart';
 import 'package:yinghe_player/models/playback_history.dart';
 import 'package:path/path.dart' as p;
 import '../services/metadata_store_service.dart';
+import '../services/excluded_paths_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -504,6 +505,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           (context, index) {
             final item = series[index];
             return SeriesFolderCard(
+              key: ValueKey(item.folderPath),
               series: item,
               onTap: () {
                 Navigator.push(
@@ -512,6 +514,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     builder: (context) => SeriesDetailPage(series: item),
                   ),
                 );
+              },
+              onExcluded: () {
+                // 直接从当前列表中过滤掉被排除的series
+                setState(() {
+                  _seriesList = _seriesList.where((s) {
+                    // 检查该series的所有folderPaths是否都被排除
+                    return !s.folderPaths.every((path) => ExcludedPathsService.isExcluded(path));
+                  }).toList();
+                });
               },
             );
           },
