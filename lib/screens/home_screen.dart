@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<PlaybackHistory> _histories = [];
   List<VideoCardData> _libraryVideos = [];
   List<Series> _seriesList = []; // 剧集列表
+  Map<String, Series> _folderToSeriesMap = {}; // folderPath -> Series 映射，用于快速查找
   
   bool _isSeriesView = true; // 默认为剧集视图
   String _searchQuery = '';
@@ -58,11 +59,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // 加载剧集数据 (包含合并逻辑)
       final series = await SeriesService.getSeriesListFromVideos(scanned);
       
+      // 构建folderPath到Series的映射，用于快速查找
+      final folderMap = <String, Series>{};
+      for (var s in series) {
+        for (var folderPath in s.folderPaths) {
+          folderMap[folderPath] = s;
+        }
+      }
+      
       if (mounted) {
         setState(() {
           _histories = histories;
-          _libraryVideos = scanned.map(_mapScannedToVideoCard).toList();
           _seriesList = series;
+          _folderToSeriesMap = folderMap; // 更新映射
+          _libraryVideos = scanned.map(_mapScannedToVideoCard).toList();
         });
       }
     } catch (e) {
@@ -794,19 +804,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       String? seriesPosterPath = history.effectiveThumbnailPath != null ? 'file://${history.effectiveThumbnailPath}' : null;
       String displayTitle = history.videoName;
       
-      // 查找视频所属的Series（仅对网络视频/可能在媒体库中的视频）
+      // 使用优化的查找：从缓存的映射中查找
       if (history.videoPath != null) {
-        for (var series in _seriesList) {
-          // 检查视频的文件夹路径是否在该Series的folderPaths中
-          final videoFolder = p.dirname(history.videoPath!);
-          if (series.folderPaths.contains(videoFolder)) {
-            // 找到所属Series，尝试获取元数据
-            final metadata = MetadataStoreService.getSeriesMetadata(series.folderPath);
-            if (metadata != null) {
-              seriesPosterPath = metadata['posterPath'];
-              displayTitle = metadata['name'] ?? history.videoName;
-            }
-            break;
+        final videoFolder = p.dirname(history.videoPath!);
+        final series = _folderToSeriesMap[videoFolder];
+        
+        if (series != null) {
+          // 找到所属Series，尝试获取元数据
+          final metadata = MetadataStoreService.getSeriesMetadata(series.folderPath);
+          if (metadata != null) {
+            seriesPosterPath = metadata['posterPath'];
+            displayTitle = metadata['name'] ?? history.videoName;
           }
         }
       }
@@ -839,34 +847,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String? seriesPosterPath;
     String displayTitle = video.name; // 默认使用video.name，确保非空
     
-    print('🔍 映射视频卡片: ${video.name}');
-    print('   视频路径: ${video.path}');
-    print('   当前剧集列表数量: ${_seriesList.length}');
+    // 使用优化的查找：从缓存的映射中查找
+    final videoFolder = p.dirname(video.path);
+    final series = _folderToSeriesMap[videoFolder];
     
-    // 查找视频所属的Series
-    for (var series in _seriesList) {
-      // 检查视频的文件夹路径是否在该Series的folderPaths中
-      final videoFolder = p.dirname(video.path);
-      print('   检查Series: ${series.name}, folderPaths: ${series.folderPaths}');
-      print('   视频文件夹: $videoFolder');
-      
-      if (series.folderPaths.contains(videoFolder)) {
-        print('   ✅ 找到匹配的Series: ${series.name}');
-        // 找到所属Series，尝试获取元数据
-        final metadata = MetadataStoreService.getSeriesMetadata(series.folderPath);
-        if (metadata != null) {
-          seriesPosterPath = metadata['posterPath'];
-          displayTitle = metadata['name'] ?? video.name;
-          print('   ✅ 使用元数据: title=$displayTitle, poster=$seriesPosterPath');
-        } else {
-          print('   ⚠️ Series没有元数据');
-        }
-        break;
+    if (series != null) {
+      // 找到所属Series，尝试获取元数据
+      final metadata = MetadataStoreService.getSeriesMetadata(series.folderPath);
+      if (metadata != null) {
+        seriesPosterPath = metadata['posterPath'];
+        displayTitle = metadata['name'] ?? video.name;
       }
-    }
-    
-    if (seriesPosterPath == null) {
-      print('   ⚠️ 未找到匹配的Series或封面');
     }
     
     return VideoCardData(
