@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:lpinyin/lpinyin.dart';
 
 class SimilarityCalculator {
   /// Calculates the similarity between two strings (0.0 to 1.0).
@@ -21,9 +22,88 @@ class SimilarityCalculator {
     // Calculate Subsequence similarity
     final subsequenceScore = _calculateSubsequenceSimilarity(s1Lower, s2Lower);
 
+    // Calculate Pinyin similarity (useful for obfuscated titles like "p兹b医h前x")
+    final pinyinScore = _calculatePinyinSimilarity(s1Lower, s2Lower);
+
     // Return the maximum
-    return [levenshteinScore, jaccardScore, subsequenceScore].reduce(max);
+    return [levenshteinScore, jaccardScore, subsequenceScore, pinyinScore].reduce(max);
   }
+
+  /// Calculates similarity based on Pinyin matching using LCS (Longest Common Subsequence).
+  /// Useful for obfuscated titles where some characters are replaced by their Pinyin initials.
+  /// e.g. "p兹b医h前x" vs "匹兹堡医护前线"
+  static double _calculatePinyinSimilarity(String s1, String s2) {
+    if (s1.isEmpty || s2.isEmpty) return 0.0;
+    
+    final lcsLength = _calculatePinyinLCS(s1, s2);
+    final maxLength = max(s1.length, s2.length);
+    
+    if (maxLength == 0) return 0.0;
+    
+    // Boost the score slightly if it's a good match
+    double score = lcsLength / maxLength;
+    
+    // If coverage is high for at least one string, boost it
+    // e.g. "wsxj" (4) vs "我是刑警" (4) -> 4/4 = 1.0
+    // "d球m动d3j" (7) vs "地球脉动3" (5) -> LCS=5. Score=5/7=0.71.
+    
+    return score;
+  }
+
+  static int _calculatePinyinLCS(String s1, String s2) {
+    final n = s1.length;
+    final m = s2.length;
+    
+    // dp[i][j] stores the length of LCS of s1[0..i-1] and s2[0..j-1]
+    List<List<int>> dp = List.generate(n + 1, (_) => List.filled(m + 1, 0));
+    
+    for (int i = 1; i <= n; i++) {
+      for (int j = 1; j <= m; j++) {
+        final c1 = s1[i - 1];
+        final c2 = s2[j - 1];
+        
+        bool match = false;
+        if (c1 == c2) {
+          match = true;
+        } else if (_isLetter(c1) && _isChinese(c2)) {
+          match = _checkPinyinMatch(c1, c2);
+        } else if (_isChinese(c1) && _isLetter(c2)) {
+          match = _checkPinyinMatch(c2, c1);
+        }
+        
+        if (match) {
+          dp[i][j] = dp[i - 1][j - 1] + 1;
+        } else {
+          dp[i][j] = max(dp[i - 1][j], dp[i][j - 1]);
+        }
+      }
+    }
+    
+    return dp[n][m];
+  }
+
+  static bool _checkPinyinMatch(String letter, String chinese) {
+    try {
+      List<String> pinyins = PinyinHelper.getPinyin(chinese).split(',');
+      for (final pinyin in pinyins) {
+        if (pinyin.isNotEmpty && pinyin[0].toLowerCase() == letter.toLowerCase()) {
+          return true;
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return false;
+  }
+
+  static bool _isLetter(String char) {
+    return RegExp(r'[a-zA-Z]').hasMatch(char);
+  }
+
+  static bool _isChinese(String char) {
+    return RegExp(r'[\u4e00-\u9fa5]').hasMatch(char);
+  }
+
 
   static double _calculateLevenshteinSimilarity(String s1, String s2) {
     final distance = _levenshteinDistance(s1, s2);

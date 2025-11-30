@@ -1,5 +1,6 @@
 class ScrapingCandidate {
   final String query;
+  final String? rawQuery; // 去除技术信息但保留混淆字符的查询字符串
   final int? year;
   final int? season;
   final int? episode;
@@ -8,6 +9,7 @@ class ScrapingCandidate {
 
   ScrapingCandidate({
     required this.query,
+    this.rawQuery,
     this.year,
     this.season,
     this.episode,

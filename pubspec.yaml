@@ -69,6 +69,7 @@ dependencies:
   # CorePlayer Pro商业插件包
   coreplayer_pro_plugins:
     path: ../core-player-pro-plugins
+  lpinyin: ^2.0.3
 
 
 dev_dependencies:

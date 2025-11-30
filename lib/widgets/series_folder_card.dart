@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import '../models/series.dart';
 import '../services/metadata_store_service.dart';
-import '../services/excluded_paths_service.dart';
 import '../theme/design_tokens/design_tokens.dart';
 import 'smart_image.dart';
 import '../services/cover_fallback_service.dart';
 import '../core/scraping/name_parser.dart';
+import '../services/excluded_paths_service.dart';
 
 /// 剧集文件夹卡片组件
 /// 用于在列表或网格中展示剧集
 class SeriesFolderCard extends StatefulWidget {
   final Series series;
   final VoidCallback? onTap;
-  final VoidCallback? onExcluded; // 排除后的回调
+  final VoidCallback? onExcluded;
 
   const SeriesFolderCard({
     Key? key,
@@ -80,118 +80,11 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
   void _handleHoverChange(bool isHovered) {
     setState(() {
       _isHovered = isHovered;
-      if (_isHovered) {
-        _animationController.forward();
-      } else {
-        _animationController.reverse();
-      }
     });
-  }
-
-  /// 显示排除确认对话框
-  void _showExcludeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('排除此剧集'),
-        content: Text(
-          '确定要隐藏 "${_cleanTitle(widget.series.name)}" 吗？\n\n排除后可在设置中恢复。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _excludeSeries();
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.error,
-            ),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 排除剧集
-  Future<void> _excludeSeries() async {
-    try {
-      // 添加所有folderPaths到排除列表（处理合并的Series）
-      for (final folderPath in widget.series.folderPaths) {
-        await ExcludedPathsService.addPath(folderPath);
-      }
-      
-      // 立即调用回调，让父组件刷新列表
-      widget.onExcluded?.call();
-      
-      if (mounted) {
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-        
-        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // 清除当前显示的SnackBar
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '已排除 "${_cleanTitle(widget.series.name)}"',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: colorScheme.onInverseSurface),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () async {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                    for (final folderPath in widget.series.folderPaths) {
-                      await ExcludedPathsService.removePath(folderPath);
-                    }
-                    // 撤销后也需要刷新
-                    widget.onExcluded?.call();
-                  },
-                  style: TextButton.styleFrom(
-                    foregroundColor: colorScheme.inversePrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(48, 36),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('撤销'),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  color: colorScheme.onInverseSurface,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(),
-                  tooltip: '关闭',
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  },
-                ),
-              ],
-            ),
-            duration: const Duration(milliseconds: 2500), // 设置显示时长
-            behavior: SnackBarBehavior.floating, // 悬浮样式
-            width: 400, // 限制宽度，避免在宽屏上太长
-          ),
-        );
-      }
-    } catch (e) {
-      print('排除剧集失败: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('操作失败: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+    if (isHovered) {
+      _animationController.forward();
+    } else {
+      _animationController.reverse();
     }
   }
 
@@ -369,5 +262,93 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
 
   String _formatDateYear(DateTime date) {
     return '${date.year}';
+  }
+
+  Future<void> _showExcludeDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('排除剧集'),
+        content: Text('确定要将 "${widget.series.name}" 从媒体库中排除吗？\n\n排除后，该剧集将不再显示。您可以在设置中管理排除列表。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('排除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      // 添加到排除列表
+      for (final folderPath in widget.series.folderPaths) {
+        await ExcludedPathsService.addPath(folderPath);
+      }
+      
+      // 立即调用回调，让父组件刷新列表
+      widget.onExcluded?.call();
+      
+      if (mounted) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        
+        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // 清除当前显示的SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '已排除 "${_cleanTitle(widget.series.name)}"',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colorScheme.onInverseSurface),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () async {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    for (final folderPath in widget.series.folderPaths) {
+                      await ExcludedPathsService.removePath(folderPath);
+                    }
+                    // 撤销后也需要刷新
+                    widget.onExcluded?.call();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: colorScheme.inversePrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(48, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('撤销'),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  color: colorScheme.onInverseSurface,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                  tooltip: '关闭',
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                ),
+              ],
+            ),
+            duration: const Duration(milliseconds: 2500), // 设置显示时长
+            behavior: SnackBarBehavior.floating, // 悬浮样式
+            width: 400, // 限制宽度，避免在宽屏上太长
+          ),
+        );
+      }
+    }
   }
 }

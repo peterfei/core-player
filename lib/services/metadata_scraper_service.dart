@@ -134,6 +134,23 @@ class MetadataScraperService {
           bestType = 'movie';
         }
 
+        // 搜索合集 (Collection)
+        // 如果是电影系列，通常会有合集信息
+        final collectionResults = await TMDBService.searchCollection(candidate.query);
+        final (collectionMatch, collectionScore) = _findBestMatch(candidate, collectionResults, isMovie: false); // Collection has 'name' like TV
+
+        // 合集优先策略：
+        // 1. 如果合集分数 >= 0.75，且与当前最佳分数相差不大（<0.15），优先选择合集
+        // 2. 或者合集分数本身就是最高的
+        // 这样可以确保 "哈利波特全集" 匹配到 "Harry Potter Collection" 而不是单部电影
+        if (collectionScore >= 0.75) {
+          if (collectionScore > bestScore || (bestScore - collectionScore) < 0.15) {
+            bestScore = collectionScore;
+            bestMatch = collectionMatch;
+            bestType = 'collection';
+          }
+        }
+
         // 如果找到足够好的匹配，提前结束
         if (bestScore > similarityThreshold) break;
       }
@@ -163,13 +180,13 @@ class MetadataScraperService {
         // 保存元数据到数据库
         final metadata = {
           'tmdbId': tmdbId,
-          'name': details[bestType == 'tv' ? 'name' : 'title'],
-          'originalName': details[bestType == 'tv' ? 'original_name' : 'original_title'],
+          'name': details[bestType == 'movie' ? 'title' : 'name'], // Collection uses 'name'
+          'originalName': details[bestType == 'movie' ? 'original_title' : 'original_name'], // Collection uses 'original_name'
           'overview': details['overview'],
           'posterPath': images['poster'] ?? details['poster_path'], // 优先使用本地路径
           'backdropPath': images['backdrop'] ?? details['backdrop_path'], // 优先使用本地路径
           'rating': (details['vote_average'] as num?)?.toDouble(),
-          'releaseDate': details[bestType == 'tv' ? 'first_air_date' : 'release_date'],
+          'releaseDate': details[bestType == 'movie' ? 'release_date' : (bestType == 'tv' ? 'first_air_date' : null)], // Collection might not have date
           'status': details['status'],
           'type': bestType,
           'scrapedAt': DateTime.now().toIso8601String(),
@@ -223,10 +240,22 @@ class MetadataScraperService {
       // 计算名称相似度
       double score = SimilarityCalculator.calculate(candidate.query, title);
       
+      // 如果有rawQuery (包含混淆字符)，也尝试匹配
+      if (candidate.rawQuery != null && candidate.rawQuery != candidate.query) {
+        final rawScore = SimilarityCalculator.calculate(candidate.rawQuery!, title);
+        if (rawScore > score) score = rawScore;
+      }
+      
       // 如果有原名，也尝试匹配
       if (originalTitle != null && originalTitle != title) {
         final originalScore = SimilarityCalculator.calculate(candidate.query, originalTitle);
         if (originalScore > score) score = originalScore;
+        
+        // 同样尝试用rawQuery匹配原名
+        if (candidate.rawQuery != null && candidate.rawQuery != candidate.query) {
+          final rawOriginalScore = SimilarityCalculator.calculate(candidate.rawQuery!, originalTitle);
+          if (rawOriginalScore > score) score = rawOriginalScore;
+        }
       }
 
       // 年份匹配加分

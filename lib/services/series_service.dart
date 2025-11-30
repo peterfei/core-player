@@ -3,6 +3,7 @@ import '../models/series.dart';
 import '../models/episode.dart';
 import 'media_library_service.dart';
 import 'metadata_store_service.dart';
+import '../core/scraping/name_parser.dart';
 
 /// 剧集服务
 /// 负责从扫描的视频中识别和分组剧集
@@ -344,50 +345,8 @@ static Future<List<Series>> getSeriesListFromVideos(List<ScannedVideo> videos) a
 
   /// 从文件名解析季数和集数编号
   static ({int? season, int? episode}) parseSeasonAndEpisode(String filename) {
-    // 移除文件扩展名
-    final nameWithoutExt = p.basenameWithoutExtension(filename);
-    
-    // 1. S01E01 格式 (最优先)
-    final s01e01Pattern = RegExp(r'[Ss](\d+)[Ee](\d+)');
-    final s01e01Match = s01e01Pattern.firstMatch(nameWithoutExt);
-    if (s01e01Match != null) {
-      return (
-        season: int.tryParse(s01e01Match.group(1)!),
-        episode: int.tryParse(s01e01Match.group(2)!)
-      );
-    }
-
-    // 2. 第X季 第X集 格式
-    final chinesePattern = RegExp(r'第\s*(\d+)\s*季.*第\s*(\d+)\s*集');
-    final chineseMatch = chinesePattern.firstMatch(nameWithoutExt);
-    if (chineseMatch != null) {
-      return (
-        season: int.tryParse(chineseMatch.group(1)!),
-        episode: int.tryParse(chineseMatch.group(2)!)
-      );
-    }
-
-    // 3. 仅集数 (尝试推断季数，如果文件夹名包含季数信息)
-    // 这里只解析集数
-    int? episode;
-    final patterns = [
-      RegExp(r'第\s*(\d+)\s*集'),           // 第01集, 第1集
-      RegExp(r'[Ee][Pp]?\s*(\d+)'),        // E01, EP01, e01, ep01
-      RegExp(r'\b(\d{1,3})\b'),            // 01, 1, 001
-    ];
-    
-    for (var pattern in patterns) {
-      final match = pattern.firstMatch(nameWithoutExt);
-      if (match != null) {
-        final numStr = match.group(1);
-        if (numStr != null) {
-          episode = int.tryParse(numStr);
-          break;
-        }
-      }
-    }
-    
-    return (season: null, episode: episode);
+    final result = NameParser.parse(filename);
+    return (season: result.season, episode: result.episode);
   }
 
   /// 从视频文件路径提取文件夹路径
