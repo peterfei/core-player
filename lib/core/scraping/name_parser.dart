@@ -208,12 +208,74 @@ class NameParser {
       candidates.add(parsed);
     }
 
-    // 2. Original name (sometimes useful if cleaning is too aggressive)
-    // But usually we want to try variations.
+    // 2. Split by separators (colon, slash) to get multiple candidates
+    // e.g. "冰与火之歌：权力的游戏" -> ["冰与火之歌", "权力的游戏"]
+    // e.g. "Title A / Title B" -> ["Title A", "Title B"]
     
-    // 3. If name contains brackets, try removing them
-    // e.g. "[Group] Title (Year)" -> "Title"
-    // This is partially covered by regex, but let's add specific logic if needed.
+    final separators = RegExp(r'[:：/]');
+    if (parsed.query.contains(separators)) {
+      final parts = parsed.query.split(separators);
+      for (var part in parts) {
+        part = part.trim();
+        if (part.isNotEmpty) {
+          // Clean each part again to remove junk words that might have been exposed
+          String cleanPart = part;
+          for (final word in NamingPatterns.junkWords) {
+             cleanPart = cleanPart.replaceAll(RegExp(r'\b' + RegExp.escape(word) + r'\b', caseSensitive: false), '');
+             // Also try removing without word boundaries for Chinese keywords
+             if (RegExp(r'[\u4e00-\u9fa5]').hasMatch(word)) {
+               cleanPart = cleanPart.replaceAll(word, '');
+             }
+          }
+          cleanPart = cleanPart.trim();
+          
+          if (cleanPart.isNotEmpty && !candidates.any((c) => c.query == cleanPart)) {
+            candidates.add(parsed.copyWith(query: cleanPart));
+          }
+        }
+      }
+    }
+    
+    // Also try removing Chinese junk words from the main query without word boundaries
+    // because \b doesn't work well with Chinese characters
+    String cleanQuery = parsed.query;
+    bool changed = false;
+    for (final word in NamingPatterns.junkWords) {
+       if (RegExp(r'[\u4e00-\u9fa5]').hasMatch(word) && cleanQuery.contains(word)) {
+         cleanQuery = cleanQuery.replaceAll(word, '');
+         changed = true;
+       }
+    }
+    
+    if (changed) {
+      cleanQuery = cleanQuery.trim();
+      if (cleanQuery.isNotEmpty && !candidates.any((c) => c.query == cleanQuery)) {
+        candidates.add(parsed.copyWith(query: cleanQuery));
+      }
+    }
+
+    // 4. If a candidate contains both Chinese and English, try to split them
+    // e.g. "权力的游戏 Game of Thrones" -> ["权力的游戏", "Game of Thrones"]
+    final List<ScrapingCandidate> newCandidates = [];
+    for (final candidate in candidates) {
+      if (RegExp(r'[\u4e00-\u9fa5]').hasMatch(candidate.query) && 
+          RegExp(r'[a-zA-Z]').hasMatch(candidate.query)) {
+        
+        // Extract Chinese part
+        final chinesePart = candidate.query.replaceAll(RegExp(r'[^\u4e00-\u9fa5\s]'), '').trim();
+        if (chinesePart.isNotEmpty && chinesePart != candidate.query) {
+           // Clean up spaces
+           final cleanChinese = chinesePart.replaceAll(RegExp(r'\s+'), ' ').trim();
+           if (cleanChinese.length >= 2 && !candidates.any((c) => c.query == cleanChinese) && !newCandidates.any((c) => c.query == cleanChinese)) {
+             newCandidates.add(candidate.copyWith(query: cleanChinese));
+           }
+        }
+        
+        // Extract English part (if needed, but usually Chinese is preferred for Chinese users)
+        // Let's stick to Chinese extraction for now as it's the main goal.
+      }
+    }
+    candidates.addAll(newCandidates);
 
     return candidates;
   }
