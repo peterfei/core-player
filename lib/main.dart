@@ -13,6 +13,7 @@ import 'package:yinghe_player/services/tmdb_service.dart';
 import 'package:yinghe_player/services/settings_service.dart';
 import 'package:yinghe_player/services/subtitle_download_init.dart';
 import 'package:yinghe_player/services/cover_fallback_service.dart';
+import 'package:yinghe_player/services/excluded_paths_service.dart';
 
 import 'package:yinghe_player/services/codec_info_service.dart';
 import 'package:yinghe_player/services/system_codec_detector_service.dart';
@@ -111,6 +112,9 @@ class _MyAppState extends State<MyApp> {
       // 初始化媒体库服务
       await MediaLibraryService.init();
       await MetadataStoreService.init();
+      
+      // 初始化排除路径服务
+      await ExcludedPathsService.init();
       
       // 初始化封面回退服务
       await CoverFallbackService.initialize();

@@ -12,6 +12,7 @@ import 'metadata_settings_screen.dart';
 import 'metadata_management_page.dart';
 import 'plugin_manager_screen.dart';
 import 'theme_settings_screen.dart';
+import 'excluded_paths_screen.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -129,6 +130,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const CacheManagementScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.block),
+            title: const Text('排除列表管理'),
+            subtitle: const Text('管理已隐藏的剧集'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ExcludedPathsScreen(),
                 ),
               );
             },

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'file_source/file_source.dart';
 import 'media_library_service.dart';
+import 'excluded_paths_service.dart';
 
 class MediaScannerService {
   static final MediaScannerService _instance = MediaScannerService._();
@@ -46,6 +47,18 @@ class MediaScannerService {
     bool recursive
   ) async {
     try {
+      // 排除特定路径（如缓存文件夹）
+      if (path.contains('云盘缓存文件')) {
+        print('  ⏭️ 跳过云盘缓存文件夹: $path');
+        return;
+      }
+      
+      // 检查是否在用户自定义的排除列表中
+      if (ExcludedPathsService.isExcluded(path)) {
+        print('  ⏭️ 跳过排除的路径: $path');
+        return;
+      }
+      
       print('📂 扫描目录: $path');
       final items = await source.listFiles(path);
       print('  找到 ${items.length} 个项目');
