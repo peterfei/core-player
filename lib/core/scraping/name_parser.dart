@@ -91,6 +91,21 @@ class NameParser {
       cleanName = cleanName.replaceAll(RegExp(r'\b' + ext + r'\b', caseSensitive: false), '');
     }
     
+    // If no season/episode found, try to extract trailing number as episode
+    // e.g. "Harry Potter 1" -> Season 1, Episode 1
+    // This is done AFTER cleaning to avoid matching codecs like x264
+    if (season == null && episode == null) {
+       // Match number at the end OR followed by a colon/subtitle separator
+       final trailingMatch = RegExp(r'(?<!\d)(\d{1,3})(?!\d)(?:\s*$|\s*[:：])').firstMatch(cleanName);
+       if (trailingMatch != null) {
+         final num = int.tryParse(trailingMatch.group(1)!);
+         if (num != null) {
+           season = 1;
+           episode = num;
+         }
+       }
+    }
+    
     // Remove "end" suffix (before removing numbers)
     cleanName = cleanName.replaceAll(RegExp(r'\s*end\s*$', caseSensitive: false), '');
     

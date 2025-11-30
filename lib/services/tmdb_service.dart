@@ -53,6 +53,11 @@ class TMDBService {
     return _search('movie', query);
   }
 
+  /// 搜索合集
+  static Future<List<Map<String, dynamic>>> searchCollection(String query) async {
+    return _search('collection', query);
+  }
+
   static Future<List<Map<String, dynamic>>> _search(String type, String query) async {
     if (!isInitialized) return [];
     

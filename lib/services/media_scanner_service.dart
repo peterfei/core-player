@@ -3,6 +3,8 @@ import 'package:path/path.dart' as p;
 import 'file_source/file_source.dart';
 import 'media_library_service.dart';
 
+import 'excluded_paths_service.dart';
+
 class MediaScannerService {
   static final MediaScannerService _instance = MediaScannerService._();
   static MediaScannerService get instance => _instance;
@@ -45,6 +47,12 @@ class MediaScannerService {
     List<FileItem> results, 
     bool recursive
   ) async {
+    // Check if path is excluded
+    if (ExcludedPathsService.isExcluded(path)) {
+      print('🚫 跳过已排除路径: $path');
+      return;
+    }
+
     try {
       print('📂 扫描目录: $path');
       final items = await source.listFiles(path);

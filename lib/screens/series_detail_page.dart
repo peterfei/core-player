@@ -858,10 +858,9 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
                                   newName = '$fallbackName - 第${episode.episodeNumber}集';
                                 } else {
                                   // 否则，如果文件名很乱，可能还是显示剧集名称比较好，或者保持原样
-                                  // 这里我们选择：如果有剧集名称，就用剧集名称（虽然会重复，但比乱码好）
-                                  // 或者我们可以尝试只用 NameParser 清理一下原文件名
-                                  // 但根据用户 "使用成功刮削的...标题" 的要求，倾向于使用 fallbackName
-                                  newName = fallbackName ?? episode.name;
+                                  // 但如果所有集数都显示一样的剧集名称（如哈利波特全集被识别为其中一部电影），体验很差
+                                  // 所以如果没有集数编号，优先显示原始文件名（经过清理的），以便用户区分
+                                  newName = _cleanTitle(episode.name);
                                 }
                               }
                               
@@ -938,6 +937,19 @@ class _SeriesDetailPageState extends State<SeriesDetailPage> {
         ],
       ),
     );
+  }
+
+  String _cleanTitle(String title) {
+    // 简单清理：移除扩展名
+    var clean = title.replaceAll(RegExp(r'\.(mp4|mkv|avi|mov|wmv|flv|rmvb)$', caseSensitive: false), '');
+    // 移除常见的分隔符
+    clean = clean.replaceAll(RegExp(r'[._]'), ' ');
+    // 移除年份
+    clean = clean.replaceAll(RegExp(r'\b(19|20)\d{2}\b'), '');
+    // 移除分辨率和编码
+    clean = clean.replaceAll(RegExp(r'\b(1080p|720p|4k|2160p|x264|x265|h264|h265|aac|ac3)\b', caseSensitive: false), '');
+    // 移除多余空格
+    return clean.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   Widget _buildPlaceholder() {
