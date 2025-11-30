@@ -21,6 +21,8 @@ import 'package:yinghe_player/screens/series_detail_page.dart';
 import 'package:yinghe_player/widgets/video_list_tile.dart';
 import 'package:yinghe_player/widgets/video_poster_card.dart';
 import 'package:yinghe_player/models/playback_history.dart';
+import 'package:path/path.dart' as p;
+import '../services/metadata_store_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -788,12 +790,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   
 
     VideoCardData _mapHistoryToVideoCard(PlaybackHistory history) {
+      // 尝试找到该视频所属的Series，以便使用刮削后的元数据
+      String? seriesPosterPath = history.effectiveThumbnailPath != null ? 'file://${history.effectiveThumbnailPath}' : null;
+      String displayTitle = history.videoName;
+      
+      // 查找视频所属的Series（仅对网络视频/可能在媒体库中的视频）
+      if (history.videoPath != null) {
+        for (var series in _seriesList) {
+          // 检查视频的文件夹路径是否在该Series的folderPaths中
+          final videoFolder = p.dirname(history.videoPath!);
+          if (series.folderPaths.contains(videoFolder)) {
+            // 找到所属Series，尝试获取元数据
+            final metadata = MetadataStoreService.getSeriesMetadata(series.folderPath);
+            if (metadata != null) {
+              seriesPosterPath = metadata['posterPath'];
+              displayTitle = metadata['name'] ?? history.videoName;
+            }
+            break;
+          }
+        }
+      }
 
       // 计算进度
 
       return VideoCardData(
 
-        title: history.videoName,
+        title: displayTitle,
 
         subtitle: '上次观看: ${_formatDate(history.lastPlayedAt)}',
 
@@ -803,22 +825,57 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
         duration: Duration(seconds: history.totalDuration),
 
-        thumbnailUrl: history.effectiveThumbnailPath != null ? 'file://${history.effectiveThumbnailPath}' : null,
+        thumbnailUrl: seriesPosterPath,
 
         localPath: history.videoPath,
 
       );
 
+
     }
 
   VideoCardData _mapScannedToVideoCard(ScannedVideo video) {
+    // 尝试找到该视频所属的Series，以便使用刮削后的元数据
+    String? seriesPosterPath;
+    String displayTitle = video.name; // 默认使用video.name，确保非空
+    
+    print('🔍 映射视频卡片: ${video.name}');
+    print('   视频路径: ${video.path}');
+    print('   当前剧集列表数量: ${_seriesList.length}');
+    
+    // 查找视频所属的Series
+    for (var series in _seriesList) {
+      // 检查视频的文件夹路径是否在该Series的folderPaths中
+      final videoFolder = p.dirname(video.path);
+      print('   检查Series: ${series.name}, folderPaths: ${series.folderPaths}');
+      print('   视频文件夹: $videoFolder');
+      
+      if (series.folderPaths.contains(videoFolder)) {
+        print('   ✅ 找到匹配的Series: ${series.name}');
+        // 找到所属Series，尝试获取元数据
+        final metadata = MetadataStoreService.getSeriesMetadata(series.folderPath);
+        if (metadata != null) {
+          seriesPosterPath = metadata['posterPath'];
+          displayTitle = metadata['name'] ?? video.name;
+          print('   ✅ 使用元数据: title=$displayTitle, poster=$seriesPosterPath');
+        } else {
+          print('   ⚠️ Series没有元数据');
+        }
+        break;
+      }
+    }
+    
+    if (seriesPosterPath == null) {
+      print('   ⚠️ 未找到匹配的Series或封面');
+    }
+    
     return VideoCardData(
-      title: video.name,
+      title: displayTitle,
       subtitle: '添加于: ${_formatDate(video.addedAt ?? DateTime.now())}',
       progress: 0.0,
       type: 'SMB', // Assuming SMB for now
       duration: null,
-      thumbnailUrl: null, // No thumbnail yet
+      thumbnailUrl: seriesPosterPath, // 使用Series的封面
       localPath: video.path, // This is the remote path
     );
   }

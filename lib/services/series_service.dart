@@ -294,6 +294,16 @@ static Future<List<Series>> getSeriesListFromVideos(List<ScannedVideo> videos) a
   static String cleanSeriesName(String name) {
     var title = name;
 
+    // 0. 移除文件扩展名（如果有）
+    // 处理 "大考第10集.mp4" 这样的文件夹名
+    final commonExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v', '.ts', '.rmvb'];
+    for (var ext in commonExtensions) {
+      if (title.toLowerCase().endsWith(ext)) {
+        title = title.substring(0, title.length - ext.length);
+        break;
+      }
+    }
+
     // 1. 移除方括号和圆括号内容（包括重复文件的(1)、(2)等）
     title = title.replaceAll(RegExp(r'[\[【\(].*?[\]】\)]'), '');
 
