@@ -55,7 +55,12 @@ class HistoryService {
   }
 
   /// 获取所有播放历史记录
-  static Future<List<PlaybackHistory>> getHistories() async {
+  /// 
+  /// [filterInvalid] 是否过滤无法访问的文件，默认为 false
+  /// 设置为 false 可以保留暂时无法访问的文件记录（如外部硬盘未挂载）
+  static Future<List<PlaybackHistory>> getHistories({
+    bool filterInvalid = false,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final historiesString = prefs.getString(_storageKey);
@@ -70,13 +75,20 @@ class HistoryService {
           .map((json) => PlaybackHistory.fromJson(json))
           .toList();
 
-      // 清理不存在的文件
-      final validHistories = await _filterValidHistories(histories);
+      // 按最后播放时间降序排序（最近播放的在前）
+      histories.sort((a, b) => b.lastPlayedAt.compareTo(a.lastPlayedAt));
 
-      // 清理过期记录
-      _cleanExpiredHistories(validHistories);
+      // 只在明确要求时才过滤无法访问的文件
+      if (filterInvalid) {
+        final validHistories = await _filterValidHistories(histories);
+        _cleanExpiredHistories(validHistories);
+        return validHistories;
+      }
 
-      return validHistories;
+      // 清理过期记录（但保留暂时无法访问的文件）
+      _cleanExpiredHistories(histories);
+
+      return histories;
     } catch (e) {
       print('获取播放历史失败: $e');
       return [];
@@ -310,6 +322,13 @@ class HistoryService {
       print('检查文件存在性失败: ${history.videoPath} - $e');
       return false;
     }
+  }
+
+  /// 检查历史记录对应的文件是否可访问
+  /// 
+  /// 用于UI层判断是否需要显示"文件不可用"提示
+  static Future<bool> isHistoryAccessible(PlaybackHistory history) async {
+    return await _fileExists(history);
   }
 
   /// 生成唯一ID

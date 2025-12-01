@@ -759,35 +759,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   
 
     List<VideoCardData> _getContinueWatchingVideos() {
-
       // 返回有播放进度的视频，且未播放完成
-
+      // _histories 已经按 lastPlayedAt 降序排序，所以最近播放的会在前面
       final continueWatching = _histories.where((h) => 
-
         h.currentPosition > 0 && 
-
         h.currentPosition < h.totalDuration &&
-
         !h.isCompleted
-
       ).toList();
-
       
-
-      return continueWatching.map(_mapHistoryToVideoCard).toList();
-
+      // 返回最近观看的6个未完成视频
+      return continueWatching.take(6).map(_mapHistoryToVideoCard).toList();
     }
 
   
 
     List<VideoCardData> _getRecentVideos() {
-
-      // 返回最近添加的视频（这里简单返回前几个）
-
-      // 假设 _histories 已经是按时间排序的
-
-      return _histories.take(4).map(_mapHistoryToVideoCard).toList();
-
+      // 按创建时间降序排序，获取最近添加的视频
+      final sortedByCreated = List<PlaybackHistory>.from(_histories);
+      sortedByCreated.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      // 返回最近添加的6个视频
+      return sortedByCreated.take(6).map(_mapHistoryToVideoCard).toList();
     }
 
     
@@ -831,26 +823,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       // 计算进度
-
       return VideoCardData(
-
         title: displayTitle,
-
         subtitle: '上次观看: ${_formatDate(history.lastPlayedAt)}',
-
         progress: history.currentPosition / (history.totalDuration == 0 ? 1 : history.totalDuration),
-
         type: history.sourceType == 'network' ? '网络' : '本地',
-
         duration: Duration(seconds: history.totalDuration),
-
         thumbnailUrl: seriesPosterPath,
-
-        localPath: history.videoPath,
-
+        // 关键修复：网络视频使用 streamUrl，本地视频使用 videoPath
+        localPath: history.sourceType == 'network' ? null : history.videoPath,
+        url: history.sourceType == 'network' ? history.streamUrl : null,
       );
-
-
     }
 
   VideoCardData _mapScannedToVideoCard(ScannedVideo video) {
