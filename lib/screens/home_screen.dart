@@ -887,7 +887,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PlayerScreen.network(videoPath: video.url!),
+            builder: (context) => PlayerScreen.network(
+              videoPath: video.url!,
+              webVideoName: video.title, // 传递视频标题
+            ),
           ),
         ).then((_) {
           _historyListKey.currentState?.refreshHistories();
