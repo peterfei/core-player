@@ -213,22 +213,17 @@ class MacOSBookmarkService {
       final bookmarks = prefs.getString(_bookmarksStorageKey);
       if (bookmarks == null) return;
 
-      Map<String, String> bookmarksMap = {};
-      try {
-        bookmarksMap = Map<String, String>.from(
-            jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>);
-      } catch (e) {
-        // 如果解析失败，直接返回
-        return;
+      Map<String, String> bookmarksMap = _parseBookmarks(bookmarks);
+      
+      if (bookmarksMap.containsKey(filePath)) {
+        bookmarksMap.remove(filePath);
+
+        // FIX: 使用 jsonEncode 而不是 toString()
+        final jsonString = Uri.encodeComponent(jsonEncode(bookmarksMap));
+        await prefs.setString(_bookmarksStorageKey, jsonString);
+
+        print('✅ 已移除缓存的书签数据: $filePath');
       }
-
-      bookmarksMap.remove(filePath);
-
-      final jsonString = Uri.encodeComponent(
-          Map<String, dynamic>.from(bookmarksMap).toString());
-      await prefs.setString(_bookmarksStorageKey, jsonString);
-
-      print('✅ 已移除缓存的书签数据');
     } catch (e) {
       print('⚠️ 移除缓存书签失败: $e');
     }
@@ -255,13 +250,7 @@ class MacOSBookmarkService {
         return {'count': 0, 'totalSize': 0};
       }
 
-      Map<String, String> bookmarksMap = {};
-      try {
-        bookmarksMap = Map<String, String>.from(
-            jsonDecode(Uri.decodeComponent(bookmarks)) as Map<String, dynamic>);
-      } catch (e) {
-        return {'count': 0, 'totalSize': 0};
-      }
+      final bookmarksMap = _parseBookmarks(bookmarks);
 
       int totalSize = 0;
       for (final bookmarkData in bookmarksMap.values) {
@@ -297,7 +286,7 @@ class MacOSBookmarkService {
       // 从缓存中获取bookmark
       final bookmarkData = await getCachedBookmark(filePath);
       if (bookmarkData == null) {
-        print('⚠️ 没有找到缓存的书签数据: $filePath');
+        // print('⚠️ 没有找到缓存的书签数据: $filePath');
         return null;
       }
 
@@ -315,6 +304,38 @@ class MacOSBookmarkService {
     } catch (e) {
       print('❌ 尝试恢复访问权限失败: $e');
       return null;
+    }
+  }
+
+  /// 获取所有已缓存的书签路径（用于调试）
+  static Future<List<String>> getBookmarkedPaths() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bookmarks = prefs.getString(_bookmarksStorageKey);
+      if (bookmarks == null) return [];
+
+      final bookmarksMap = _parseBookmarks(bookmarks);
+      return bookmarksMap.keys.toList();
+    } catch (e) {
+      print('⚠️ 获取书签路径列表失败: $e');
+      return [];
+    }
+  }
+
+  /// 解析书签数据
+  /// 包含错误处理和自动重置逻辑
+  static Map<String, String> _parseBookmarks(String jsonString) {
+    try {
+      final decoded = Uri.decodeComponent(jsonString);
+      // 尝试解析 JSON
+      return Map<String, String>.from(
+          jsonDecode(decoded) as Map<String, dynamic>);
+    } catch (e) {
+      print('⚠️ 书签数据格式错误: $e');
+      print('⚠️ 检测到数据损坏，正在重置书签缓存...');
+      // 自动清除损坏的缓存，防止持续报错
+      clearCache();
+      return {};
     }
   }
 }

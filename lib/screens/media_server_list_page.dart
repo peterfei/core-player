@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as path;
 import '../theme/design_tokens/design_tokens.dart';
 import '../models/media_server_config.dart';
 import '../services/media_server_service.dart';
@@ -7,9 +10,8 @@ import '../services/media_scanner_service.dart';
 import '../services/media_library_service.dart';
 import '../services/file_source/file_source.dart';
 import '../services/auto_scraper_service.dart';
-import '../services/settings_service.dart';
 import '../services/series_service.dart';
-import '../core/plugin_system/plugin_loader.dart';
+import '../services/macos_bookmark_service.dart';
 import '../core/plugin_system/edition_config.dart';
 import 'add_server_page.dart';
 import 'shared_folder_management_page.dart';
@@ -50,6 +52,169 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
         setState(() {
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  Future<void> _addLocalFolder() async {
+    try {
+      // 使用文件选择器选择文件夹
+      final String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+      
+      if (selectedDirectory == null) {
+        return; // 用户取消了选择
+      }
+
+      print('📁 用户选择了文件夹: $selectedDirectory');
+
+      // 在 macOS 上创建 Security Scoped Bookmark
+      if (Platform.isMacOS) {
+        final bookmark = await MacOSBookmarkService.createBookmark(selectedDirectory);
+        if (bookmark != null) {
+          print('✅ 已为文件夹创建书签: $selectedDirectory');
+        } else {
+          print('⚠️ 创建书签失败,但继续扫描');
+        }
+      }
+
+      // 显示扫描进度对话框
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            '正在扫描',
+            style: AppTextStyles.headlineSmall.copyWith(color: AppColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: AppSpacing.medium),
+              Text(
+                '正在扫描本地文件夹...',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // 扫描文件夹
+      final directory = Directory(selectedDirectory);
+      final List<ScannedVideo> scannedVideos = [];
+      
+      await for (final entity in directory.list(recursive: true)) {
+        if (entity is File) {
+          final ext = path.extension(entity.path).toLowerCase();
+          const videoExtensions = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.ts', '.m2ts', '.mpg', '.mpeg'};
+          
+          if (videoExtensions.contains(ext)) {
+            final stat = await entity.stat();
+            scannedVideos.add(ScannedVideo(
+              path: entity.path,
+              name: path.basename(entity.path),
+              sourceId: 'local',
+              size: stat.size,
+              addedAt: DateTime.now(),
+            ));
+          }
+        }
+      }
+
+      // 保存到媒体库
+      await MediaLibraryService.addVideos(scannedVideos);
+
+      // 更新剧集分组
+      final allVideos = MediaLibraryService.getAllVideos();
+      await SeriesService.processAndSaveSeries(allVideos);
+
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭扫描进度对话框
+        
+        // 检查是否启用自动刮削
+        const autoScrapeEnabled = true;
+        
+        if (autoScrapeEnabled && scannedVideos.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '后台刮削已开始,共 ${scannedVideos.length} 个视频',
+                      style: AppTextStyles.bodyMedium.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.primary,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          
+          // 后台执行刮削
+          AutoScraperService.autoScrapeVideos(
+            scannedVideos,
+            onProgress: (current, total, status) {
+              print('🤖 刮削进度: $current/$total - $status');
+            },
+          ).then((result) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '自动刮削完成: $result',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white),
+                  ),
+                  backgroundColor: AppColors.success,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+              _loadServers();
+            }
+          }).catchError((error) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('自动刮削失败: $error'),
+                  backgroundColor: AppColors.error,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('扫描完成,添加了 ${scannedVideos.length} 个视频'),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭进度对话框
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('扫描失败: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     }
   }
@@ -446,6 +611,15 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
                   ),
                   const Divider(height: AppSpacing.large),
                   Text(
+                    '本地文件夹',
+                    style: AppTextStyles.headlineSmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.medium),
+                  _buildLocalFolderItem(context),
+                  const Divider(height: AppSpacing.large),
+                  Text(
                     '网络共享',
                     style: AppTextStyles.headlineSmall.copyWith(
                       color: AppColors.textSecondary,
@@ -625,6 +799,39 @@ class _MediaServerListPageState extends State<MediaServerListPage> {
       default:
         return AppColors.primary;
     }
+  }
+
+  Widget _buildLocalFolderItem(BuildContext context) {
+    return InkWell(
+      onTap: _addLocalFolder,
+      borderRadius: BorderRadius.circular(AppRadius.medium),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.medium,
+          horizontal: AppSpacing.small,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.small),
+              ),
+              child: const Icon(Icons.folder_open, color: Colors.blue, size: 20),
+            ),
+            const SizedBox(width: AppSpacing.medium),
+            Text(
+              '本地文件夹',
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildProviderItem(
