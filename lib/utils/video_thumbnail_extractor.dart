@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
-import '../services/cover_fallback_service.dart';
 
 class VideoThumbnailExtractor {
   /// 提取视频截图
@@ -13,10 +12,7 @@ class VideoThumbnailExtractor {
     try {
       if (kIsWeb) return null;
 
-      // 1. 检查专业版权限 (这里暂时模拟，实际应调用 LicenseService 或类似服务)
-      // 1. 检查专业版权限 (这里暂时模拟，实际应调用 LicenseService 或类似服务)
-      bool isPro = true; // Enabled for all users as per requirement
-      if (!isPro) return null;
+      // 注：视频帧提取功能对所有用户开放
 
       // 2. 准备输出路径
       final cacheFile = await _getCacheFile(outputId);
@@ -52,22 +48,49 @@ class VideoThumbnailExtractor {
 
   static Future<bool> _extractWithFFmpeg(String videoPath, String outputPath, double position) async {
     try {
-      // 获取视频时长（简单起见，这里先固定截取第10秒，或者后续优化获取时长逻辑）
-      // 如果需要精确百分比，需要先获取时长。
-      // 为了性能，我们暂时尝试截取固定时间点，例如 60秒处，如果视频短于60秒，ffmpeg通常会截取最后或报错。
-      // 更好的方式是使用 ffprobe 获取时长，但这里为了简化依赖，我们先尝试截取一个固定偏移量，比如 5% 的位置不太好算，
-      // 我们先用固定时间 00:00:10
+      // 1. 先获取视频时长
+      final durationCommand = 'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$videoPath" 2>/dev/null';
+      final durationResult = await Process.run('bash', ['-c', durationCommand]);
       
-      // 改进：尝试使用百分比，但 ffmpeg 命令行直接支持百分比比较麻烦。
-      // 我们先用固定时间 10秒。
-      const time = '00:00:10';
+      double videoDuration = 0;
+      if (durationResult.exitCode == 0) {
+        final durationStr = durationResult.stdout.toString().trim();
+        videoDuration = double.tryParse(durationStr) ?? 0;
+        debugPrint('📹 视频时长: ${videoDuration.toStringAsFixed(1)}秒');
+      }
+      
+      // 2. 计算截图时间点
+      String time;
+      if (videoDuration > 0) {
+        // 如果成功获取时长，使用百分比位置
+        // 默认截取 10% 位置，避免片头黑屏
+        final seconds = (videoDuration * position).clamp(5.0, videoDuration - 5.0);
+        final hours = (seconds / 3600).floor();
+        final minutes = ((seconds % 3600) / 60).floor();
+        final secs = (seconds % 60).floor();
+        time = '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+        debugPrint('📸 截图时间点: $time (${(position * 100).toStringAsFixed(0)}%)');
+      } else {
+        // 如果无法获取时长，使用固定时间点
+        time = '00:00:10';
+        debugPrint('⚠️ 无法获取视频时长，使用固定时间点: $time');
+      }
 
+      // 3. 执行截图
       final command = 'ffmpeg -y -ss $time -i "$videoPath" -vframes 1 -q:v 2 -vf "scale=300:-1" "$outputPath" 2>/dev/null';
       
       final result = await Process.run('bash', ['-c', command]);
-      return result.exitCode == 0;
+      
+      if (result.exitCode == 0 && await File(outputPath).exists()) {
+        final fileSize = await File(outputPath).length();
+        debugPrint('✅ FFmpeg 截图成功 ($fileSize bytes)');
+        return true;
+      } else {
+        debugPrint('❌ FFmpeg 截图失败，退出码: ${result.exitCode}');
+        return false;
+      }
     } catch (e) {
-      debugPrint('FFmpeg 截图失败: $e');
+      debugPrint('FFmpeg 截图异常: $e');
       return false;
     }
   }

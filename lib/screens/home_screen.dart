@@ -804,7 +804,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     VideoCardData _mapHistoryToVideoCard(PlaybackHistory history) {
       // 尝试找到该视频所属的Series，以便使用刮削后的元数据
-      String? seriesPosterPath = history.effectiveThumbnailPath != null ? 'file://${history.effectiveThumbnailPath}' : null;
+      String? seriesPosterPath;
       String displayTitle = history.videoName;
       
       // 使用优化的查找：从缓存的映射中查找
@@ -822,6 +822,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
 
+      // 缩略图优先级：
+      // 1. 刮削的海报（如果有）
+      // 2. 视频真实帧缩略图（从历史记录）
+      String? thumbnailUrl = seriesPosterPath;
+      if (thumbnailUrl == null && history.effectiveThumbnailPath != null) {
+        thumbnailUrl = 'file://${history.effectiveThumbnailPath}';
+      }
+
       // 计算进度
       return VideoCardData(
         title: displayTitle,
@@ -829,7 +837,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         progress: history.currentPosition / (history.totalDuration == 0 ? 1 : history.totalDuration),
         type: history.sourceType == 'network' ? '网络' : '本地',
         duration: Duration(seconds: history.totalDuration),
-        thumbnailUrl: seriesPosterPath,
+        thumbnailUrl: thumbnailUrl,
         // 关键修复：网络视频使用 streamUrl，本地视频使用 videoPath
         localPath: history.sourceType == 'network' ? null : history.videoPath,
         url: history.sourceType == 'network' ? history.streamUrl : null,
