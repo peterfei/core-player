@@ -244,6 +244,18 @@ class MediaLibraryService {
   static List<ScannedEpisode> getEpisodesForSeries(String seriesId) {
     return _episodesBox.values.where((e) => e.seriesId == seriesId).toList();
   }
+
+  static Future<void> removeSeries(String seriesId) async {
+    if (_seriesBox.isOpen && _seriesBox.containsKey(seriesId)) {
+      await _seriesBox.delete(seriesId);
+    }
+  }
+
+  static Future<void> removeEpisodes(List<String> episodeIds) async {
+    if (_episodesBox.isOpen) {
+      await _episodesBox.deleteAll(episodeIds);
+    }
+  }
   
   /// 添加文件夹图片
   static void addFolderImage(String folderPath, String type, String path) {
