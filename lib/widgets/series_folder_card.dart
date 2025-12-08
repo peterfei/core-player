@@ -6,6 +6,7 @@ import 'smart_image.dart';
 import '../services/cover_fallback_service.dart';
 import '../core/scraping/name_parser.dart';
 import '../services/excluded_paths_service.dart';
+import '../services/series_service.dart';
 
 /// 剧集文件夹卡片组件
 /// 用于在列表或网格中展示剧集
@@ -287,26 +288,38 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
     );
 
     if (confirmed == true) {
-      // 添加到排除列表
-      for (final folderPath in widget.series.folderPaths) {
+      final seriesName = _cleanTitle(widget.series.name);
+      final folderPaths = widget.series.folderPaths;
+      
+      // 1. 添加到排除列表
+      for (final folderPath in folderPaths) {
         await ExcludedPathsService.addPath(folderPath);
       }
       
-      // 立即调用回调，让父组件刷新列表
+      // 2. 从数据库和元数据中删除
+      // 注意：这会导致无法立即"撤销"恢复数据，必须重新扫描
+      try {
+        await SeriesService.deleteSeries(widget.series);
+      } catch (e) {
+        print('❌ 删除剧集数据失败: $e');
+        // 即使删除失败，也继续处理（已经在排除列表中了）
+      }
+      
+      // 3. 刷新 UI
       widget.onExcluded?.call();
       
       if (mounted) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         
-        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // 清除当前显示的SnackBar
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 Expanded(
                   child: Text(
-                    '已排除 "${_cleanTitle(widget.series.name)}"',
+                    '已排除 "$seriesName"',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: colorScheme.onInverseSurface),
@@ -316,10 +329,20 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                 TextButton(
                   onPressed: () async {
                     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                    for (final folderPath in widget.series.folderPaths) {
+                    // 撤销排除列表的操作
+                    for (final folderPath in folderPaths) {
                       await ExcludedPathsService.removePath(folderPath);
                     }
-                    // 撤销后也需要刷新
+                    // 提示用户需要重新扫描
+                    if (context.mounted) { // Check mounted again after async
+                       ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('已撤销排除。请重新扫描媒体库以恢复数据。'),
+                            duration: Duration(seconds: 2),
+                          )
+                       );
+                    }
+                    // 刷新 UI (虽然数据没了，但至少不在排除列表了)
                     widget.onExcluded?.call();
                   },
                   style: TextButton.styleFrom(
@@ -343,9 +366,9 @@ class _SeriesFolderCardState extends State<SeriesFolderCard>
                 ),
               ],
             ),
-            duration: const Duration(milliseconds: 2500), // 设置显示时长
-            behavior: SnackBarBehavior.floating, // 悬浮样式
-            width: 400, // 限制宽度，避免在宽屏上太长
+            duration: const Duration(milliseconds: 4000),
+            behavior: SnackBarBehavior.floating,
+            width: 400,
           ),
         );
       }

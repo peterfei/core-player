@@ -40,15 +40,17 @@ class ExcludedPathsService {
   }
 
   static Future<void> addPath(String pathStr) async {
-    if (!_excludedPaths.contains(pathStr)) {
+    if (!_excludedPaths.any((p) => path.equals(p, pathStr))) {
       _excludedPaths.add(pathStr);
       await _save();
     }
   }
 
   static Future<void> removePath(String pathStr) async {
-    if (_excludedPaths.contains(pathStr)) {
-      _excludedPaths.remove(pathStr);
+    final originalLength = _excludedPaths.length;
+    _excludedPaths.removeWhere((p) => path.equals(p, pathStr));
+    
+    if (_excludedPaths.length != originalLength) {
       await _save();
     }
   }
@@ -63,12 +65,9 @@ class ExcludedPathsService {
   }
 
   static bool isExcluded(String targetPath) {
-    // Check if targetPath starts with any excluded path
-    // Normalize paths to ensure consistent comparison
-    // We check if targetPath is equal to or inside an excluded path.
-    
+    // Check if targetPath matches or is inside any excluded path
     for (final excluded in _excludedPaths) {
-      if (targetPath == excluded) return true;
+      if (path.equals(targetPath, excluded)) return true;
       if (path.isWithin(excluded, targetPath)) return true;
     }
     return false;

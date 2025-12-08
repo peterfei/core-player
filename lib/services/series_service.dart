@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as p;
 import '../models/series.dart';
 import '../models/episode.dart';
+import '../services/excluded_paths_service.dart';
 import 'media_library_service.dart';
 import 'metadata_store_service.dart';
 import '../core/scraping/name_parser.dart';
@@ -144,12 +145,15 @@ class SeriesService {
 
   /// 从扫描的视频列表中分组出剧集
   static List<Series> groupVideosBySeries(List<ScannedVideo> videos) {
+    // Filter excluded videos
+    final filteredVideos = videos.where((v) => !ExcludedPathsService.isExcluded(v.path)).toList();
+    
     // 按清洗后的剧集名称分组
     final Map<String, List<ScannedVideo>> nameGroups = {};
     // 记录每个组涉及的所有文件夹路径
     final Map<String, Set<String>> nameToPathsMap = {};
     
-    for (var video in videos) {
+    for (var video in filteredVideos) {
       final folderPath = _extractFolderPath(video.path);
       final folderName = p.basename(folderPath);
       
@@ -413,5 +417,28 @@ static Future<List<Series>> getSeriesListFromVideos(List<ScannedVideo> videos) a
     }
     
     return sorted;
+  }
+  
+  /// 删除指定剧集及其所有相关数据（数据库记录、元数据）
+  static Future<void> deleteSeries(Series series) async {
+    try {
+      // 1. 删除剧集记录
+      await MediaLibraryService.removeSeries(series.id);
+      
+      // 2. 删除该剧集的所有集数记录
+      final episodes = await getSavedEpisodesForSeries(series.id);
+      final episodeIds = episodes.map((e) => e.id).toList();
+      await MediaLibraryService.removeEpisodes(episodeIds);
+      
+      // 3. 删除相关的元数据
+      for (final path in series.folderPaths) {
+        await MetadataStoreService.deleteSeriesMetadata(path);
+      }
+      
+      print('🗑️ 已删除剧集: ${series.name} (ID: ${series.id})');
+    } catch (e) {
+      print('❌ 删除剧集失败: $e');
+      rethrow;
+    }
   }
 }
