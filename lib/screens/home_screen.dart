@@ -32,7 +32,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedSidebarIndex = 0;
   bool _isSidebarCollapsed = false;
   final GlobalKey<HistoryListWidgetRefreshableState> _historyListKey =
@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   List<PlaybackHistory> _histories = [];
   List<VideoCardData> _libraryVideos = [];
+  List<ScannedVideo> _scannedVideos = []; // 保存原始扫描视频数据用于排序
   List<Series> _seriesList = []; // 剧集列表
   Map<String, Series> _folderToSeriesMap = {}; // folderPath -> Series 映射，用于快速查找
   
@@ -49,13 +50,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // 当应用从后台返回前台时刷新数据
+    if (state == AppLifecycleState.resumed) {
+      print('📱 应用返回前台,刷新数据...');
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
     try {
+      print('🔄 开始加载数据...');
       final histories = await HistoryService.getHistories();
+      print('📊 加载了 ${histories.length} 条播放历史');
+      
       final scanned = MediaLibraryService.getAllVideos();
+      print('📊 加载了 ${scanned.length} 个扫描视频');
       
       // 加载剧集数据 (包含合并逻辑)
       final series = await SeriesService.getSeriesListFromVideos(scanned);
@@ -73,11 +95,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _histories = histories;
           _seriesList = series;
           _folderToSeriesMap = folderMap; // 更新映射
+          _scannedVideos = scanned; // 保存原始数据
           _libraryVideos = scanned.map(_mapScannedToVideoCard).toList();
         });
+        print('✅ 数据加载完成并更新UI');
+      } else {
+        print('⚠️ Widget已销毁,跳过UI更新');
       }
     } catch (e) {
-      print('Error loading history: $e');
+      print('❌ 加载数据时出错: $e');
     }
   }
 
@@ -339,11 +365,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
         // 继续观看部分
         SliverToBoxAdapter(
+          key: ValueKey('continue-watching-${_histories.length}'),
           child: _buildSection('继续观看', _getContinueWatchingVideos()),
         ),
 
         // 最近添加部分
         SliverToBoxAdapter(
+          key: ValueKey('recent-added-${_scannedVideos.length}'),
           child: _buildSection('最近添加', _getRecentVideos()),
         ),
 
@@ -767,19 +795,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         !h.isCompleted
       ).toList();
       
+      print('📺 继续观看: 找到 ${continueWatching.length} 个未完成视频 (总历史记录: ${_histories.length})');
+      
       // 返回最近观看的6个未完成视频
-      return continueWatching.take(6).map(_mapHistoryToVideoCard).toList();
+      final result = continueWatching.take(6).map(_mapHistoryToVideoCard).toList();
+      print('📺 继续观看: 返回 ${result.length} 个视频');
+      return result;
     }
 
   
 
     List<VideoCardData> _getRecentVideos() {
-      // 按创建时间降序排序，获取最近添加的视频
-      final sortedByCreated = List<PlaybackHistory>.from(_histories);
-      sortedByCreated.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      // 从媒体库中获取最近添加的视频
+      if (_scannedVideos.isEmpty) {
+        return [];
+      }
+      
+      // 按添加时间降序排序(最新的在前)
+      final sortedVideos = List<ScannedVideo>.from(_scannedVideos);
+      sortedVideos.sort((a, b) {
+        final aTime = a.addedAt ?? DateTime(1970);
+        final bTime = b.addedAt ?? DateTime(1970);
+        return bTime.compareTo(aTime);
+      });
       
       // 返回最近添加的6个视频
-      return sortedByCreated.take(6).map(_mapHistoryToVideoCard).toList();
+      return sortedVideos.take(6).map(_mapScannedToVideoCard).toList();
     }
 
     
@@ -831,16 +872,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       // 计算进度
+      final progress = history.currentPosition / (history.totalDuration == 0 ? 1 : history.totalDuration);
+      
+      // 关键修复：正确处理网络视频和本地视频的路径
+      String? localPath;
+      String? url;
+      
+      if (history.sourceType == 'network') {
+        // 网络视频：使用 streamUrl 作为播放 URL
+        url = history.streamUrl;
+        localPath = null;
+        
+        // 调试信息
+        if (url == null || url.isEmpty) {
+          print('⚠️ 警告: 网络视频缺少 streamUrl: ${history.videoName}');
+          print('   videoPath: ${history.videoPath}');
+        }
+      } else {
+        // 本地视频：使用 videoPath 作为本地路径
+        localPath = history.videoPath;
+        url = null;
+      }
+      
       return VideoCardData(
         title: displayTitle,
         subtitle: '上次观看: ${_formatDate(history.lastPlayedAt)}',
-        progress: history.currentPosition / (history.totalDuration == 0 ? 1 : history.totalDuration),
+        progress: progress,
         type: history.sourceType == 'network' ? '网络' : '本地',
         duration: Duration(seconds: history.totalDuration),
         thumbnailUrl: thumbnailUrl,
-        // 关键修复：网络视频使用 streamUrl，本地视频使用 videoPath
-        localPath: history.sourceType == 'network' ? null : history.videoPath,
-        url: history.sourceType == 'network' ? history.streamUrl : null,
+        localPath: localPath,
+        url: url,
       );
     }
 
@@ -874,8 +936,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _playVideo(VideoCardData video) {
+    // 验证视频数据
+    if (video.localPath == null && video.url == null) {
+      print('❌ 错误: 视频缺少播放路径');
+      print('   标题: ${video.title}');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('无法播放视频: 缺少有效的播放路径'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+    
     if (video.localPath != null) {
       // 播放本地视频
+      print('🎬 准备播放本地视频: ${video.localPath}');
+      
       if (mounted) {
         Navigator.push(
           context,
@@ -885,12 +966,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ).then((_) {
+          print('🔄 从播放器返回,刷新主页数据...');
           _historyListKey.currentState?.refreshHistories();
           _loadData(); // 刷新主页数据
         });
       }
     } else if (video.url != null) {
       // 播放网络视频
+      print('🎬 准备播放网络视频: ${video.url}');
+      
       if (mounted) {
         Navigator.push(
           context,
@@ -901,6 +985,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ).then((_) {
+          print('🔄 从播放器返回,刷新主页数据...');
           _historyListKey.currentState?.refreshHistories();
           _loadData(); // 刷新主页数据
         });
