@@ -148,7 +148,7 @@ class _MyAppState extends State<MyApp> {
       // 初始化插件系统
       try {
         await initializePluginSystem(config: PluginLoadConfig(
-          autoActivate: false, // 暂时禁用自动激活
+          autoActivate: true, // 启用自动激活以支持插件状态持久化
           enableLazyLoading: false,
           loadTimeout: const Duration(seconds: 10),
           maxConcurrentLoads: 2,

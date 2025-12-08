@@ -1024,7 +1024,7 @@ void _showSuccess(String title, String message) {
     return Wrap(
       spacing: 8,
       children: [
-        if (plugin.isReady && !plugin.isActive)
+        if (plugin.state.canActivate && !plugin.isActive)
           ElevatedButton.icon(
             onPressed: () => _activatePlugin(plugin),
             icon: const Icon(Icons.play_arrow),
