@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/plugin_system/core_plugin.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugins/media_server/smb/smb_plugin.dart';
@@ -117,6 +118,9 @@ class PluginStatusService {
             }
           }
         }
+
+        // 【新增】社区版：恢复已保存的插件激活状态
+        await _restoreSavedPluginStates();
       }
 
       if (kDebugMode) {
@@ -189,6 +193,9 @@ class PluginStatusService {
         }
         await plugin.activate();
 
+        // 【新增】保存状态到 SharedPreferences
+        await _saveActivePluginState(pluginId, isActive: true);
+
         print('✅ Plugin activated via LazyLoader: $pluginId');
       }
 
@@ -230,7 +237,14 @@ class PluginStatusService {
     }
 
     try {
-      await plugin.deactivate();
+      if (EditionConfig.isProEdition) {
+        // 专业版：使用 PluginLoader 的停用机制（会自动保存状态）
+        await pluginLoader.deactivatePlugin(pluginId);
+      } else {
+        // 社区版：直接停用并保存状态
+        await plugin.deactivate();
+        await _saveActivePluginState(pluginId, isActive: false);
+      }
 
       _statusController.add(PluginStatusChangeEvent(
         pluginId: pluginId,
@@ -304,6 +318,104 @@ class PluginStatusService {
       return Colors.orange;
     } else {
       return Colors.grey;
+    }
+  }
+
+  /// 恢复已保存的插件激活状态
+  Future<void> _restoreSavedPluginStates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedPlugins = prefs.getStringList('active_plugins');
+
+      if (savedPlugins == null || savedPlugins.isEmpty) {
+        if (kDebugMode) {
+          print('📋 No saved plugin states found, keeping default states');
+        }
+        return;
+      }
+
+      if (kDebugMode) {
+        print('📋 Found ${savedPlugins.length} saved plugins to restore: $savedPlugins');
+      }
+
+      int successCount = 0;
+      int failCount = 0;
+
+      for (final pluginId in savedPlugins) {
+        final plugin = _plugins[pluginId];
+        if (plugin == null) {
+          if (kDebugMode) {
+            print('⚠️ Plugin $pluginId not found in loaded plugins, skipping');
+          }
+          continue;
+        }
+
+        if (!plugin.isActive) {
+          try {
+            if (!plugin.isReady) {
+              await plugin.initialize();
+            }
+            await plugin.activate();
+            if (kDebugMode) {
+              print('✅ Restored plugin state: $pluginId');
+            }
+            successCount++;
+          } catch (e) {
+            if (kDebugMode) {
+              print('❌ Failed to restore plugin $pluginId: $e');
+            }
+            failCount++;
+          }
+        } else {
+          successCount++;
+        }
+      }
+
+      if (kDebugMode) {
+        print('✅ Plugin state restoration summary: $successCount succeeded, $failCount failed');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to restore plugin states: $e');
+      }
+    }
+  }
+
+  /// 保存插件激活状态到 SharedPreferences
+  Future<void> _saveActivePluginState(String pluginId, {required bool isActive}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      List<String> activePlugins;
+      final savedPlugins = prefs.getStringList('active_plugins');
+      
+      if (savedPlugins == null) {
+        // 首次保存，初始化为当前所有已激活的插件
+        activePlugins = _plugins.values
+            .where((p) => p.isActive)
+            .map((p) => p.metadata.id)
+            .toList();
+      } else {
+        activePlugins = List.from(savedPlugins);
+      }
+
+      if (isActive) {
+        // 添加到激活列表
+        if (!activePlugins.contains(pluginId)) {
+          activePlugins.add(pluginId);
+        }
+      } else {
+        // 从激活列表移除
+        activePlugins.remove(pluginId);
+      }
+
+      await prefs.setStringList('active_plugins', activePlugins);
+      if (kDebugMode) {
+        print('💾 Saved active plugin state: $pluginId (${isActive ? "enabled" : "disabled"})');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to save active plugin state: $e');
+      }
     }
   }
 

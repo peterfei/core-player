@@ -138,6 +138,9 @@ class PluginLoader {
         await _registry.activateWithDependencies(pluginId);
       }
 
+      // 【新增】保存状态
+      await _saveActivePluginState(pluginId, isActive: true);
+
       _log('✅ Plugin activated: $pluginId');
     } catch (e) {
       _log('❌ Failed to activate plugin $pluginId: $e');
@@ -156,6 +159,9 @@ class PluginLoader {
       if (plugin.isActive) {
         await _registry.deactivateWithDependents(pluginId);
       }
+
+      // 【新增】保存状态
+      await _saveActivePluginState(pluginId, isActive: false);
 
       _log('✅ Plugin deactivated: $pluginId');
     } catch (e) {
@@ -400,12 +406,14 @@ class PluginLoader {
       _log('Auto-activating plugins...');
 
       final prefs = await SharedPreferences.getInstance();
-      final activePlugins = prefs.getStringList('active_plugins') ?? [];
+      final activePlugins = prefs.getStringList('active_plugins');
 
       // 如果没有保存的活跃插件列表，激活所有默认插件
-      if (activePlugins.isEmpty) {
+      if (activePlugins == null) {
+        _log('No saved active plugins, activating default plugins...');
         await _activateDefaultPlugins();
       } else {
+        _log('📋 Found ${activePlugins.length} saved plugins to activate: $activePlugins');
         await _activateSavedPlugins(activePlugins);
       }
 
@@ -429,29 +437,99 @@ class PluginLoader {
             // 'coreplayer.pro.decoder.av1', // TODO: 修复类型定义后启用
           ];
 
+    int successCount = 0;
+    int failCount = 0;
+
     for (final pluginId in defaultPlugins) {
       final plugin = _registry.get<CorePlugin>(pluginId);
       if (plugin != null && !plugin.isActive) {
         try {
-          await activatePlugin(pluginId);
+          // 这里使用基类激活，不触发状态保存，因为这是默认行为
+          // 或者我们也可以让它保存，但这会让首次启动后立刻生成配置文件
+          // 暂时保持不保存
+          await _registry.activateWithDependencies(pluginId);
+          _log('✅ Default plugin activated: $pluginId');
+          successCount++;
         } catch (e) {
           _log('Warning: Failed to activate default plugin $pluginId: $e');
+          failCount++;
         }
+      } else if (plugin != null && plugin.isActive) {
+        successCount++;
       }
     }
+    _log('✅ Default activation summary: $successCount succeeded, $failCount failed');
   }
 
   /// 激活保存的插件
   Future<void> _activateSavedPlugins(List<String> pluginIds) async {
+    int successCount = 0;
+    int failCount = 0;
+
     for (final pluginId in pluginIds) {
+      // 检查插件是否存在于注册表
+      if (!_registry.hasPlugin(pluginId)) {
+        _log('⚠️ Plugin $pluginId not found in registry, skipping');
+        continue;
+      }
+
       final plugin = _registry.get<CorePlugin>(pluginId);
       if (plugin != null && !plugin.isActive) {
         try {
-          await activatePlugin(pluginId);
+          // 不调用 activatePlugin 避免重复保存状态 (虽然保存是幂等的)
+          // 但我们可以调用 activatePlugin 来确保统一的逻辑? 
+          // 实际上 activatePlugin 会再次保存状态，这是不必要的 IO
+          // 且我们需要避免在启动时重写 shared_preferences
+          await _registry.activateWithDependencies(pluginId);
+          _log('✅ Saved plugin activated: $pluginId');
+          successCount++;
         } catch (e) {
           _log('Warning: Failed to activate saved plugin $pluginId: $e');
+          failCount++;
         }
+      } else {
+        _log('ℹ️ Plugin $pluginId is already active, skipping');
+        successCount++;
       }
+    }
+    
+    // 【新增】统计日志
+    _log('✅ Activation summary: $successCount succeeded, $failCount failed');
+  }
+
+  /// 保存插件激活状态
+  Future<void> _saveActivePluginState(String pluginId, {required bool isActive}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      List<String> activePlugins;
+      final savedPlugins = prefs.getStringList('active_plugins');
+      
+      if (savedPlugins == null) {
+          // 首次保存，初始化为当前所有已激活的插件
+          // 这样可以确保当前的默认状态被正确捕获，而不是从空列表开始
+          activePlugins = _registry.listAll()
+              .where((p) => p.isActive)
+              .map((p) => p.metadata.id)
+              .toList();
+      } else {
+          activePlugins = List.from(savedPlugins);
+      }
+
+      if (isActive) {
+        // 添加到激活列表
+        if (!activePlugins.contains(pluginId)) {
+          activePlugins.add(pluginId);
+        }
+      } else {
+        // 从激活列表移除
+        activePlugins.remove(pluginId);
+      }
+
+      await prefs.setStringList('active_plugins', activePlugins);
+      _log('💾 Saved active plugin state: $pluginId (${isActive ? "enabled" : "disabled"})');
+    } catch (e) {
+      _log('❌ Failed to save active plugin state: $e');
+      throw PluginPersistenceException('Failed to save plugin state: $e', originalError: e);
     }
   }
 
@@ -537,4 +615,10 @@ Future<void> initializePluginSystem({
 }) async {
   pluginLoader = PluginLoader(config: config);
   await pluginLoader.initialize();
+}
+
+/// 插件持久化异常
+class PluginPersistenceException extends PluginException {
+  PluginPersistenceException(String message, {String? pluginId, dynamic originalError})
+      : super(message, pluginId: pluginId, originalError: originalError);
 }
